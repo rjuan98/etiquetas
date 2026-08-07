@@ -1,0 +1,61 @@
+^XA
+^CI28
+^PW406
+^LL203
+^LH0,0
+^FO16,16^A0N,17,17^FDIndustria Brasileira^FS
+^FO16,64^A0N,17,17^FDPor EcoCasa^FS
+^XZ
+
+--- template ---
+{
+  "esquema": 1,
+  "nome": "2x1",
+  "midia": {
+    "largura_mm": 50.8,
+    "altura_mm": 25.4,
+    "tipo": "rolo",
+    "pagina_largura_mm": 210.0,
+    "pagina_altura_mm": 297.0,
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 2,
+      "campo": "",
+      "largura_mm": 0.0,
+      "tamanho_pt": 6,
+      "linhas_max": 1,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "Industria Brasileira",
+      "sufixo": ""
+    },
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 8,
+      "campo": "produto.fornecedor",
+      "largura_mm": 0.0,
+      "tamanho_pt": 6,
+      "linhas_max": 1,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "Por ",
+      "sufixo": ""
+    }
+  ]
+}

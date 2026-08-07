@@ -1,0 +1,46 @@
+^XA
+^CI28
+^PW320
+^LL160
+^LH0,0
+^FO16,16^FB256,3,0,L,0^A0N,22,22^FDCanudo de Vidro Reto\&20cm - Kit 4\&unidades^FS
+^XZ
+
+--- template ---
+{
+  "esquema": 1,
+  "nome": "sentinela",
+  "midia": {
+    "largura_mm": 40,
+    "altura_mm": 20,
+    "tipo": "rolo",
+    "pagina_largura_mm": 210.0,
+    "pagina_altura_mm": 297.0,
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 2,
+      "campo": "produto.titulo",
+      "largura_mm": 32,
+      "tamanho_pt": 7.8,
+      "linhas_max": 3,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": ""
+    }
+  ]
+}

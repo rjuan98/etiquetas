@@ -1,0 +1,78 @@
+{
+  "esquema": 1,
+  "nome": "2x1 varejo",
+  "midia": {
+    "largura_mm": 50.8,
+    "altura_mm": 25.4,
+    "tipo": "rolo",
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 1,
+      "campo": "produto.titulo",
+      "largura_mm": 46.75,
+      "tamanho_pt": 7.8,
+      "linhas_max": 2,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": ""
+    },
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 7.75,
+      "campo": "variante.sku",
+      "largura_mm": 0.0,
+      "tamanho_pt": 6.4,
+      "linhas_max": 1,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "SKU: ",
+      "sufixo": ""
+    },
+    {
+      "tipo": "preco",
+      "x_mm": 2,
+      "y_mm": 7.25,
+      "campo": "variante.preco",
+      "largura_mm": 46.75,
+      "tamanho_pt": 10,
+      "linhas_max": 1,
+      "alinhamento": "dir",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": "",
+      "simbolo": "R$",
+      "simbolo_depois": false,
+      "separador_decimal": ",",
+      "separador_milhar": "."
+    },
+    {
+      "tipo": "codigo_barras",
+      "x_mm": 2,
+      "y_mm": 11.5,
+      "campo": "variante.codigo_barras",
+      "simbologia": "EAN13",
+      "largura_mm": 30.0,
+      "altura_mm": 7.5,
+      "modulo_dots": 2,
+      "mostrar_texto": true
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+
+# Segredo NUNCA entra no repositório. O do app do Shopify assina webhook e token
+# de sessão: vazou, qualquer um se passa por qualquer loja.
+.env
+.env.*
+!.env.exemplo
+
+# O banco leva o token de acesso das lojas (cifrado, mas ainda assim).
+*.db
+*.db-journal
+*.sqlite3
+
+# Saída de teste manual.
+pdfs/

@@ -1,0 +1,44 @@
+^XA
+^CI28
+^PW406
+^LL203
+^LH0,0
+^BY2,3,96^FO36,16^BCN,96,Y,N,N^FDCAN-VD-20^FS
+^XZ
+
+--- template ---
+{
+  "esquema": 1,
+  "nome": "2x1",
+  "midia": {
+    "largura_mm": 50.8,
+    "altura_mm": 25.4,
+    "tipo": "rolo",
+    "pagina_largura_mm": 210.0,
+    "pagina_altura_mm": 297.0,
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "codigo_barras",
+      "x_mm": 2,
+      "y_mm": 2,
+      "campo": "variante.sku",
+      "simbologia": "CODE128",
+      "largura_mm": 30.0,
+      "altura_mm": 12,
+      "modulo_dots": 2,
+      "mostrar_texto": true,
+      "correcao_qr": "M"
+    }
+  ]
+}

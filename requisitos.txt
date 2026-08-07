@@ -1,0 +1,8 @@
+reportlab>=4.0
+pypdf>=4.0
+flask>=3.0
+cryptography>=42.0
+
+# Sem `requests` de propósito: `loja/rede.py` usa só a biblioteca padrão. Uma
+# dependência a menos pra instalar no servidor e pra atualizar quando sair falha
+# de segurança — e pra POST de JSON o urllib dá e sobra.

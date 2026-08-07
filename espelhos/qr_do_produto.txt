@@ -1,0 +1,59 @@
+^XA
+^CI28
+^PW406
+^LL203
+^LH0,0
+^FO16,16^FB208,2,0,L,0^A0N,20,20^FDCanudo de Vidro\&Reto 20cm - Kit 4^FS
+^FO256,32^BQN,2,4^FDMA,https://ecocasa.com.br/p/canudo-vidro-reto-20cm^FS
+^XZ
+
+--- template ---
+{
+  "esquema": 1,
+  "nome": "qr",
+  "midia": {
+    "largura_mm": 50.8,
+    "altura_mm": 25.4,
+    "tipo": "rolo",
+    "pagina_largura_mm": 210.0,
+    "pagina_altura_mm": 297.0,
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "texto",
+      "x_mm": 2,
+      "y_mm": 2,
+      "campo": "produto.titulo",
+      "largura_mm": 26,
+      "tamanho_pt": 7,
+      "linhas_max": 2,
+      "alinhamento": "esq",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": ""
+    },
+    {
+      "tipo": "codigo_barras",
+      "x_mm": 30,
+      "y_mm": 4,
+      "campo": "produto.url",
+      "simbologia": "QR",
+      "largura_mm": 30.0,
+      "altura_mm": 18,
+      "modulo_dots": 4,
+      "mostrar_texto": true,
+      "correcao_qr": "M"
+    }
+  ]
+}

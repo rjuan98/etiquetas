@@ -1,0 +1,125 @@
+"""O único arquivo do projeto que fala com a internet.
+
+Todo o resto de `loja/` monta URL e corpo, e devolve — de propósito, pra ser
+testável sem credencial. Aqui é onde isso vira requisição de verdade.
+
+Ter um só lugar não é organização: é o que faz timeout, tentativa e limite de
+requisição existirem **sempre**. Espalhado por dez rotas, alguma vai ficar sem
+timeout, e um Shopify lento derruba o servidor inteiro com requisições penduradas.
+
+## Sem `requests`
+
+Só biblioteca padrão. Uma dependência a menos pra instalar no servidor, uma a
+menos pra atualizar quando tiver falha de segurança, e pra POST de JSON o
+`urllib` dá e sobra.
+
+## O limite de requisições do Shopify
+
+O GraphQL do Shopify usa um balde que enche: cada consulta custa pontos, o balde
+repõe 50 por segundo. Estourou, ele responde 200 (não 429!) com `THROTTLED`
+dentro do JSON. Quem só olha o código HTTP acha que deu certo e mostra tela vazia.
+
+A espera é exponencial porque insistir no mesmo ritmo só afunda mais o balde.
+"""
+import json
+import time
+import urllib.error
+import urllib.request
+
+TEMPO_LIMITE = 20          # segundos por requisição
+TENTATIVAS = 3
+ESPERA_BASE = 1.0          # dobra a cada tentativa
+
+
+class ErroDeRede(Exception):
+    """Falha ao falar com o Shopify. Mensagem já em português, pro log."""
+
+
+class _SemRedirecionamento(urllib.request.HTTPRedirectHandler):
+    """Recusa redirecionamento.
+
+    O `dominio.py` garante que a URL começa em `*.myshopify.com`, mas um
+    redirecionamento aconteceria DEPOIS dessa checagem e levaria a requisição
+    pra onde a resposta mandar — inclusive pra um endereço interno da rede do
+    servidor. A API do Shopify não redireciona, então recusar não custa nada.
+    """
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ErroDeRede("o Shopify respondeu com redirecionamento (%s), "
+                         "o que não é esperado" % code)
+
+
+_abridor = urllib.request.build_opener(_SemRedirecionamento)
+
+
+def _post(url: str, corpo: dict, cabecalhos: dict) -> dict:
+    dados = json.dumps(corpo).encode("utf-8")
+    pedido = urllib.request.Request(url, data=dados, method="POST")
+    pedido.add_header("Content-Type", "application/json")
+    for chave, valor in (cabecalhos or {}).items():
+        pedido.add_header(chave, valor)
+
+    try:
+        with _abridor.open(pedido, timeout=TEMPO_LIMITE) as resposta:
+            return json.loads(resposta.read().decode("utf-8"))
+    except urllib.error.HTTPError as erro:
+        detalhe = ""
+        try:
+            detalhe = erro.read().decode("utf-8")[:400]
+        except Exception:
+            pass
+        raise ErroDeRede("o Shopify respondeu %s: %s" % (erro.code, detalhe))
+    except urllib.error.URLError as erro:
+        raise ErroDeRede("não consegui falar com o Shopify: %s" % erro.reason)
+    except json.JSONDecodeError:
+        raise ErroDeRede("o Shopify respondeu algo que não é JSON")
+
+
+def _foi_estrangulado(resposta: dict) -> bool:
+    """`THROTTLED` vem dentro de uma resposta 200, não num 429."""
+    for erro in (resposta or {}).get("errors") or []:
+        if isinstance(erro, dict):
+            codigo = (erro.get("extensions") or {}).get("code")
+            if codigo == "THROTTLED":
+                return True
+            if "throttled" in str(erro.get("message", "")).lower():
+                return True
+    return False
+
+
+def graphql(loja: str, token: str, corpo: dict) -> dict:
+    """Chama o GraphQL do admin, com espera crescente se levar limite.
+
+    A URL passa pelo `catalogo.url_graphql`, que passa pelo `dominio.normalizar`.
+    Montar essa string à mão aqui anularia a defesa contra SSRF.
+    """
+    from . import catalogo
+
+    if not token:
+        raise ErroDeRede("loja sem token de acesso — precisa reinstalar o app")
+
+    url = catalogo.url_graphql(loja)
+    cabecalhos = {"X-Shopify-Access-Token": token}
+
+    espera = ESPERA_BASE
+    for tentativa in range(TENTATIVAS):
+        resposta = _post(url, corpo, cabecalhos)
+        if not _foi_estrangulado(resposta):
+            return resposta
+        if tentativa < TENTATIVAS - 1:
+            time.sleep(espera)
+            espera *= 2
+
+    raise ErroDeRede("o Shopify está limitando as requisições. "
+                     "Tente de novo em alguns segundos.")
+
+
+def trocar_token(url: str, corpo: dict) -> str:
+    """Executa a troca do `code` do OAuth pelo token permanente.
+
+    A URL vem do `oauth.troca_de_token`, que já normalizou o domínio.
+    """
+    resposta = _post(url, corpo, {})
+    token = (resposta or {}).get("access_token")
+    if not token:
+        raise ErroDeRede("o Shopify não devolveu o token de acesso")
+    return token

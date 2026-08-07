@@ -1,0 +1,65 @@
+^XA
+^CI28
+^PW200
+^LL96
+^LH0,0
+^FO8,8^FB184,2,0,L,0^A0N,14,14^FDCanudo de Vidro Reto\&20cm - Kit 4 unidades^FS
+^FO8,64^FB184,1,0,R,0^A0N,20,20^FDR$ 24,90^FS
+^XZ
+
+--- template ---
+{
+  "esquema": 1,
+  "nome": "joia",
+  "midia": {
+    "largura_mm": 25,
+    "altura_mm": 12,
+    "tipo": "rolo",
+    "pagina_largura_mm": 210.0,
+    "pagina_altura_mm": 297.0,
+    "colunas": 1,
+    "linhas": 1,
+    "margem_topo_mm": 0.0,
+    "margem_esq_mm": 0.0,
+    "espaco_horizontal_mm": 0.0,
+    "espaco_vertical_mm": 0.0
+  },
+  "calibracao": {
+    "desvio_x_mm": 0.0,
+    "desvio_y_mm": 0.0
+  },
+  "elementos": [
+    {
+      "tipo": "texto",
+      "x_mm": 1,
+      "y_mm": 1,
+      "campo": "produto.titulo",
+      "largura_mm": 23,
+      "tamanho_pt": 7,
+      "linhas_max": 2,
+      "alinhamento": "esq",
+      "excesso": "encolher",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": ""
+    },
+    {
+      "tipo": "preco",
+      "x_mm": 1,
+      "y_mm": 8,
+      "campo": "variante.preco",
+      "largura_mm": 23,
+      "tamanho_pt": 7,
+      "linhas_max": 1,
+      "alinhamento": "dir",
+      "excesso": "cortar",
+      "negrito": false,
+      "prefixo": "",
+      "sufixo": "",
+      "simbolo": "R$",
+      "simbolo_depois": false,
+      "separador_decimal": ",",
+      "separador_milhar": "."
+    }
+  ]
+}
