@@ -91,20 +91,20 @@ def buscar_cru(loja_id: int, modelo_id: int):
     return dict(linha) if linha else None
 
 
-def criar(loja_id: int, nome: str, template) -> int:
+def criar(loja_id: int, nome: str, template, receita=None) -> int:
     dono = _loja(loja_id)
     nome = (nome or "").strip() or "Sem nome"
     texto = esquema.para_json(template)
     momento = agora()
     with banco.conectar() as con:
         cursor = con.execute(
-            """INSERT INTO modelos (loja_id, nome, json, criado_em, alterado_em)
-               VALUES (?, ?, ?, ?, ?)""",
-            (dono, nome, texto, momento, momento))
+            """INSERT INTO modelos (loja_id, nome, json, receita, criado_em, alterado_em)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (dono, nome, texto, json.dumps(receita or {}), momento, momento))
     return int(cursor.lastrowid)
 
 
-def salvar(loja_id: int, modelo_id: int, nome: str, template) -> bool:
+def salvar(loja_id: int, modelo_id: int, nome: str, template, receita=None) -> bool:
     """Atualiza. Devolve False se o modelo não for desta loja.
 
     O `AND loja_id = ?` no UPDATE é ainda mais importante que no SELECT: sem ele,
@@ -115,10 +115,10 @@ def salvar(loja_id: int, modelo_id: int, nome: str, template) -> bool:
     texto = esquema.para_json(template)
     with banco.conectar() as con:
         cursor = con.execute(
-            """UPDATE modelos SET nome = ?, json = ?, alterado_em = ?
+            """UPDATE modelos SET nome = ?, json = ?, receita = ?, alterado_em = ?
                WHERE id = ? AND loja_id = ?""",
-            ((nome or "").strip() or "Sem nome", texto, agora(),
-             int(modelo_id), dono))
+            ((nome or "").strip() or "Sem nome", texto, json.dumps(receita or {}),
+             agora(), int(modelo_id), dono))
     return cursor.rowcount > 0
 
 
@@ -153,10 +153,10 @@ def duplicar(loja_id: int, modelo_id: int):
     momento = agora()
     with banco.conectar() as con:
         cursor = con.execute(
-            """INSERT INTO modelos (loja_id, nome, json, criado_em, alterado_em)
-               VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO modelos (loja_id, nome, json, receita, criado_em, alterado_em)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (dono, "%s (cópia)" % original["nome"], original["json"],
-             momento, momento))
+             original.get("receita") or "{}", momento, momento))
     return int(cursor.lastrowid)
 
 

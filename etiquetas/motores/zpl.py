@@ -17,7 +17,7 @@ O que ele NÃO faz, e custou uma descoberta: `^LH` não aceita valor negativo. S
 desloca pra direita e pra baixo. Por isso a calibração é aplicada aqui, no
 cálculo da coordenada, e não no comando.
 """
-from .. import campos, codigos, texto as texto_mod, unidades
+from .. import campos, codigos, texto as texto_mod, unidades, valores
 from ..modelo import CodigoBarras, Preco, Template, Texto
 
 
@@ -52,23 +52,10 @@ def _alinhamento_zpl(alinhamento: str) -> str:
 
 
 def _render_texto(el: Texto, template: Template, dados: dict, dpi: int) -> list[str]:
-    if not el.campo:
-        valor = ""                     # elemento de texto fixo, sem campo
-    elif isinstance(el, Preco):
-        valor = campos.formatar_preco(
-            campos.resolver(el.campo, dados),
-            simbolo=el.simbolo, simbolo_depois=el.simbolo_depois,
-            decimal=el.separador_decimal, milhar=el.separador_milhar,
-        )
-    else:
-        valor = campos.resolver(el.campo, dados)
-
-    # Campo vazio some com o rótulo junto: "SKU: " sozinho numa etiqueta é pior
-    # que espaço em branco — parece defeito de impressão.
-    if el.campo and not valor:
-        return []
-
-    bruto = el.prefixo + valor + el.sufixo
+    # A regra de qual valor sai (campo, formatação de preço, prefixo/sufixo, e o
+    # rótulo sumindo junto com o campo vazio) mora em `valores.py`, e os três
+    # motores chamam de lá. Antes era escrita aqui e de novo no PDF.
+    bruto = valores.do_elemento(el, dados)
     if not bruto:
         return []
 

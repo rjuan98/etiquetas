@@ -31,7 +31,7 @@ from reportlab.graphics.barcode import createBarcodeDrawing
 from reportlab.lib.colors import black
 from reportlab.pdfgen import canvas
 
-from .. import campos, codigos, texto as texto_mod, unidades
+from .. import campos, codigos, texto as texto_mod, unidades, valores
 from ..modelo import CodigoBarras, Preco, Template, Texto
 
 # Como cada simbologia nossa se chama no reportlab. A tradução mora aqui e em
@@ -67,31 +67,10 @@ def _y_pdf(y_mm_topo: float, altura_total_mm: float) -> float:
     return _pt(altura_total_mm - y_mm_topo)
 
 
-def _valor_do_elemento(el, dados: dict) -> str:
-    """Mesma resolução do motor ZPL — inclusive o rótulo sumindo com o campo.
-
-    Se esta regra divergir entre os motores, a mesma etiqueta sai diferente na
-    Zebra e no PDF, e o lojista descobre que o app depende da impressora.
-    """
-    if not el.campo:
-        valor = ""
-    elif isinstance(el, Preco):
-        valor = campos.formatar_preco(
-            campos.resolver(el.campo, dados),
-            simbolo=el.simbolo, simbolo_depois=el.simbolo_depois,
-            decimal=el.separador_decimal, milhar=el.separador_milhar,
-        )
-    else:
-        valor = campos.resolver(el.campo, dados)
-
-    if el.campo and not valor:
-        return ""
-    return el.prefixo + valor + el.sufixo
-
-
 def _desenhar_texto(c, el: Texto, dados: dict, ox_mm: float, oy_mm: float,
                     altura_pagina_mm: float):
-    bruto = _valor_do_elemento(el, dados)
+    # Ver `valores.py`: esta regra era escrita aqui e outra vez no motor ZPL.
+    bruto = valores.do_elemento(el, dados)
     if not bruto:
         return
 

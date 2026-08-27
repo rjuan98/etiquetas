@@ -109,11 +109,16 @@ CREATE TABLE IF NOT EXISTS lojas (
     desinstalada_em   TEXT
 );
 
+-- `json` é o template montado, que é o que imprime.
+-- `receita` são as escolhas que o geraram (quais campos, formato, moeda). Sem
+-- ela dava pra imprimir mas não dava pra EDITAR: o lojista reabriria o modelo e
+-- veria os botões todos no padrão, sem relação com a etiqueta na tela.
 CREATE TABLE IF NOT EXISTS modelos (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     loja_id     INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
     nome        TEXT NOT NULL,
     json        TEXT NOT NULL,
+    receita     TEXT NOT NULL DEFAULT '{}',
     criado_em   TEXT NOT NULL,
     alterado_em TEXT NOT NULL
 );
@@ -134,7 +139,21 @@ CREATE INDEX IF NOT EXISTS idx_impressoes_loja_data ON impressoes(loja_id, criad
 """
 
 
+# Colunas acrescentadas depois que o banco já existia em algum lugar.
+# `CREATE TABLE IF NOT EXISTS` não altera tabela que já está lá: sem isto, um
+# banco antigo continuaria sem a coluna nova e toda escrita quebraria — só na
+# máquina de quem já tinha rodado antes, que é o pior tipo de bug pra descobrir.
+ACRESCENTAR = [
+    ("modelos", "receita", "TEXT NOT NULL DEFAULT '{}'"),
+]
+
+
 def iniciar():
-    """Cria o esquema. Idempotente: roda a cada boot sem medo."""
+    """Cria o esquema e aplica as colunas novas. Idempotente: roda a cada boot."""
     with conectar() as con:
         con.executescript(ESQUEMA)
+        for tabela, coluna, tipo in ACRESCENTAR:
+            existentes = {c["name"] for c in
+                          con.execute("PRAGMA table_info(%s)" % tabela).fetchall()}
+            if coluna not in existentes:
+                con.execute("ALTER TABLE %s ADD COLUMN %s %s" % (tabela, coluna, tipo))

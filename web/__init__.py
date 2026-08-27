@@ -68,6 +68,13 @@ def criar_app(banco_caminho=None) -> Flask:
     app.register_blueprint(rotas_api.rotas)
     app.register_blueprint(rotas_tela.rotas)
 
+    # A tela de desenvolvimento só existe com MODO_DEV. Não é `if` dentro de uma
+    # rota: a rota simplesmente NÃO EXISTE em produção, que é a tranca mais
+    # difícil de furar por engano.
+    if config.MODO_DEV:
+        from . import dev
+        app.register_blueprint(dev.rotas)
+
     @app.after_request
     def cabecalhos(resposta):
         loja = request.args.get("shop", "")

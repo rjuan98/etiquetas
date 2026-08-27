@@ -15,3 +15,6 @@ __pycache__/
 
 # Saída de teste manual.
 pdfs/
+
+# Configuração local do editor.
+.claude/

@@ -1448,6 +1448,276 @@ check("a URL de volta bate com o que vai no painel do Shopify",
       _cfg.url_de_volta().endswith("/instalar/volta"))
 
 
+secao("48. Motor SVG: a previa que nao pode mentir")
+# A previa existe pra pessoa decidir ANTES de gastar etiqueta. Se ela quebrar o
+# texto num lugar e a impressora noutro, ela e pior que nao ter previa — o
+# lojista confia, imprime duzentas e descobre no papel.
+# Por isso a previa sai do servidor, chamando as MESMAS funcoes.
+import re as _re
+from etiquetas.motores import svg as motor_svg
+
+_svg = motor_svg.render(etiqueta_padrao(), DADOS)
+
+
+def _textos_svg(fonte):
+    """So os textos DA ETIQUETA, sem os do codigo de barras.
+
+    O codigo de barras entra como <svg> aninhado, e o reportlab desenha o numero
+    legivel dele em varios <text> soltos ('7', '891234', '567895'). Comparar isso
+    com o ^FD do ZPL — que leva o numero inteiro de uma vez — daria diferenca sem
+    nenhum dos dois estar errado. Some com o aninhado antes de olhar.
+    """
+    sem_codigo = _re.sub(r"<svg x=.*?</svg>", "", fonte, flags=_re.DOTALL)
+    return _re.findall(r"<text[^>]*>([^<]*)</text>", sem_codigo)
+
+
+def _linhas_zpl(fonte):
+    """As linhas de texto do ZPL. `\\&` e a quebra de linha dentro do ^FD.
+
+    So conta o ^FD que vem junto de um ^A0N, que e o comando de fonte — o resto
+    e dado de codigo de barras, que nao e texto desenhado.
+    """
+    saida = []
+    for linha in fonte.splitlines():
+        if "^A0N" not in linha:
+            continue
+        for campo in _re.findall(r"\^FD(.*?)\^FS", linha):
+            saida.extend(campo.split("\\&"))
+    return saida
+
+
+check("o viewBox e a etiqueta em MILIMETRO, sem escala no meio",
+      'viewBox="0 0 50.8 25.4"' in _svg, _svg[:120])
+# SVG tem origem no topo e Y crescendo pra baixo, igual ao modelo e ao ZPL. E o
+# PDF que e o esquisito dos tres. Se aparecer um "altura - y" no motor SVG, e bug.
+check("nao tem inversao de eixo Y no arquivo",
+      "altura_pagina" not in _io.open("etiquetas/motores/svg.py", encoding="utf-8").read())
+
+# O teste que segura a promessa: a previa quebra o texto ONDE a impressora quebra.
+_txt_svg = [t for t in _textos_svg(_svg) if t.strip()]
+_txt_zpl = _linhas_zpl(zpl.render(etiqueta_padrao(), DADOS))
+check("as linhas de texto do SVG sao as MESMAS do ZPL, na mesma ordem",
+      _txt_svg[:len(_txt_zpl)] == _txt_zpl, (_txt_svg, _txt_zpl))
+check("inclusive a quebra do titulo em duas linhas",
+      "Canudo de Vidro Reto 20cm -" in _txt_svg and "Kit 4 unidades" in _txt_svg)
+check("e o preco formatado igual aos outros motores", "R$ 24,90" in _txt_svg)
+
+# Campo vazio leva o rotulo junto, nos TRES motores.
+_svg_vazio = motor_svg.render(etiqueta_padrao(), _vazio)
+check("campo vazio leva o rotulo junto tambem no SVG",
+      "SKU:" not in "".join(_textos_svg(_svg_vazio)))
+check("mas o titulo continua", "So titulo" in _textos_svg(_svg_vazio))
+
+# Codigo invalido nao vira barra em nenhum motor — e na previa isso e informacao:
+# o lojista VE o codigo sumir e descobre o cadastro errado antes de imprimir.
+_svg_ruim = motor_svg.render(etiqueta_padrao(), _ruim_cod)
+check("codigo com verificador errado nao e desenhado na previa",
+      "<svg x=" not in _svg_ruim, _svg_ruim[-200:])
+check("mas o codigo valido e desenhado", "<svg x=" in _svg)
+
+# XML nao perdoa & solto. Produto com "&" no nome e rotina em catalogo, e sem
+# escapar o SVG inteiro quebra — a previa fica em branco sem dizer por que.
+_svg_amp = motor_svg.render(etiqueta_padrao(),
+                            {"produto": {"titulo": "Camiseta P&B <G>"}, "variante": {}})
+check("o & do nome do produto e escapado", "&amp;" in _svg_amp)
+check("e o < tambem", "&lt;" in _svg_amp and "P&B" not in _svg_amp)
+
+# Calibracao: a previa tem que deslocar junto, senao a pessoa calibra no escuro.
+_svg_cal = motor_svg.render(etiqueta_padrao(Calibracao(desvio_x_mm=2.0, desvio_y_mm=1.5)),
+                            DADOS)
+_x_sem = float(_re.search(r'<text x="([\d.]+)"', _svg).group(1))
+_x_com = float(_re.search(r'<text x="([\d.]+)"', _svg_cal).group(1))
+check("a previa desloca com a calibracao", abs((_x_com - _x_sem) - 2.0) < 0.01,
+      (_x_sem, _x_com))
+_y_sem = float(_re.search(r'<text x="[\d.]+" y="([\d.]+)"', _svg).group(1))
+_y_com = float(_re.search(r'<text x="[\d.]+" y="([\d.]+)"', _svg_cal).group(1))
+check("nos dois eixos", abs((_y_com - _y_sem) - 1.5) < 0.01, (_y_sem, _y_com))
+
+# O codigo de barras sai do tamanho FISICO certo. Nao e estetica: fora da medida,
+# o leitor nao pega. O <svg> aninhado leva a medida em mm, nao em ponto.
+_aninhado = _re.search(r'<svg x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"',
+                       _svg)
+check("o codigo de barras vai como svg aninhado com medida propria", _aninhado is not None)
+if _aninhado:
+    _larg_cod = float(_aninhado.group(3))
+    # EAN-13 com modulo 2 dots a 203dpi: 95 modulos + zona muda ja somada pelo
+    # reportlab desligada. Confere que esta na ordem de grandeza de milimetro, e
+    # nao de ponto (que daria ~73, quase o dobro da etiqueta inteira).
+    check("a medida esta em milimetro, nao sobrou em ponto",
+          5 < _larg_cod < 50.8, _larg_cod)
+    check("e o codigo cabe dentro da etiqueta",
+          float(_aninhado.group(1)) + _larg_cod <= 50.8 + 0.01,
+          float(_aninhado.group(1)) + _larg_cod)
+
+# Etiqueta de medida zero gerava SVG que abre e nao mostra nada. Erro claro e
+# melhor que previa em branco que a pessoa vai jurar que e bug da tela.
+try:
+    motor_svg.render(Template(nome="x", calibracao=Calibracao(),
+                              midia=Midia(largura_mm=0, altura_mm=10),
+                              elementos=[]), DADOS)
+    check("etiqueta de largura zero levanta erro", False)
+except ValueError:
+    check("etiqueta de largura zero levanta erro", True)
+
+# A moldura e so da previa: mostra onde o papel acaba. Nunca vai pro papel.
+check("a previa desenha a borda da etiqueta", "stroke=" in _svg)
+check("e da pra pedir sem borda", "stroke=" not in motor_svg.render(
+    etiqueta_padrao(), DADOS, moldura=False))
+
+
+secao("49. valores.py: a regra do valor mora num lugar so")
+# Nasceu escrita duas vezes (inline no ZPL, funcao no PDF) com um comentario no
+# PDF dizendo "mesma resolucao do motor ZPL" — o comentario era a confissao. O
+# motor de previa seria a terceira copia, entao extrai antes de escrever.
+from etiquetas import valores as _valores
+
+check("os tres motores importam de valores.py",
+      all("valores" in _io.open("etiquetas/motores/%s.py" % m, encoding="utf-8").read()
+          for m in ("zpl", "pdf", "svg")))
+# E ninguem mais pode ter uma copia da regra. Se alguem reescrever a formatacao
+# de preco dentro de um motor, isto pega.
+for _motor in ("zpl", "pdf", "svg"):
+    _fonte_motor = _io.open("etiquetas/motores/%s.py" % _motor, encoding="utf-8").read()
+    check("o motor %s nao formata preco por conta propria" % _motor,
+          "formatar_preco" not in _fonte_motor)
+
+_el_preco = [e for e in etiqueta_padrao().elementos if isinstance(e, Preco)][0]
+check("o preco sai formatado", _valores.do_elemento(_el_preco, DADOS) == "R$ 24,90")
+check("campo vazio devolve vazio, levando o rotulo junto",
+      _valores.do_elemento(_el_preco, {"variante": {}}) == "")
+
+
+secao("50. Receitas: escolhas do lojista viram um template que cabe no papel")
+# A tela manda "quero titulo, SKU, preco e codigo numa 5x2,5cm". Traduzir isso em
+# coordenada e trabalho do servidor — se fosse do JavaScript, a regra viraria
+# duas e a que o lojista ve discordaria da que imprime.
+from etiquetas import receitas, formatos as _fmt
+
+# --- a propriedade que vale pra TODOS os formatos, do menor ao maior ---------
+for _f in _fmt.CATALOGO:
+    _t = receitas.montar(_f.codigo)
+    _m = _t.midia
+    _nome = _f.codigo
+
+    check("%s: o template montado passa na validacao" % _nome,
+          esquema.validar(_t) == [], esquema.validar(_t))
+
+    # Nada pode vazar pra fora do papel. Elemento meio pra fora nao da erro
+    # nenhum: imprime cortado, e o lojista so ve no papel.
+    for _el in _t.elementos:
+        _x, _y = _t.com_calibracao(_el)
+        _alt = getattr(_el, "altura_mm", 0) or (_el.tamanho_pt * 25.4 / 72 * 1.15
+                                                * _el.linhas_max)
+        check("%s: %s nao passa da borda direita" % (_nome, _el.campo),
+              _x + (_el.largura_mm or 0) <= _m.largura_mm + 0.01,
+              (_x, _el.largura_mm, _m.largura_mm))
+        check("%s: %s nao passa da borda de baixo" % (_nome, _el.campo),
+              _y + _alt <= _m.altura_mm + 0.01, (_y, _alt, _m.altura_mm))
+        check("%s: %s nao comeca fora do papel" % (_nome, _el.campo),
+              _x >= -0.01 and _y >= -0.01, (_x, _y))
+
+    # Barra abaixo do minimo nao bipa — e o defeito so aparece no caixa, com fila.
+    # Isto pegou um bug de verdade: o teto proporcional de 42% cortava a barra da
+    # etiqueta de joia pra 5,0mm, abaixo do minimo que o proprio codigo reservou.
+    for _el in _t.elementos:
+        if isinstance(_el, CodigoBarras):
+            check("%s: a barra nao fica abaixo do minimo que bipa" % _nome,
+                  _el.altura_mm >= receitas.BARRA_MINIMA_MM, _el.altura_mm)
+
+# --- a ordem de sobrevivencia -----------------------------------------------
+# Numa etiqueta de joia (56x12mm) nao cabe tudo. A primeira versao cortava de
+# baixo pra cima, na ordem visual, e o titulo de duas linhas comia a etiqueta
+# inteira deixando SEM CODIGO DE BARRAS — numa etiqueta de codigo de barras.
+_joia = receitas.montar("dymo_30299")
+_tem_codigo = any(isinstance(e, CodigoBarras) for e in _joia.elementos)
+check("na etiqueta minuscula o codigo de barras e o que SOBREVIVE", _tem_codigo)
+check("e o titulo e o que sai",
+      not any(e.campo == "produto.titulo" for e in _joia.elementos))
+check("a receita diz o que nao coube, em vez de sumir calada",
+      set(receitas.cabem_os_campos("dymo_30299", receitas.PADRAO))
+      == {"titulo", "sku", "preco"},
+      receitas.cabem_os_campos("dymo_30299", receitas.PADRAO))
+check("numa etiqueta que cabe tudo, nao falta nada",
+      receitas.cabem_os_campos("zebra_2x1", receitas.PADRAO) == [])
+
+# --- as escolhas chegam mesmo no template -----------------------------------
+_euro = receitas.montar("zebra_2x1", simbolo="€", simbolo_depois=True,
+                        separador_decimal=",", separador_milhar=".")
+_p = [e for e in _euro.elementos if isinstance(e, Preco)][0]
+check("o simbolo da moeda chega no elemento", _p.simbolo == "€")
+check("e a posicao do simbolo tambem", _p.simbolo_depois is True)
+# "o € fica do lado errado" e uma das reclamacoes do app oficial. Prova de ponta
+# a ponta: da escolha ate o texto renderizado.
+_svg_euro = motor_svg.render(_euro, DADOS)
+check("e o preco sai '24,90 €' de verdade",
+      "24,90 €" in "".join(_textos_svg(_svg_euro)), _textos_svg(_svg_euro))
+
+check("sem rotulo o SKU sai limpo",
+      [e for e in receitas.montar("zebra_2x1", rotulo_sku=False).elementos
+       if e.campo == "variante.sku"][0].prefixo == "")
+check("com rotulo ele leva o 'SKU: '",
+      [e for e in receitas.montar("zebra_2x1").elementos
+       if e.campo == "variante.sku"][0].prefixo == "SKU: ")
+
+# SKU e preco dividem a MESMA linha, lado a lado. A primeira versao avancava o Y
+# logo depois do SKU, e o preco — que vem em seguida na ordem visual — nascia uma
+# linha abaixo: 2,2mm de desalinho no papel. Nenhum teste de borda pegava, porque
+# os dois continuavam DENTRO da etiqueta. Apareceu olhando o ZPL cru, com o SKU
+# em ^FO16,62 e o preco em ^FO203,80.
+for _f in _fmt.CATALOGO:
+    _t = receitas.montar(_f.codigo)
+    _sku = [e for e in _t.elementos if e.campo == "variante.sku"]
+    _prc = [e for e in _t.elementos if isinstance(e, Preco)]
+    if _sku and _prc:
+        # O que tem que coincidir e a LINHA DE BASE, nao o topo. O preco sai com
+        # fonte maior de proposito, entao topos iguais deixariam a base do preco
+        # 0,34mm mais baixa — o bastante pra parecer torto na prateleira.
+        def _base(el):
+            return el.y_mm + el.tamanho_pt * 25.4 / 72 * 1.15
+        check("%s: SKU e preco apoiados na MESMA base" % _f.codigo,
+              abs(_base(_sku[0]) - _base(_prc[0])) < 0.001,
+              (_base(_sku[0]), _base(_prc[0])))
+        check("%s: e o preco e o maior dos dois" % _f.codigo,
+              _prc[0].tamanho_pt > _sku[0].tamanho_pt)
+        check("%s: e lado a lado, sem sobrepor" % _f.codigo,
+              _sku[0].x_mm + _sku[0].largura_mm <= _prc[0].x_mm + 0.001,
+              (_sku[0].x_mm + _sku[0].largura_mm, _prc[0].x_mm))
+
+_cal = receitas.montar("zebra_2x1", desvio_x_mm=1.5, desvio_y_mm=-0.5)
+check("a calibracao chega no template",
+      (_cal.calibracao.desvio_x_mm, _cal.calibracao.desvio_y_mm) == (1.5, -0.5))
+
+# Escolher os campos e o que resolve "nao da pra tirar o campo de preco" e
+# "sumiu o SKU" — duas das reclamacoes das 565 avaliacoes do app oficial.
+_so_codigo = receitas.montar("zebra_2x1", campos=("codigo_barras",))
+check("da pra ligar so o codigo de barras", len(_so_codigo.elementos) == 1)
+check("sem preco, nao existe elemento de preco",
+      not any(isinstance(e, Preco) for e in
+              receitas.montar("zebra_2x1", campos=("titulo", "sku")).elementos))
+check("campo desconhecido e ignorado, nao quebra",
+      len(receitas.montar("zebra_2x1", campos=("titulo", "inventado")).elementos) == 1)
+check("sem campo nenhum devolve etiqueta vazia, sem estourar",
+      receitas.montar("zebra_2x1", campos=()).elementos == [])
+
+# Formato que nao existe tem que dar erro claro, nao KeyError cru.
+try:
+    receitas.montar("papel_inventado")
+    check("formato inexistente levanta erro em portugues", False)
+except (ValueError, KeyError) as _e:
+    check("formato inexistente levanta erro em portugues", "papel_inventado" in str(_e))
+
+# Sozinho, o codigo nao pode virar a etiqueta inteira: o teto de 42% segura.
+_cod_sozinho = [e for e in _so_codigo.elementos if isinstance(e, CodigoBarras)][0]
+check("o codigo sozinho nao ocupa a etiqueta toda",
+      _cod_sozinho.altura_mm <= 25.4 * 0.42 + 0.01, _cod_sozinho.altura_mm)
+
+# A receita passa pelo JSON e volta igual — e o que faz o modelo ser salvavel.
+_ida = receitas.montar("avery_5160", simbolo="$", campos=("titulo", "preco"))
+check("o template da receita sobrevive ao JSON",
+      esquema.para_dict(esquema.de_json(esquema.para_json(_ida)))
+      == esquema.para_dict(_ida))
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

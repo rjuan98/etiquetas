@@ -12,13 +12,20 @@ O `criar_app()` é chamado no import justamente pra isso funcionar.
 import os
 import sys
 
+# Tudo é resolvido em relação a ESTE arquivo, não ao diretório de onde se chamou.
+# O gunicorn costuma subir de outro lugar, e o `systemd` quase sempre — com
+# caminho relativo, o `.env` não é lido e o banco nasce vazio num canto qualquer
+# do disco. O sintoma é "todas as lojas sumiram", e a causa é uma linha assim.
+AQUI = os.path.dirname(os.path.abspath(__file__))
 
-def carregar_env(caminho=".env"):
+
+def carregar_env(caminho=None):
     """Põe o `.env` no ambiente. Não sobrescreve o que já existe.
 
     Não sobrescrever é de propósito: em hospedagem as variáveis vêm do painel, e
     um `.env` esquecido no disco não pode ganhar delas.
     """
+    caminho = caminho or os.path.join(AQUI, ".env")
     if not os.path.exists(caminho):
         return
     with open(caminho, encoding="utf-8") as arquivo:
@@ -31,6 +38,12 @@ def carregar_env(caminho=".env"):
 
 
 carregar_env()
+
+# Mesma razão: banco com caminho relativo vira um arquivo diferente pra cada
+# diretório de onde o servidor for iniciado.
+if not os.path.isabs(os.environ.get("BANCO_CAMINHO", "")):
+    os.environ["BANCO_CAMINHO"] = os.path.join(
+        AQUI, os.environ.get("BANCO_CAMINHO") or "etiquetas.db")
 
 from web import criar_app, config  # noqa: E402  (precisa do env carregado antes)
 

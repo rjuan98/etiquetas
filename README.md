@@ -56,9 +56,12 @@ etiquetas/         O MOTOR — não sabe o que é Shopify
   modelo.py        Template, Mídia, Calibração, Texto, Preço, CódigoBarras
   esquema.py       JSON, versão e validação
   formatos.py      catálogo de papel pronto (Avery, DYMO, Zebra, Pimaco)
+  valores.py       o valor final de um elemento ← a ÚNICA regra
+  receitas.py      escolhas do lojista → Template montado
   motores/
     zpl.py         Zebra e compatíveis
     pdf.py         folha adesiva (Avery) e rolo sem térmica
+    svg.py         a prévia na tela, pelas mesmas regras
 
 loja/              O SHOPIFY — só regra, sem rede (exceto rede.py)
   dominio.py       valida o domínio da loja   ← a peça de segurança nº 1
@@ -80,8 +83,11 @@ web/               O FLASK
   sessao.py        @exige_loja — o portão de toda rota de dados
   rotas_instalacao.py   OAuth, com o escape do iframe
   rotas_webhooks.py     recebe, confere HMAC, responde 200 rápido
-  rotas_api.py          catálogo, modelos, impressão
-  rotas_tela.py         a casca do app embutido
+  rotas_api.py          catálogo, receita, prévia, impressão
+  rotas_tela.py         a tela: produtos à esquerda, etiqueta à direita
+  dev.py                a tela rodando sem Shopify nenhum
+
+sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
 espelhos/          as saídas congeladas
@@ -152,7 +158,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **378 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **595 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -165,38 +171,62 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-Teste que passa não prova nada — prova que passou. Cada defesa foi **removida de
-propósito** pra ver se algum teste grita: o filtro por loja, o cabeçalho que
-autoriza o iframe, o `PRAGMA foreign_keys` do CASCADE, a cifra do token, a
-exigência do token de sessão.
+`python sabotagem.py` — quebra 15 defesas de propósito, uma por vez, e confere
+que algum teste grita. Teste que passa não prova nada; prova que passou. O que
+prova é o teste **falhar** quando a defesa sai.
 
-Isso já pegou um teste fraco meu: o do ataque `alg:none` passava porque a
-conferência de assinatura salvava, não porque a checagem de algoritmo existia.
-Só apareceu quando afrouxei o algoritmo e a bateria seguiu verde.
+Isso já pegou dois testes fracos meus. O do ataque `alg:none` passava porque a
+conferência de assinatura salvava, não porque a checagem de algoritmo existia. E
+o da linha de base do preço sabotava uma linha que não fazia trabalho nenhum.
+
+Quando aparece "ESCAPOU", não é o código que está errado — é o teste.
 
 ---
 
-## Rodar o app inteiro
+## Rodar o app inteiro, sem Shopify nenhum
 
 ```bash
-cp .env.exemplo .env      # e preencher
+cp .env.exemplo .env      # com MODO_DEV=1
 python servidor.py
 ```
 
-Sem credencial do Shopify nada que fale com a loja funciona — mas o motor, o
-banco e os portões de segurança rodam e são testáveis assim mesmo, que foi o
-ponto de escrever `loja/` inteiro sem rede.
+Abre em **http://localhost:5000/dev/** com uma loja de mentira e um catálogo de
+mentira — e todo o resto do caminho é o de verdade: a mesma conferência de token,
+as mesmas rotas, o mesmo motor, o mesmo banco.
+
+Sem isso, a tela só poderia ser vista depois de criar conta de Partner, criar
+loja de desenvolvimento, publicar num endereço https e instalar. Ou seja: eu
+escreveria a tela inteira sem nunca ter visto ela funcionar.
+
+O `/dev/` só existe com `MODO_DEV=1`; em produção a rota não é registrada.
+
+---
+
+## A prévia não pode mentir
+
+A prévia é renderizada **no servidor**, pelo motor SVG, chamando as mesmas
+funções que geram o ZPL e o PDF. Desenhá-la em JavaScript seria mais rápido e
+mentiria: a quebra de linha do JavaScript discordaria da do Python, e a tela
+mostraria uma etiqueta que a impressora não vai imprimir.
+
+Tem teste comparando, linha por linha, o texto do SVG com o texto do ZPL.
+
+Pela mesma razão, o layout é montado no servidor (`receitas.py`): a tela manda
+**escolhas** — quais campos, que papel, como mostrar o preço — e recebe a
+etiqueta pronta. O navegador não sabe o que é milímetro.
 
 ---
 
 ## Estado
 
-Prontos e testados: motores **ZPL** e **PDF** (EAN-13, UPC-A, Code128, QR), 11
-formatos de papel, o **lado Shopify** inteiro (OAuth, token de sessão, webhooks,
-catálogo, cobrança), o **banco** com isolamento entre lojas, e as **rotas Flask**.
+Prontos e testados: motores **ZPL**, **PDF** e **SVG** (EAN-13, UPC-A, Code128,
+QR), 11 formatos de papel, o **lado Shopify** inteiro (OAuth, token de sessão,
+webhooks, catálogo, cobrança), o **banco** com isolamento entre lojas, as
+**rotas Flask** e a **tela** — escolher produtos, montar a etiqueta, ver a
+prévia, baixar PDF ou ZPL, e a régua de calibração.
 
-Falta: a tela de desenhar a etiqueta, o motor da DYMO (precisa do aparelho pra
-valer a pena), e subir num servidor de verdade.
+Falta: o motor da DYMO (precisa do aparelho pra valer a pena), salvar e reabrir
+modelos pela tela, e subir num servidor de verdade.
 
 O motor continua sem saber o que é Shopify. Se um dia a plataforma mudar de
 ideia, ele vem junto inteiro.

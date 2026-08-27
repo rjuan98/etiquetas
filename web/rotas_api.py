@@ -13,14 +13,16 @@ Nenhuma delas recebe a loja por parâmetro — ela vem do token assinado, pelo
      etiqueta sair sem ser contada
 """
 import io
+import json
 
 from flask import Blueprint, request, jsonify, send_file, current_app
 
 from loja import catalogo, cobranca, rede
 from dados import modelos as tabela_modelos, impressoes
-from etiquetas import esquema
-from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf
+from etiquetas import esquema, formatos, receitas
+from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf, svg as motor_svg
 from .sessao import exige_loja
+from . import config
 
 rotas = Blueprint("api", __name__, url_prefix="/api")
 
@@ -39,6 +41,18 @@ def produtos(loja):
     A busca e o cursor vão direto pro Shopify: paginar no nosso lado exigiria
     guardar o catálogo aqui, e este app não guarda catálogo de ninguém.
     """
+    # Loja de desenvolvimento devolve catálogo de mentira, pra tela ser testável
+    # sem conta de Shopify. Só vale quando MODO_DEV está ligado E o token é o
+    # falso — ver `dev.loja_de_mentira`. Com uma loja de verdade instalada, isto
+    # não pode aparecer no lugar do catálogo dela.
+    if config.MODO_DEV:
+        from . import dev
+        if dev.loja_de_mentira(loja):
+            itens = dev.catalogo_falso(request.args.get("busca"))
+            for item in itens:
+                item["quantidade"] = catalogo.quantidade_sugerida(item)
+            return jsonify({"itens": itens, "tem_mais": False, "cursor": None})
+
     corpo = catalogo.consulta_de_produtos(
         quantos=request.args.get("quantos", 50),
         depois=request.args.get("depois") or None,
@@ -65,6 +79,128 @@ def produtos(loja):
     return jsonify({"itens": itens, "tem_mais": tem_mais, "cursor": cursor})
 
 
+# ------------------------------------------------------------------- receita
+
+# Dados de exemplo pra prévia, quando o lojista ainda não escolheu produto. Sem
+# isto a primeira tela do app é uma etiqueta em branco, e etiqueta em branco
+# parece app quebrado.
+EXEMPLO = {
+    "produto": {"titulo": "Caneca de Porcelana Branca 300ml",
+                "fornecedor": "Cerâmica Real", "tipo": "Caneca"},
+    "variante": {"titulo": "Branca / 300ml", "sku": "CAN-BR-300",
+                 "preco": "39.90", "preco_comparado": "49.90",
+                 "codigo_barras": "7891234567895"},
+    "loja": {"nome": "Sua loja"},
+}
+
+
+def _receita_do_pedido(dados: dict):
+    """Monta o Template a partir das escolhas que vieram da tela.
+
+    Recebe só coisa que o lojista sabe responder — formato, quais campos, como
+    mostrar o preço. A tradução pra coordenada mora em `receitas.py`, no
+    servidor, pra que a etiqueta que aparece na prévia seja a que imprime.
+    """
+    r = dados.get("receita") or {}
+    campos = r.get("campos")
+    return receitas.montar(
+        formato=r.get("formato") or "zebra_2x1",
+        campos=tuple(campos) if isinstance(campos, list) else receitas.PADRAO,
+        simbolo=str(r.get("simbolo", "R$"))[:4],
+        simbolo_depois=bool(r.get("simbolo_depois")),
+        separador_decimal=str(r.get("separador_decimal", ","))[:1] or ",",
+        separador_milhar=str(r.get("separador_milhar", "."))[:1],
+        rotulo_sku=bool(r.get("rotulo_sku", True)),
+        simbologia=str(r.get("simbologia", "EAN13")),
+        desvio_x_mm=float(r.get("desvio_x_mm") or 0),
+        desvio_y_mm=float(r.get("desvio_y_mm") or 0),
+        nome=str(r.get("nome") or ""))
+
+
+def _template_do_pedido(dados: dict):
+    """O template, venha ele da receita ou do modelo cru.
+
+    A tela normal manda `receita` — as escolhas. `modelo` continua aceito pra
+    quem já tem um template pronto (importado, ou de uma versão futura com
+    editor livre). Os dois caminhos passam pela MESMA validação depois.
+    """
+    if dados.get("receita"):
+        return _receita_do_pedido(dados)
+    return esquema.de_dict(dados.get("modelo") or {})
+
+
+@rotas.get("/formatos")
+@exige_loja
+def lista_de_formatos(loja):
+    """O catálogo de papel e os campos disponíveis, pra tela montar os menus."""
+    return jsonify({
+        "formatos": [{
+            "codigo": f.codigo, "nome": f.nome, "fabricante": f.fabricante,
+            "largura_mm": f.midia.largura_mm, "altura_mm": f.midia.altura_mm,
+            "tipo": f.midia.tipo, "conferido": f.conferido,
+            "por_folha": (f.midia.colunas * f.midia.linhas
+                          if f.midia.tipo == "folha" else 0),
+        } for f in formatos.CATALOGO],
+        "campos": [{"chave": k, "nome": v["nome"]} for k, v in receitas.CAMPOS.items()],
+        "padrao": list(receitas.PADRAO),
+    })
+
+
+@rotas.post("/previa")
+@exige_loja
+def previa(loja):
+    """Escolhas + um produto → o SVG da etiqueta.
+
+    Sai do servidor, pelo mesmo caminho que gera o ZPL e o PDF. Desenhar isto no
+    navegador seria mais rápido e mentiria: a quebra de linha do JavaScript
+    discordaria da do Python, e a prévia mostraria uma etiqueta que a impressora
+    não vai imprimir.
+    """
+    dados = request.get_json(silent=True) or {}
+    try:
+        template = _receita_do_pedido(dados)
+    except (ValueError, KeyError) as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    item = dados.get("item") or EXEMPLO
+    try:
+        desenho = motor_svg.render(template, item)
+    except ValueError as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    r = dados.get("receita") or {}
+    campos = r.get("campos")
+    return jsonify({
+        "svg": desenho,
+        # O que o lojista pediu e não coube. Sem isto ele liga "fornecedor", não
+        # vê diferença nenhuma e conclui que o app está quebrado.
+        "nao_coube": receitas.cabem_os_campos(
+            r.get("formato") or "zebra_2x1",
+            tuple(campos) if isinstance(campos, list) else receitas.PADRAO),
+        "largura_mm": template.midia.largura_mm,
+        "altura_mm": template.midia.altura_mm,
+    })
+
+
+@rotas.post("/calibracao.pdf")
+@exige_loja
+def calibracao(loja):
+    """A régua impressa. É a resposta pra reclamação nº 1: "etiqueta sai torta".
+
+    Sem ela, "está torto" não tem conversa possível — o lojista não sabe dizer
+    QUANTO, e a gente não tem o que corrigir.
+    """
+    dados = request.get_json(silent=True) or {}
+    try:
+        template = _receita_do_pedido(dados)
+    except (ValueError, KeyError) as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    buffer = io.BytesIO(motor_pdf.pagina_de_calibracao(template))
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True,
+                     download_name="calibracao.pdf")
+
+
 # ------------------------------------------------------------------- modelos
 
 @rotas.get("/modelos")
@@ -81,7 +217,14 @@ def ver_modelo(loja, modelo_id):
         # 404 tanto pra "não existe" quanto pra "não é seu". Distinguir os dois
         # contaria a um atacante quais id existem no banco.
         return jsonify({"erro": "Modelo não encontrado."}), 404
+    try:
+        receita_salva = json.loads(registro.get("receita") or "{}")
+    except ValueError:
+        receita_salva = {}
     return jsonify({"id": registro["id"], "nome": registro["nome"],
+                    # A receita é o que reabre o editor com os botões certos. Sem
+                    # ela dava pra imprimir e não dava pra editar.
+                    "receita": receita_salva,
                     "modelo": esquema.para_dict(esquema.de_json(registro["json"]))})
 
 
@@ -94,7 +237,7 @@ def criar_modelo(loja):
     # quem mandou um modelo quebrado esconde o erro de verdade — e o erro de
     # verdade, nesse caso, é da nossa própria tela.
     try:
-        template = esquema.de_dict(dados.get("modelo") or {})
+        template = _template_do_pedido(dados)
     except Exception as erro:
         return jsonify({"erro": "Modelo inválido: %s" % erro}), 400
 
@@ -108,7 +251,8 @@ def criar_modelo(loja):
                                 "Assine o Pro pra ter modelos ilimitados." % limite,
                         "motivo": "limite_de_modelos"}), 402
 
-    novo = tabela_modelos.criar(loja["id"], dados.get("nome", ""), template)
+    novo = tabela_modelos.criar(loja["id"], dados.get("nome", ""), template,
+                                dados.get("receita"))
     return jsonify({"id": novo}), 201
 
 
@@ -117,7 +261,7 @@ def criar_modelo(loja):
 def salvar_modelo(loja, modelo_id):
     dados = request.get_json(silent=True) or {}
     try:
-        template = esquema.de_dict(dados.get("modelo") or {})
+        template = _template_do_pedido(dados)
     except Exception as erro:
         return jsonify({"erro": "Modelo inválido: %s" % erro}), 400
 
@@ -125,7 +269,8 @@ def salvar_modelo(loja, modelo_id):
     if problemas:
         return jsonify({"erro": "Modelo com problemas.", "problemas": problemas}), 400
 
-    if not tabela_modelos.salvar(loja["id"], modelo_id, dados.get("nome", ""), template):
+    if not tabela_modelos.salvar(loja["id"], modelo_id, dados.get("nome", ""),
+                                 template, dados.get("receita")):
         return jsonify({"erro": "Modelo não encontrado."}), 404
     return jsonify({"ok": True})
 
@@ -217,11 +362,21 @@ def imprimir(loja):
                                 "Assine o Pro pra não ter limite." % (ja_foram, limite),
                         "motivo": "limite_do_mes"}), 402
 
+    # Dá pra imprimir sem salvar. Obrigar a salvar antes de testar transforma
+    # "deixa eu ver como fica" em três cliques e uma caixa de nome — e a pessoa
+    # ainda fica com uma lista de modelos chamados "teste", "teste2", "teste3".
     modelo_id = dados.get("modelo_id")
-    template = tabela_modelos.buscar(loja["id"], modelo_id) if modelo_id else None
-    if modelo_id and not template:
-        return jsonify({"erro": "Modelo não encontrado."}), 404
-    if not template:
+    if dados.get("receita"):
+        try:
+            template = _receita_do_pedido(dados)
+        except (ValueError, KeyError) as erro:
+            return jsonify({"erro": str(erro)}), 400
+        modelo_id = None
+    elif modelo_id:
+        template = tabela_modelos.buscar(loja["id"], modelo_id)
+        if not template:
+            return jsonify({"erro": "Modelo não encontrado."}), 404
+    else:
         return jsonify({"erro": "Escolha um modelo de etiqueta."}), 400
 
     if motor == "zpl":
