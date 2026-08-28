@@ -91,6 +91,7 @@ web/               O FLASK
   dev.py                a tela rodando sem Shopify nenhum
 
 docs/              ficha da loja de apps, ícone e capturas — todos gerados por script
+deploy/            montar o servidor do zero, num comando
 sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
