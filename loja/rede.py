@@ -48,7 +48,27 @@ class _SemRedirecionamento(urllib.request.HTTPRedirectHandler):
                          "o que não é esperado" % code)
 
 
-_abridor = urllib.request.build_opener(_SemRedirecionamento)
+def _montar_abridor():
+    """O abridor, respeitando proxy do ambiente se houver.
+
+    Hospedagem barata costuma obrigar a saída a passar por um proxy — o plano
+    grátis do PythonAnywhere é assim, e é como ele controla a lista de sites
+    permitidos.
+
+    O `build_opener` só instala o `ProxyHandler` quando encontra proxy
+    configurado no momento em que é chamado, e aqui isso acontece na importação
+    do módulo. Num servidor que define `https_proxy` só pro processo do site, a
+    variável pode não existir ainda — então o handler é montado explicitamente,
+    e ele se vira sozinho quando não há proxy nenhum.
+
+    Sem isto, o app subiria e falharia em TODA chamada ao Shopify, com erro de
+    conexão e nada dizendo que o motivo é proxy.
+    """
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler(), _SemRedirecionamento)
+
+
+_abridor = _montar_abridor()
 
 
 def _post(url: str, corpo: dict, cabecalhos: dict) -> dict:

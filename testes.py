@@ -1470,6 +1470,32 @@ except _rede.ErroDeRede as _e:
     check("chamar sem token nao vai pra rede", "reinstalar" in str(_e))
 # Redirecionamento aconteceria DEPOIS da validacao de dominio e levaria a
 # requisicao pra onde a resposta mandar — inclusive pra dentro da rede do servidor.
+# Hospedagem barata costuma obrigar a saida a passar por um proxy — o plano
+# gratis do PythonAnywhere e assim, e e como ele controla a lista de sites
+# permitidos. Sem respeitar isso, o app sobe e falha em TODA chamada ao Shopify,
+# com erro de conexao e nada dizendo que o motivo e proxy.
+import urllib.request as _url
+_guardado_proxy = {k: _os.environ.get(k) for k in ("http_proxy", "https_proxy")}
+_os.environ["http_proxy"] = _os.environ["https_proxy"] = "http://proxy.server:3128"
+_com_proxy = _rede._montar_abridor()
+for k, v in _guardado_proxy.items():
+    if v is None:
+        _os.environ.pop(k, None)
+    else:
+        _os.environ[k] = v
+_sem_proxy = _rede._montar_abridor()
+
+check("com proxy no ambiente, o abridor passa a usar ele",
+      any(isinstance(h, _url.ProxyHandler) for h in _com_proxy.handlers))
+check("e sem proxy nada muda",
+      not any(isinstance(h, _url.ProxyHandler) and h.proxies
+              for h in _sem_proxy.handlers))
+# A recusa a redirecionamento nao pode se perder no caminho: e ela que impede a
+# requisicao de ser desviada pra dentro da rede do servidor.
+for _nome, _ab in (("com proxy", _com_proxy), ("sem proxy", _sem_proxy)):
+    check("%s, a recusa a redirecionamento continua de pe" % _nome,
+          any(isinstance(h, _rede._SemRedirecionamento) for h in _ab.handlers))
+
 check("o abridor instalado e o que recusa redirecionamento",
       any(isinstance(h, _rede._SemRedirecionamento) for h in _rede._abridor.handlers))
 try:
