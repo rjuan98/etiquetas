@@ -2630,6 +2630,71 @@ check("e se nao estiver preenchido, a pagina DIZ isso em vez de sumir",
       ("preencha" in _r) or ("@" in _r.split("mailto:")[1][:40]))
 
 
+secao("61. O icone sai de uma geometria so")
+# A loja de apps quer PNG. PNG nao se edita: mexer numa barra significa abrir num
+# programa de desenho e nunca mais bater com o original. Entao SVG e PNG saem da
+# MESMA lista de formas — a mesma disciplina dos tres motores.
+import sys as _sys
+_sys.path.insert(0, "docs")
+import icone as _icone
+
+check("o SVG sai do gerador, nao da mao",
+      _icone.svg() == _io.open("docs/icone.svg", encoding="utf-8").read(),
+      "rode: python docs/icone.py")
+
+from PIL import Image as _Img
+_png = _Img.open("docs/icone.png")
+check("o PNG tem o tamanho que o Shopify pede", _png.size == (1200, 1200), _png.size)
+check("e existe a versao pequena, que e a que decide",
+      _Img.open("docs/icone-60.png").size == (60, 60))
+
+# Sem texto: e regra do Shopify e e o que faz o icone funcionar a 60px.
+check("o icone nao tem texto nenhum",
+      "<text" not in _icone.svg() and "font" not in _icone.svg())
+
+# Sangra ate a borda: cada plataforma recorta o canto do seu jeito, e um icone
+# com fundo branco proprio aparece como quadrado torto dentro da mascara deles.
+check("o fundo sangra ate a borda",
+      _png.getpixel((0, 0))[:3] != (255, 255, 255)
+      and _png.getpixel((1199, 1199))[:3] != (255, 255, 255))
+check("e tem gradiente, entao topo e base diferem",
+      _png.getpixel((50, 50)) != _png.getpixel((50, 1150)))
+
+# O contraste entre a etiqueta e o fundo e o que faz a forma ler no tamanho
+# pequeno. Papel branco sobre azul escuro passa com folga.
+def _luz(p):
+    """Luminancia relativa como a norma define, COM a correcao de gama.
+
+    A primeira versao disto somava os canais direto, sem linearizar o sRGB. Deu
+    3,8:1 pra branco sobre azul-escuro, e reprovou um contraste que na verdade e
+    de 11:1 — quase tres vezes melhor do que a conta dizia.
+    O erro estava na regua, nao no desenho.
+
+    Sem a correcao, cor escura parece mais clara do que e, e a conta e otimista
+    justamente onde precisa ser dura.
+    """
+    def canal(v):
+        v = v / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    r, g, b = p[:3]
+    return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
+
+
+_papel = _luz(_png.getpixel((860, 390)))
+_fundo = _luz(_png.getpixel((50, 50)))
+_contraste = (max(_papel, _fundo) + 0.05) / (min(_papel, _fundo) + 0.05)
+check("a etiqueta contrasta com o fundo (>= 4.5:1)", _contraste >= 4.5,
+      "%.1f:1" % _contraste)
+
+# A 60px o desenho ainda tem que ter forma, nao virar um borrao de uma cor so.
+_pequeno = _Img.open("docs/icone-60.png").convert("L")
+_tons = len(set(_pequeno.getdata()))
+check("a 60px ainda ha variacao de tom, nao um bloco chapado",
+      _tons > 20, "%d tons" % _tons)
+_sys.path.pop(0)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

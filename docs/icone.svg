@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200" role="img" aria-label="Barcode label aligned by registration marks">
+<defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B3A67"/><stop offset="1" stop-color="#1B2445"/></linearGradient></defs>
+<rect width="1200" height="1200" fill="url(#fundo)"/>
+<path d="M150 262 L236 262" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M193 219 L193 305" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M964 262 L1050 262" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M1007 219 L1007 305" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M150 938 L236 938" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M193 895 L193 981" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M964 938 L1050 938" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<path d="M1007 895 L1007 981" stroke="#7C8AB8" stroke-width="14" stroke-linecap="square" opacity="0.55"/>
+<rect x="290" y="358" width="620" height="484" rx="34" fill="#FFFFFF"/>
+<circle cx="368" cy="436" r="30" fill="#1B2445"/>
+<rect x="446" y="424" width="30" height="228" rx="6" fill="#1B2445"/>
+<rect x="496" y="424" width="16" height="228" rx="5" fill="#1B2445"/>
+<rect x="532" y="424" width="42" height="228" rx="6" fill="#1B2445"/>
+<rect x="594" y="424" width="16" height="228" rx="5" fill="#1B2445"/>
+<rect x="630" y="424" width="30" height="228" rx="6" fill="#1B2445"/>
+<rect x="680" y="424" width="46" height="228" rx="6" fill="#1B2445"/>
+<rect x="746" y="424" width="16" height="228" rx="5" fill="#1B2445"/>
+<rect x="782" y="424" width="30" height="228" rx="6" fill="#1B2445"/>
+<rect x="446" y="706" width="230" height="34" rx="17" fill="#2B3A67" opacity="0.35"/>
+<rect x="700" y="706" width="112" height="34" rx="17" fill="#2B3A67"/>
+</svg>

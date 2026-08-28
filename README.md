@@ -90,7 +90,7 @@ web/               O FLASK
   rotas_tela.py         a tela: produtos à esquerda, etiqueta à direita
   dev.py                a tela rodando sem Shopify nenhum
 
-docs/              ficha da loja de apps, pronta pra colar
+docs/              ficha da loja de apps, e o icone (SVG e PNG do mesmo gerador)
 sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
@@ -177,7 +177,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **775 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **783 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
