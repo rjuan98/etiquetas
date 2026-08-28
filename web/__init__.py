@@ -24,7 +24,7 @@ E o `frame-ancestors` é montado com o domínio **da requisição atual**, não 
 import hashlib
 import os
 
-from flask import Flask, request
+from flask import Flask, request, g
 
 from dados import banco
 from . import config
@@ -76,6 +76,24 @@ def criar_app(banco_caminho=None) -> Flask:
     if config.MODO_DEV:
         from . import dev
         app.register_blueprint(dev.rotas)
+
+    @app.before_request
+    def escolher_idioma():
+        """Descobre em que língua responder, uma vez por requisição.
+
+        O Shopify põe `?locale=pt-BR` na URL quando abre o app embutido. Nas
+        chamadas de API essa informação não existiria, então a própria tela
+        repassa em `?idioma=`. E o `Accept-Language` fecha o caso de quem chegou
+        por fora.
+
+        Vem do cliente e serve só pra escolher palavra — não decide permissão
+        nenhuma, então não precisa ser confiável.
+        """
+        from . import textos
+        g.idioma = textos.idioma_de(
+            request.args.get("locale")
+            or request.args.get("idioma")
+            or request.headers.get("Accept-Language"))
 
     @app.after_request
     def cabecalhos(resposta):

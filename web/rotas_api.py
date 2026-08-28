@@ -15,7 +15,7 @@ Nenhuma delas recebe a loja por parâmetro — ela vem do token assinado, pelo
 import io
 import json
 
-from flask import Blueprint, request, jsonify, send_file, current_app
+from flask import Blueprint, request, jsonify, send_file, current_app, g
 
 from loja import catalogo, cobranca, rede
 from dados import modelos as tabela_modelos, impressoes
@@ -23,9 +23,14 @@ from dados import lojas as tabela_lojas
 from etiquetas import esquema, formatos, receitas
 from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf, svg as motor_svg
 from .sessao import exige_loja
-from . import config
+from . import config, textos
 
 rotas = Blueprint("api", __name__, url_prefix="/api")
+
+
+def _t(chave):
+    """Atalho pro texto no idioma da requisição. Ver `textos.py`."""
+    return textos.t(chave, getattr(g, "idioma", textos.PADRAO))
 
 # Teto por requisição, independente de plano. Não é comercial, é de servidor:
 # uma loja com 200 mil variantes num clique só travaria o processo pra todo mundo.
@@ -73,7 +78,7 @@ def produtos(loja):
         # GraphQL responde 200 mesmo tendo falhado. Sem isto, a tela mostraria
         # uma lista vazia e o lojista acharia que não tem produto nenhum.
         current_app.logger.warning("graphql: %s", "; ".join(erros))
-        return jsonify({"erro": "O Shopify recusou a consulta.",
+        return jsonify({"erro": _t("erro_graphql"),
                         "detalhes": erros}), 502
 
     itens = catalogo.para_etiquetas(resposta, loja["dominio"])
@@ -137,19 +142,41 @@ def _template_do_pedido(dados: dict):
     return esquema.de_dict(dados.get("modelo") or {})
 
 
+# O catálogo de papel guarda o nome em português, porque quem mantém escreve em
+# português. Os sufixos descritivos são traduzidos aqui, na borda — o
+# `formatos.py` é do motor e não pode saber que idioma existe.
+SUFIXOS_DE_FORMATO = {
+    "varejo": "formato_varejo", "envio": "formato_envio",
+    "multiuso": "formato_multiuso", "endereço": "formato_endereco",
+    "joia, 2 abas": "formato_joia", "pol": "formato_polegada",
+}
+
+
+def _nome_do_formato(f) -> str:
+    nome = f.nome
+    for pedaco, chave in SUFIXOS_DE_FORMATO.items():
+        if pedaco in nome:
+            nome = nome.replace(pedaco, _t(chave))
+    # "30 por folha" vira "30 per sheet"
+    if " por folha" in nome:
+        pos = nome.split(" por folha")[0].split()[-1]
+        nome = nome.replace("%s por folha" % pos, _t("formato_por_folha") % pos)
+    return nome
+
+
 @rotas.get("/formatos")
 @exige_loja
 def lista_de_formatos(loja):
     """O catálogo de papel e os campos disponíveis, pra tela montar os menus."""
     return jsonify({
         "formatos": [{
-            "codigo": f.codigo, "nome": f.nome, "fabricante": f.fabricante,
+            "codigo": f.codigo, "nome": _nome_do_formato(f), "fabricante": f.fabricante,
             "largura_mm": f.midia.largura_mm, "altura_mm": f.midia.altura_mm,
             "tipo": f.midia.tipo, "conferido": f.conferido,
             "por_folha": (f.midia.colunas * f.midia.linhas
                           if f.midia.tipo == "folha" else 0),
         } for f in formatos.CATALOGO],
-        "campos": [{"chave": k, "nome": v["nome"]} for k, v in receitas.CAMPOS.items()],
+        "campos": [{"chave": k, "nome": _t("campo_" + k)} for k in receitas.CAMPOS],
         "padrao": list(receitas.PADRAO),
     })
 
@@ -224,7 +251,7 @@ def ver_modelo(loja, modelo_id):
     if not registro:
         # 404 tanto pra "não existe" quanto pra "não é seu". Distinguir os dois
         # contaria a um atacante quais id existem no banco.
-        return jsonify({"erro": "Modelo não encontrado."}), 404
+        return jsonify({"erro": _t("erro_modelo_sumido")}), 404
     try:
         receita_salva = json.loads(registro.get("receita") or "{}")
     except ValueError:
@@ -247,16 +274,15 @@ def criar_modelo(loja):
     try:
         template = _template_do_pedido(dados)
     except Exception as erro:
-        return jsonify({"erro": "Modelo inválido: %s" % erro}), 400
+        return jsonify({"erro": _t("erro_modelo_invalido") % erro}), 400
 
     problemas = esquema.validar(template)
     if problemas:
-        return jsonify({"erro": "Modelo com problemas.", "problemas": problemas}), 400
+        return jsonify({"erro": _t("erro_modelo_problemas"), "problemas": problemas}), 400
 
     limite = cobranca.plano(_plano_de(loja))["templates"]
     if limite and tabela_modelos.quantos(loja["id"]) >= limite:
-        return jsonify({"erro": "Seu plano permite %d modelo(s). "
-                                "Assine o Pro pra ter modelos ilimitados." % limite,
+        return jsonify({"erro": _t("erro_limite_modelos") % limite,
                         "motivo": "limite_de_modelos"}), 402
 
     novo = tabela_modelos.criar(loja["id"], dados.get("nome", ""), template,
@@ -378,27 +404,25 @@ def imprimir(loja):
     itens = dados.get("itens") or []
 
     if not isinstance(itens, list) or not itens:
-        return jsonify({"erro": "Nenhum item pra imprimir."}), 400
+        return jsonify({"erro": _t("erro_sem_itens")}), 400
 
     plano = _plano_de(loja)
 
     if motor not in ("pdf", "zpl"):
-        return jsonify({"erro": "Motor %r não existe." % motor}), 400
+        return jsonify({"erro": _t("erro_motor") % motor}), 400
     if not cobranca.pode_usar(plano, motor):
-        return jsonify({"erro": "Impressora térmica faz parte do plano Pro.",
+        return jsonify({"erro": _t("erro_motor_bloqueado"),
                         "motivo": "motor_bloqueado"}), 402
 
     fila, quantas = _fila(itens)
     if quantas > TETO_POR_VEZ:
-        return jsonify({"erro": "São %d etiquetas de uma vez. O limite por lote "
-                                "é %d — divida em partes." % (quantas, TETO_POR_VEZ),
+        return jsonify({"erro": _t("erro_lote_grande") % (quantas, TETO_POR_VEZ),
                         "motivo": "lote_grande"}), 400
 
     ja_foram = impressoes.no_mes(loja["id"])
     if not cobranca.dentro_do_limite(plano, ja_foram + quantas):
         limite = cobranca.plano(plano)["limite_etiquetas_mes"]
-        return jsonify({"erro": "Você já gerou %d das %d etiquetas do mês. "
-                                "Assine o Pro pra não ter limite." % (ja_foram, limite),
+        return jsonify({"erro": _t("erro_limite_mes") % (ja_foram, limite),
                         "motivo": "limite_do_mes"}), 402
 
     # Dá pra imprimir sem salvar. Obrigar a salvar antes de testar transforma
@@ -421,7 +445,7 @@ def imprimir(loja):
         if not template:
             return jsonify({"erro": "Modelo não encontrado."}), 404
     else:
-        return jsonify({"erro": "Escolha um modelo de etiqueta."}), 400
+        return jsonify({"erro": _t("erro_escolha_modelo")}), 400
 
     if motor == "zpl":
         saida = motor_zpl.render_lote(template, fila,
@@ -472,7 +496,7 @@ def assinar(loja):
     erros = catalogo.erros_do_graphql(resposta)
     if erros:
         current_app.logger.warning("assinatura recusada: %s", "; ".join(erros))
-        return jsonify({"erro": "O Shopify recusou a assinatura.",
+        return jsonify({"erro": _t("erro_assinatura_recusada"),
                         "detalhes": erros}), 502
 
     try:
@@ -495,8 +519,9 @@ def planos(loja):
         "atual": atual,
         "dias_de_teste": cobranca.DIAS_DE_TESTE,
         "planos": [{
-            "codigo": c, "nome": p["nome"], "preco_usd": p["preco_usd"],
-            "resumo": p["resumo"], "limite_etiquetas_mes": p["limite_etiquetas_mes"],
+            "codigo": c, "nome": _t("plano_%s_nome" % c), "preco_usd": p["preco_usd"],
+            "resumo": _t("plano_%s_resumo" % c),
+            "limite_etiquetas_mes": p["limite_etiquetas_mes"],
             "templates": p["templates"], "motores": list(p["motores"]),
         } for c, p in cobranca.PLANOS.items()],
     })
@@ -514,7 +539,7 @@ def uso(loja):
     detalhes = cobranca.plano(plano)
     return jsonify({
         "plano": plano,
-        "nome_do_plano": detalhes["nome"],
+        "nome_do_plano": _t("plano_%s_nome" % plano),
         "etiquetas_no_mes": impressoes.no_mes(loja["id"]),
         "limite_mes": detalhes["limite_etiquetas_mes"],
         "modelos": tabela_modelos.quantos(loja["id"]),

@@ -59,8 +59,8 @@ SABOTAGENS = [
 
     ("o token de sessao sendo exigido nas rotas de dados",
      "web/sessao.py",
-     'if not registro:\n            texto, codigo = MENSAGENS.get(motivo, ("Não autorizado.", 401))\n            return jsonify({"erro": texto, "motivo": motivo}), codigo',
-     'if not registro:\n            registro = lojas.buscar(request.args.get("shop", ""))\n            if not registro:\n                return jsonify({"erro": "x", "motivo": motivo}), 401'),
+     "        registro, motivo = loja_atual()",
+     '        registro, motivo = loja_atual()\n        if not registro:\n            registro = lojas.buscar(request.args.get("shop", ""))\n            motivo = "" if registro else motivo'),
 
     # ------------------------------------------------------------ navegador
     ("o cabecalho que autoriza o iframe",
@@ -222,6 +222,28 @@ SABOTAGENS = [
      "loja/catalogo.py",
      '        cortado = bool((bloco.get("pageInfo") or {}).get("hasNextPage"))',
      "        cortado = False"),
+
+    # ---------------------------------------------------------------- idioma
+    # Ingles e o padrao porque as 565 avaliacoes que embasaram a ideia sao em
+    # ingles. Cair no portugues seria servir a lingua errada pro mercado inteiro.
+    ("o ingles como idioma padrao",
+     "web/textos.py",
+     'PADRAO = "en"',
+     'PADRAO = "pt"'),
+
+    # Sem isto a tela fica na lingua do lojista e as mensagens de erro voltam no
+    # padrao — metade traduzida, que parece mais quebrado que nada traduzido.
+    ("o idioma viajando nas chamadas de API",
+     "web/rotas_tela.py",
+     '  caminho += (caminho.indexOf("?") < 0 ? "?" : "&") + "idioma=" + IDIOMA;',
+     "  // sabotado"),
+
+    # O motor tem arquivo-espelho justamente pra nao mudar. Se texto de tela
+    # entrar nele, traduzir passa a exigir mexer no motor.
+    ("os nomes de campo traduzidos na borda, nao no motor",
+     "web/rotas_api.py",
+     '"campos": [{"chave": k, "nome": _t("campo_" + k)} for k in receitas.CAMPOS],',
+     '"campos": [{"chave": k, "nome": v["nome"]} for k, v in receitas.CAMPOS.items()],'),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",

@@ -788,7 +788,10 @@ check("so pedimos produto e estoque",
       set(oauth.ESCOPOS) == {"read_products", "read_inventory"})
 check("a resposta de dados do cliente diz que nao ha nada",
       webhooks.resposta_de_privacidade("customers/data_request")["dados_do_cliente"] is None)
-check("e explica por que", "não coleta" in
+# Esta resposta vai pro SHOPIFY, nao pro lojista, entao e em ingles — e o que
+# ela diz tem que ser verdade verificavel nos escopos, nao promessa.
+check("e explica por que, na lingua da plataforma",
+      "does not collect or store customer data" in
       webhooks.resposta_de_privacidade("customers/data_request")["explicacao"])
 
 # Desinstalar NAO e' apagar. Muita gente reinstala no dia seguinte, e apagar os
@@ -1234,7 +1237,13 @@ check("Authorization sem 'Bearer' nao passa",
 t_lojas.desativar("loja-b.myshopify.com")
 _r = _pega("/api/uso", "loja-b.myshopify.com")
 check("loja desinstalada da 403, nao 401", _r.status_code == 403, _r.status_code)
-check("e a mensagem diz pra reinstalar", "instale" in _r.get_json()["erro"].lower())
+# O texto vem da tabela de idiomas, entao o teste compara com ELA em vez de
+# travar uma frase — senao traduzir quebraria o teste sem nada estar errado.
+from web import textos as _txt
+check("e a mensagem manda reinstalar",
+      _r.get_json()["erro"] == _txt.t("desinstalado", "en"), _r.get_json()["erro"])
+check("e ela existe nos dois idiomas",
+      _txt.t("desinstalado", "pt") != _txt.t("desinstalado", "en"))
 t_lojas.salvar("loja-b.myshopify.com", "token-da-B")
 
 # Loja que nunca instalou mas tem token forjado com o nosso segredo — so
@@ -1255,7 +1264,8 @@ check("a B pedindo o modelo da A leva 404", _r.status_code == 404, _r.status_cod
 # 404 e nao 403 de proposito: distinguir "nao e seu" de "nao existe" contaria ao
 # atacante quais id existem no banco.
 check("e a resposta nao confirma que o modelo existe",
-      "encontrado" in _r.get_json()["erro"])
+      _r.get_json()["erro"] == _txt.t("erro_modelo_sumido", "en"),
+      _r.get_json()["erro"])
 
 _r = _cliente.put("/api/modelos/%d" % _MODELO_A,
                   headers={"Authorization": "Bearer " + _token_de("loja-b.myshopify.com")},
@@ -2437,6 +2447,117 @@ check("a reconferida de plano desiste na primeira",
 with banco.conectar() as _con:
     _modo = _con.execute("PRAGMA journal_mode").fetchone()[0]
 check("o banco esta em WAL", str(_modo).lower() == "wal", _modo)
+
+
+secao("59. Bilingue: ingles por padrao, portugues quando pedido")
+# O app nasceu inteiro em portugues, e as 565 avaliacoes que embasaram a ideia
+# sao em ingles. Listar em portugues seria mirar num mercado que a gente nunca
+# mediu. Ingles virou o padrao; portugues existe porque o suporte sai mais
+# barato na propria lingua.
+from web import textos as _tx
+
+check("o padrao e ingles", _tx.PADRAO == "en")
+for _bruto, _esperado in [("pt-BR", "pt"), ("pt", "pt"), ("PT_br", "pt"),
+                          ("en-US", "en"), ("de-DE", "en"), ("", "en"),
+                          (None, "en"), ("xx", "en")]:
+    check("idioma %r vira %r" % (_bruto, _esperado),
+          _tx.idioma_de(_bruto) == _esperado, _tx.idioma_de(_bruto))
+
+# Toda chave tem que existir nos DOIS idiomas. Uma faltando vira tela meio
+# traduzida, que parece mais quebrado do que tela nao traduzida.
+_sem_en = [k for k, v in _tx.TEXTOS.items() if not v.get("en")]
+_sem_pt = [k for k, v in _tx.TEXTOS.items() if not v.get("pt")]
+check("nenhuma chave sem ingles", _sem_en == [], _sem_en)
+check("nenhuma chave sem portugues", _sem_pt == [], _sem_pt)
+# E os dois tem que ser DIFERENTES onde faz sentido — se alguem copiar o
+# portugues no campo do ingles, isto nao pega, mas pega o esquecimento comum de
+# deixar a mesma frase nos dois por preguica.
+_iguais = [k for k, v in _tx.TEXTOS.items()
+           if v["en"] == v["pt"] and len(v["en"]) > 12]
+check("nenhuma frase longa identica nos dois idiomas", _iguais == [], _iguais)
+
+# Chave que nao existe volta visivel, nao estoura: tela feia da pra ver e
+# consertar, tela em branco o lojista so reporta como "nao abre".
+check("chave inexistente volta entre colchetes",
+      _tx.t("nao_existe_essa", "en") == "[nao_existe_essa]")
+check("e nao levanta excecao", isinstance(_tx.t("nao_existe_essa"), str))
+check("a tabela sai completa", len(_tx.tabela("pt")) == len(_tx.TEXTOS))
+
+# --- a tela responde no idioma pedido --------------------------------------
+_html_en = _cliente.get("/dev/?locale=en-US").get_data(as_text=True)
+_html_pt = _cliente.get("/dev/?locale=pt-BR").get_data(as_text=True)
+check("a tela em ingles diz Products", "<h2>Products</h2>" in _html_en)
+check("a tela em portugues diz Produtos", "<h2>Produtos</h2>" in _html_pt)
+check("o lang do html acompanha",
+      'lang="en"' in _html_en and 'lang="pt"' in _html_pt)
+check("o titulo acompanha",
+      "<title>Labels</title>" in _html_en and "<title>Etiquetas</title>" in _html_pt)
+# Chave faltando apareceria como [chave] na pagina. Isto varre a tela inteira.
+import re as _re3
+check("nenhuma chave faltando na tela em ingles",
+      _re3.search(r"\[[a-z_]{4,}\]", _html_en) is None,
+      (_re3.findall(r"\[[a-z_]{4,}\]", _html_en) or [""])[0])
+check("nem na tela em portugues",
+      _re3.search(r"\[[a-z_]{4,}\]", _html_pt) is None,
+      (_re3.findall(r"\[[a-z_]{4,}\]", _html_pt) or [""])[0])
+
+# --- as mensagens da API tambem -------------------------------------------
+def _erro_em(idioma):
+    return _cliente.post("/api/imprimir?idioma=" + idioma,
+        headers={"Authorization": "Bearer " + _token_de("loja-de-teste.myshopify.com")},
+        json={"motor": "zpl", "receita": {"formato": "zebra_2x1"},
+              "itens": [{"produto": {}, "variante": {}}]}).get_json()["erro"]
+
+t_lojas.marcar_plano(t_lojas.buscar("loja-de-teste.myshopify.com")["id"], "gratis")
+# Os testes acima passam o idioma na mao. Isso NAO prova que a tela manda — e,
+# de fato, apagar a linha que faz isso nao quebrava nada. Sem ela a tela fica na
+# lingua do lojista e as mensagens de erro voltam no padrao: metade traduzida,
+# que parece mais quebrado do que nada traduzido.
+_fonte_tela = _io.open("web/rotas_tela.py", encoding="utf-8").read()
+check("a tela repassa o idioma em toda chamada de API",
+      'caminho += (caminho.indexOf("?") < 0 ? "?" : "&") + "idioma=" + IDIOMA;'
+      in _fonte_tela)
+check("e o idioma chega no JavaScript",
+      "const IDIOMA = {{ idioma|tojson }};" in _fonte_tela)
+
+check("erro da API em ingles", _erro_em("en") == _tx.t("erro_motor_bloqueado", "en"))
+check("erro da API em portugues", _erro_em("pt") == _tx.t("erro_motor_bloqueado", "pt"))
+
+# --- os nomes que a tela exibe vem traduzidos da borda ---------------------
+# O motor guarda "Título do produto" e "2 x 1 pol"; quem traduz e o web, porque
+# o motor tem arquivo-espelho e nao pode mudar por causa de idioma.
+_f_en = _pega("/api/formatos?idioma=en", "loja-a.myshopify.com").get_json()
+_f_pt = _pega("/api/formatos?idioma=pt", "loja-a.myshopify.com").get_json()
+check("os campos vem traduzidos",
+      [c["nome"] for c in _f_en["campos"]][:3] == ["Product title",
+                                                   "Variant (color, size)", "Vendor"],
+      [c["nome"] for c in _f_en["campos"]][:3])
+check("e em portugues tambem",
+      _f_pt["campos"][0]["nome"] == "Título do produto", _f_pt["campos"][0]["nome"])
+check("o sufixo do formato e traduzido",
+      "retail" in _f_en["formatos"][0]["nome"], _f_en["formatos"][0]["nome"])
+check("inclusive a unidade de polegada",
+      " in " in _f_en["formatos"][0]["nome"], _f_en["formatos"][0]["nome"])
+check("e o portugues fica como estava",
+      "pol" in _f_pt["formatos"][0]["nome"] and "varejo" in _f_pt["formatos"][0]["nome"],
+      _f_pt["formatos"][0]["nome"])
+
+_p_en = _pega("/api/planos?idioma=en", "loja-a.myshopify.com").get_json()
+check("os planos vem traduzidos",
+      [p["nome"] for p in _p_en["planos"]] == ["Free", "Pro", "Business"],
+      [p["nome"] for p in _p_en["planos"]])
+check("e o resumo tambem",
+      "Unlimited labels" in [p["resumo"] for p in _p_en["planos"]][1])
+
+# --- o motor continua sem saber o que e idioma -----------------------------
+# Se um dia alguem puser texto de tela dentro do motor, traduzir passa a exigir
+# mexer nele — e ele tem arquivo-espelho justamente pra nao mudar.
+for _mod in ("etiquetas/receitas.py", "etiquetas/formatos.py", "etiquetas/modelo.py",
+             "loja/cobranca.py", "loja/catalogo.py"):
+    _fonte = _io.open(_mod, encoding="utf-8").read()
+    check("%s nao importa a tabela de textos" % _mod,
+          "textos" not in _fonte.replace("# ", "").split('"""')[-1],
+          _mod)
 
 
 # ---------------------------------------------------------------- fim

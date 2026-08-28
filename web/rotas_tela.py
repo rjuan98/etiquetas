@@ -24,11 +24,12 @@ milímetro, não sabe quebrar texto, não sabe onde o preço fica. Se soubesse,
 seria uma segunda implementação da mesma regra — e a prévia começaria a discordar
 da impressão, que é o defeito que este app existe pra corrigir.
 """
-from flask import Blueprint, request, redirect, render_template_string, abort
+from flask import (Blueprint, request, redirect, render_template_string,
+                   abort, g)
 
 from loja import dominio
 from dados import lojas
-from . import config
+from . import config, textos
 
 rotas = Blueprint("tela", __name__)
 
@@ -37,17 +38,17 @@ rotas = Blueprint("tela", __name__)
 ESCAPAR = """<!doctype html><meta charset="utf-8">
 <script>window.top.location.href = {{ destino|tojson }};</script>
 <p style="font:16px system-ui;padding:2rem">
-  <a href="{{ destino }}" target="_top">Clique aqui pra instalar o app.</a></p>"""
+  <a href="{{ destino }}" target="_top">{{ T.instalar_aqui }}</a></p>"""
 
-FORA = """<!doctype html><meta charset="utf-8"><title>Etiquetas</title>
+FORA = """<!doctype html><meta charset="utf-8"><title>{{ T.app_titulo }}</title>
 <p style="font:16px system-ui;padding:2rem;max-width:32rem;line-height:1.6">
-  Este app funciona dentro do painel do Shopify. Abra pelo admin da sua loja.</p>"""
+  {{ T.fora_do_admin }}</p>"""
 
 CASCA = r"""<!doctype html>
-<html lang="pt-BR"><head>
+<html lang="{{ idioma }}"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Etiquetas</title>
+<title>{{ T.app_titulo }}</title>
 <meta name="shopify-api-key" content="{{ chave_api }}">
 <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
 <style>
@@ -132,19 +133,19 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
 </head><body>
 
 <div class="topo">
-  <h1>Etiquetas</h1>
+  <h1>{{ T.app_titulo }}</h1>
   <div class="linha">
-    <span class="plano" id="plano">carregando…</span>
-    <button class="b" id="ver_planos">Ver planos</button>
+    <span class="plano" id="plano">{{ T.carregando }}</span>
+    <button class="b" id="ver_planos">{{ T.ver_planos }}</button>
   </div>
 </div>
 
 <dialog id="dlg_planos">
-  <h2>Planos</h2>
+  <h2>{{ T.planos }}</h2>
   <p class="ajuda" id="teste_gratis"></p>
   <div id="lista_planos"></div>
   <div class="linha" style="justify-content:flex-end;margin:14px 0 0">
-    <button class="b" id="fechar_planos">Fechar</button>
+    <button class="b" id="fechar_planos">{{ T.fechar }}</button>
   </div>
   <p class="ajuda" id="aviso_teste" style="margin:12px 0 0"></p>
 </dialog>
@@ -152,73 +153,73 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
 <div class="grade">
   <div>
     <div class="cx">
-      <h2>Produtos</h2>
+      <h2>{{ T.produtos }}</h2>
       <div class="linha" style="margin:0 0 12px">
-        <input type="search" id="busca" placeholder="Buscar por nome, SKU ou código">
-        <button class="b" id="buscar">Buscar</button>
+        <input type="search" id="busca" placeholder="{{ T.buscar_dica }}">
+        <button class="b" id="buscar">{{ T.buscar }}</button>
       </div>
-      <div id="lista"><p class="vazio">Carregando o catálogo…</p></div>
+      <div id="lista"><p class="vazio">{{ T.carregando_catalogo }}</p></div>
       <div id="aviso_catalogo"></div>
       <div class="linha" style="justify-content:center;margin:12px 0 0">
-        <button class="b oculto" id="mais">Carregar mais produtos</button>
+        <button class="b oculto" id="mais">{{ T.carregar_mais }}</button>
       </div>
     </div>
   </div>
 
   <div class="direita">
     <div class="cx">
-      <h2>A etiqueta</h2>
-      <div class="previa" id="previa"><span class="s">montando…</span></div>
+      <h2>{{ T.a_etiqueta }}</h2>
+      <div class="previa" id="previa"><span class="s">{{ T.montando }}</span></div>
       <p class="medida" id="medida"></p>
       <div id="recado"></div>
     </div>
 
     <div class="cx">
-      <h2>Modelo</h2>
-      <label for="modelo">Modelo salvo</label>
+      <h2>{{ T.modelo }}</h2>
+      <label for="modelo">{{ T.modelo_salvo }}</label>
       <select id="modelo"></select>
       <div style="margin:10px 0 0">
-        <label for="nome">Nome</label>
-        <input type="text" id="nome" placeholder="Etiqueta de prateleira" maxlength="60">
+        <label for="nome">{{ T.nome }}</label>
+        <input type="text" id="nome" placeholder="{{ T.nome_dica }}" maxlength="60">
       </div>
       <div class="linha" style="margin:10px 0 0;flex-wrap:wrap">
-        <button class="b forte" id="salvar">Salvar</button>
-        <button class="b" id="duplicar">Duplicar</button>
-        <button class="b" id="apagar">Apagar</button>
+        <button class="b forte" id="salvar">{{ T.salvar }}</button>
+        <button class="b" id="duplicar">{{ T.duplicar }}</button>
+        <button class="b" id="apagar">{{ T.apagar }}</button>
       </div>
       <p class="ajuda" id="estado_modelo" style="margin:9px 0 0"></p>
     </div>
 
     <div class="cx">
-      <h2>O que aparece</h2>
+      <h2>{{ T.o_que_aparece }}</h2>
       <div class="campos" id="campos"></div>
 
-      <label for="formato">Formato do papel</label>
+      <label for="formato">{{ T.formato_do_papel }}</label>
       <select id="formato"></select>
 
       <details>
-        <summary>Preço e código</summary>
+        <summary>{{ T.preco_e_codigo }}</summary>
         <div class="par" style="margin:10px 0 0">
           <div>
-            <label for="simbolo">Símbolo</label>
+            <label for="simbolo">{{ T.simbolo }}</label>
             <input type="text" id="simbolo" value="R$" maxlength="4">
           </div>
           <div>
-            <label for="posicao">Posição</label>
+            <label for="posicao">{{ T.posicao }}</label>
             <select id="posicao">
               <option value="antes">R$ 24,90</option>
               <option value="depois">24,90 €</option>
             </select>
           </div>
           <div>
-            <label for="decimal">Decimal</label>
+            <label for="decimal">{{ T.decimal }}</label>
             <select id="decimal">
               <option value=",">24,90</option>
               <option value=".">24.90</option>
             </select>
           </div>
           <div>
-            <label for="simbologia">Tipo de código</label>
+            <label for="simbologia">{{ T.tipo_de_codigo }}</label>
             <select id="simbologia">
               <option value="EAN13">EAN-13</option>
               <option value="UPCA">UPC-A</option>
@@ -229,44 +230,50 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin:11px 0 0;
                       font-size:13px;color:var(--tinta);cursor:pointer">
-          <input type="checkbox" id="rotulo_sku" checked> Escrever "SKU:" antes do código
+          <input type="checkbox" id="rotulo_sku" checked> {{ T.rotulo_sku }}
         </label>
       </details>
 
       <details>
-        <summary>A etiqueta está saindo torta?</summary>
-        <p class="ajuda">Imprima a régua em <strong>tamanho real (100%)</strong>,
-          meça com régua de verdade onde a moldura caiu, e escreva a diferença.
-          Vale pra qualquer impressora.</p>
+        <summary>{{ T.sai_torta }}</summary>
+        <p class="ajuda">{{ T.regua_ajuda|safe }}</p>
         <div class="par">
           <div>
-            <label for="dx">Desviar na horizontal (mm)</label>
+            <label for="dx">{{ T.desvio_x }}</label>
             <input type="number" id="dx" value="0" step="0.5">
           </div>
           <div>
-            <label for="dy">Desviar na vertical (mm)</label>
+            <label for="dy">{{ T.desvio_y }}</label>
             <input type="number" id="dy" value="0" step="0.5">
           </div>
         </div>
-        <button class="b" id="regua" style="margin:10px 0 0">Baixar a régua</button>
+        <button class="b" id="regua" style="margin:10px 0 0">{{ T.baixar_regua }}</button>
       </details>
     </div>
   </div>
 </div>
 
 <div class="barra">
-  <span class="conta" id="conta">nenhum produto escolhido</span>
-  <button class="b" id="zpl">Impressora térmica (ZPL)</button>
-  <button class="b forte" id="pdf">Baixar PDF</button>
+  <span class="conta" id="conta">{{ T.nenhum_escolhido }}</span>
+  <button class="b" id="zpl">{{ T.termica }}</button>
+  <button class="b forte" id="pdf">{{ T.baixar_pdf }}</button>
 </div>
 
 <script>
 "use strict";
 
+// Os textos vêm prontos do servidor. O JavaScript não guarda frase nenhuma:
+// se guardasse, seriam duas tabelas pra manter e uma delas ficaria pra trás.
+const T = {{ T|tojson }};
+const IDIOMA = {{ idioma|tojson }};
+
 // Todo pedido sai com o token de sessão. Centralizar aqui é o que impede uma
 // tela nova de esquecer o cabeçalho e tomar 401 sem motivo aparente.
 async function api(caminho, opcoes) {
   opcoes = opcoes || {};
+  // O idioma vai junto: sem isso as mensagens de erro da API voltariam sempre
+  // no padrão, enquanto a tela ao redor está na língua do lojista.
+  caminho += (caminho.indexOf("?") < 0 ? "?" : "&") + "idioma=" + IDIOMA;
   const token = await shopify.idToken();
   const cab = Object.assign({}, opcoes.headers, {Authorization: "Bearer " + token});
   if (opcoes.body && !cab["Content-Type"]) cab["Content-Type"] = "application/json";
@@ -325,13 +332,13 @@ function marcarEstado() {
   const p = $("estado_modelo");
   if (modeloAtual === null) {
     p.textContent = limiteModelos && quantosModelos >= limiteModelos
-      ? "Seu plano guarda " + limiteModelos + " modelo. Salvar vai pedir o Pro."
-      : "Ainda não salvo.";
+      ? T.limite_de_modelos_aviso.replace("%d", limiteModelos)
+      : T.ainda_nao_salvo;
   } else {
-    p.textContent = mudou ? "Tem alteração não salva." : "Salvo.";
+    p.textContent = mudou ? T.alteracao_nao_salva : T.salvo;
   }
   $("apagar").disabled = $("duplicar").disabled = modeloAtual === null;
-  $("apagar").textContent = "Apagar";
+  $("apagar").textContent = T.apagar;
 }
 
 async function carregarModelos(selecionar) {
@@ -342,7 +349,7 @@ async function carregarModelos(selecionar) {
 
   $("modelo").innerHTML = "";
   const novo = document.createElement("option");
-  novo.value = ""; novo.textContent = "— Novo modelo —";
+  novo.value = ""; novo.textContent = T.novo_modelo;
   $("modelo").appendChild(novo);
   lista.forEach(function (m) {
     const o = document.createElement("option");
@@ -362,7 +369,7 @@ async function abrirModelo(id) {
   }
   const r = await api("/api/modelos/" + id);
   const d = await r.json();
-  if (!r.ok) { avisar(d.erro || "Não consegui abrir o modelo."); return; }
+  if (!r.ok) { avisar(d.erro || T.erro_abrir_modelo); return; }
   modeloAtual = d.id;
   $("nome").value = d.nome || "";
   // A receita é o que devolve os botões ao estado em que foram salvos. Sem ela
@@ -409,7 +416,7 @@ async function comTrava(tarefa) {
   try {
     await tarefa();
   } catch (e) {
-    avisar("Alguma coisa deu errado. Tente de novo.");
+    avisar(T.erro_generico);
   } finally {
     ocupado = false;
     BOTOES.forEach(function (id) { $(id).disabled = false; });
@@ -426,7 +433,7 @@ async function guardar() {
   const d = await r.json();
   if (!r.ok) {
     if (d.motivo === "limite_de_modelos") avisarSobrePlano(d.erro, d.motivo);
-    else avisar(d.erro || "Não consegui salvar.");
+    else avisar(d.erro || T.erro_salvar);
     return;
   }
   if (novo) modeloAtual = d.id;
@@ -474,7 +481,7 @@ async function atualizarPrevia() {
   if (meu !== pedido) return;           // resposta velha chegou atrasada
 
   if (!r.ok) { $("recado").innerHTML = '<p class="erro"></p>';
-               $("recado").firstChild.textContent = d.erro || "Erro na prévia."; return; }
+               $("recado").firstChild.textContent = d.erro || T.erro_previa; return; }
 
   $("previa").innerHTML = d.svg;
   $("medida").textContent = d.largura_mm + " × " + d.altura_mm + " mm";
@@ -482,7 +489,7 @@ async function atualizarPrevia() {
     const nomes = d.nao_coube.map(function (c) { return nomeDoCampo(c); }).join(", ");
     $("recado").innerHTML = '<p class="aviso"></p>';
     $("recado").firstChild.textContent =
-      "Não coube nesta etiqueta: " + nomes + ". Escolha um papel maior ou desligue algum campo.";
+      T.nao_coube.replace("%s", nomes);
   } else {
     $("recado").innerHTML = "";
   }
@@ -498,20 +505,21 @@ function contar() {
   let total = 0;
   escolhidos.forEach(function (q) { total += q; });
   $("conta").textContent = escolhidos.size === 0
-    ? "nenhum produto escolhido"
-    : escolhidos.size + " produto(s), " + total + " etiqueta(s)";
+    ? T.nenhum_escolhido
+    : T.conta_escolhidos.replace("%d", escolhidos.size).replace("%d", total);
   $("pdf").disabled = $("zpl").disabled = escolhidos.size === 0;
 }
 
 function desenharLista() {
   if (!itens.length) {
-    $("lista").innerHTML = '<p class="vazio">Nenhum produto encontrado.</p>';
+    $("lista").innerHTML = '<p class="vazio"></p>';
+    $("lista").firstChild.textContent = T.nenhum_produto;
     return;
   }
   const tabela = document.createElement("table");
   tabela.innerHTML =
-    "<thead><tr><th class=c></th><th>Produto</th><th>Código</th>" +
-    "<th class=q>Quantas</th></tr></thead>";
+    "<thead><tr><th class=c></th><th>" + T.col_produto + "</th><th>" +
+    T.col_codigo + "</th><th class=q>" + T.col_quantas + "</th></tr></thead>";
   const corpo = document.createElement("tbody");
 
   itens.forEach(function (it) {
@@ -522,7 +530,7 @@ function desenharLista() {
     const marca = document.createElement("input");
     marca.type = "checkbox";
     marca.checked = escolhidos.has(id);
-    marca.setAttribute("aria-label", "Escolher " + it.produto.titulo);
+    marca.setAttribute("aria-label", T.escolher.replace("%s", it.produto.titulo));
     tdC.appendChild(marca);
 
     const tdN = document.createElement("td");
@@ -536,12 +544,12 @@ function desenharLista() {
     const tdB = document.createElement("td"); tdB.className = "s";
     // Produto sem código de barras não sai etiqueta com código — dizer isso aqui
     // é melhor que a pessoa descobrir olhando o papel em branco.
-    tdB.textContent = it.variante.codigo_barras || "sem código";
+    tdB.textContent = it.variante.codigo_barras || T.sem_codigo;
 
     const tdQ = document.createElement("td"); tdQ.className = "q";
     const q = document.createElement("input");
     q.type = "number"; q.min = "1"; q.value = escolhidos.get(id) || it.quantidade || 1;
-    q.setAttribute("aria-label", "Quantas etiquetas de " + it.produto.titulo);
+    q.setAttribute("aria-label", T.quantas_de.replace("%s", it.produto.titulo));
     tdQ.appendChild(q);
 
     marca.addEventListener("change", function () {
@@ -574,7 +582,8 @@ async function carregarProdutos(busca, continuar) {
     buscaAtual = busca || "";
     cursorAtual = null;
     itens.length = 0;
-    $("lista").innerHTML = '<p class="vazio">Carregando…</p>';
+    $("lista").innerHTML = '<p class="vazio"></p>';
+    $("lista").firstChild.textContent = T.carregando;
     $("aviso_catalogo").innerHTML = "";
   }
   $("mais").disabled = true;
@@ -589,7 +598,7 @@ async function carregarProdutos(busca, continuar) {
 
   if (!r.ok) {
     $("lista").innerHTML = '<p class="vazio"></p>';
-    $("lista").firstChild.textContent = d.erro || "Não consegui ler o catálogo.";
+    $("lista").firstChild.textContent = d.erro || T.erro_catalogo;
     $("mais").classList.add("oculto");
     return;
   }
@@ -603,8 +612,7 @@ async function carregarProdutos(busca, continuar) {
   if (d.variantes_cortadas && d.variantes_cortadas.length) {
     $("aviso_catalogo").innerHTML = '<p class="aviso"></p>';
     $("aviso_catalogo").firstChild.textContent =
-      "Estes produtos têm mais de 100 variações e só as 100 primeiras apareceram: " +
-      d.variantes_cortadas.join(", ") + ".";
+      T.variantes_cortadas.replace("%s", d.variantes_cortadas.join(", "));
   }
   desenharLista();
 }
@@ -622,7 +630,7 @@ function fila() {
 async function baixar(caminho, corpo, arquivo) {
   const r = await api(caminho, {method: "POST", body: JSON.stringify(corpo)});
   if (!r.ok) {
-    let m = "Não consegui gerar o arquivo.", motivo = "";
+    let m = T.erro_arquivo, motivo = "";
     try { const d = await r.json(); m = d.erro || m; motivo = d.motivo || ""; }
     catch (e) {}
     avisarSobrePlano(m, motivo);
@@ -642,11 +650,10 @@ async function baixar(caminho, corpo, arquivo) {
 async function abrirPlanos() {
   const r = await api("/api/planos");
   const d = await r.json();
-  if (!r.ok) { avisar(d.erro || "Não consegui ler os planos."); return; }
+  if (!r.ok) { avisar(d.erro || T.erro_planos); return; }
 
   $("teste_gratis").textContent = d.dias_de_teste
-    ? d.dias_de_teste + " dias grátis pra testar. A cobrança entra na fatura que " +
-      "você já paga à Shopify — sem cartão, sem cadastro."
+    ? T.teste_gratis.replace("%d", d.dias_de_teste)
     : "";
 
   const caixa = $("lista_planos");
@@ -665,17 +672,17 @@ async function abrirPlanos() {
     const dir = document.createElement("div");
     if (p.codigo === d.atual) {
       const selo = document.createElement("span");
-      selo.className = "selo"; selo.textContent = "seu plano";
+      selo.className = "selo"; selo.textContent = T.seu_plano;
       dir.appendChild(selo);
     } else if (p.preco_usd > 0) {
       const b = document.createElement("button");
       b.className = "b forte";
-      b.textContent = "US$ " + p.preco_usd.toFixed(2) + "/mês";
+      b.textContent = T.por_mes.replace("%s", p.preco_usd.toFixed(2));
       b.addEventListener("click", function () { assinar(p.codigo, b); });
       dir.appendChild(b);
     } else {
       const pr = document.createElement("span");
-      pr.className = "pr"; pr.textContent = "grátis";
+      pr.className = "pr"; pr.textContent = T.gratis_minusculo;
       dir.appendChild(pr);
     }
 
@@ -688,13 +695,13 @@ async function abrirPlanos() {
 
 async function assinar(codigo, botao) {
   botao.disabled = true;
-  botao.textContent = "abrindo…";
+  botao.textContent = T.abrindo;
   const r = await api("/api/assinar", {method: "POST",
                        body: JSON.stringify({plano: codigo})});
   const d = await r.json();
   if (!r.ok || !d.url) {
     botao.disabled = false;
-    $("aviso_teste").textContent = d.erro || "Não consegui iniciar a assinatura.";
+    $("aviso_teste").textContent = d.erro || T.erro_assinar;
     return;
   }
   // A confirmação é uma página do admin do Shopify: ela não pode ser carregada
@@ -710,13 +717,12 @@ async function carregarUso() {
   limiteModelos = d.limite_modelos || 0;
   quantosModelos = d.modelos || 0;
   $("plano").textContent = d.limite_mes
-    ? "Plano " + d.nome_do_plano + " — " + d.etiquetas_no_mes + " de " +
-      d.limite_mes + " etiquetas neste mês"
-    : "Plano " + d.nome_do_plano;
+    ? T.plano_com_limite.replace("%s", d.nome_do_plano)
+        .replace("%d", d.etiquetas_no_mes).replace("%d", d.limite_mes)
+    : T.plano_sem_limite.replace("%s", d.nome_do_plano);
   // Térmica é do plano pago. Deixar o botão clicável pra tomar 402 depois seria
   // prometer o que não entrega.
-  $("zpl").title = d.motores.indexOf("zpl") < 0
-    ? "A impressora térmica faz parte do plano Pro" : "";
+  $("zpl").title = d.motores.indexOf("zpl") < 0 ? T.termica_e_do_pro : "";
 }
 
 async function comecar() {
@@ -728,8 +734,9 @@ async function comecar() {
   (d.formatos || []).forEach(function (f) {
     const o = document.createElement("option");
     o.value = f.codigo;
-    o.textContent = f.nome + " — " + f.largura_mm + "×" + f.altura_mm + "mm" +
-                    (f.por_folha ? " (" + f.por_folha + " por folha)" : "");
+    // O nome do formato já diz "30 por folha" quando é folha. Repetir aqui
+    // gerava "5160 — 30 per sheet — 66.7×25.4mm (30 per sheet)".
+    o.textContent = f.nome + " — " + f.largura_mm + "×" + f.altura_mm + "mm";
     $("formato").appendChild(o);
   });
 
@@ -757,7 +764,7 @@ async function comecar() {
     comTrava(async function () {
       const r = await api("/api/modelos/" + modeloAtual + "/copia", {method: "POST"});
       const d = await r.json();
-      if (!r.ok) { avisar(d.erro || "Não consegui duplicar."); return; }
+      if (!r.ok) { avisar(d.erro || T.erro_duplicar); return; }
       await carregarModelos(d.id);
       await abrirModelo(d.id);
     });
@@ -768,17 +775,17 @@ async function comecar() {
   $("apagar").addEventListener("click", async function () {
     if ($("apagar").dataset.certeza !== "1") {
       $("apagar").dataset.certeza = "1";
-      $("apagar").textContent = "Apagar mesmo?";
+      $("apagar").textContent = T.apagar_mesmo;
       setTimeout(function () {
         $("apagar").dataset.certeza = "0";
-        $("apagar").textContent = "Apagar";
+        $("apagar").textContent = T.apagar;
       }, 4000);
       return;
     }
     $("apagar").dataset.certeza = "0";
     comTrava(async function () {
       const r = await api("/api/modelos/" + modeloAtual, {method: "DELETE"});
-      if (!r.ok) { avisar("Não consegui apagar."); return; }
+      if (!r.ok) { avisar(T.erro_apagar); return; }
       modeloAtual = null; salvo = null; $("nome").value = "";
       await carregarModelos("");
       await atualizarPrevia();
@@ -826,7 +833,7 @@ async function comecar() {
 }
 
 comecar().catch(function () {
-  $("plano").textContent = "Não consegui falar com o servidor.";
+  $("plano").textContent = T.erro_servidor;
 });
 </script>
 </body></html>"""
@@ -838,17 +845,19 @@ def casa():
 
     # Sem `shop` é gente chegando pela URL direto, não pelo admin. Não é erro.
     if not loja:
-        return render_template_string(FORA)
+        return render_template_string(FORA, T=textos.tabela(g.idioma))
 
     if not dominio.valido(loja):
-        abort(400, "Domínio de loja inválido.")
+        abort(400, textos.t("erro_dominio", g.idioma))
 
     registro = lojas.buscar(loja)
     if not registro or not registro["ativa"]:
         destino = "%s/instalar?shop=%s" % (config.URL_DO_APP,
                                            dominio.normalizar(loja))
         if request.args.get("embedded") == "1":
-            return render_template_string(ESCAPAR, destino=destino)
+            return render_template_string(ESCAPAR, destino=destino,
+                                          T=textos.tabela(g.idioma))
         return redirect(destino)
 
-    return render_template_string(CASCA, chave_api=config.CHAVE_API)
+    return render_template_string(CASCA, chave_api=config.CHAVE_API,
+                                  T=textos.tabela(g.idioma), idioma=g.idioma)

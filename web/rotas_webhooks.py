@@ -34,7 +34,7 @@ def receber():
         # 401 é o que o Shopify espera de webhook não autenticado. E o corpo não
         # explica o motivo: quem mandou não tem por que saber onde falhou.
         current_app.logger.warning("webhook recusado: %s", erro)
-        return jsonify({"erro": "não autorizado"}), 401
+        return jsonify({"erro": "unauthorized"}), 401
 
     topico, loja = aviso["topico"], aviso["loja"]
 

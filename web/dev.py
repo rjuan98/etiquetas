@@ -33,11 +33,11 @@ só bastaria pra alguém publicar sem perceber.
 """
 import time
 
-from flask import Blueprint, render_template_string, jsonify
+from flask import Blueprint, render_template_string, jsonify, g
 
 from loja import assinatura
 from dados import lojas
-from . import config
+from . import config, textos
 from .rotas_tela import CASCA
 
 rotas = Blueprint("dev", __name__, url_prefix="/dev")
@@ -96,7 +96,8 @@ def _garantir_loja():
 def tela():
     """A tela de verdade, com o App Bridge substituído."""
     _garantir_loja()
-    pagina = render_template_string(CASCA, chave_api=config.CHAVE_API)
+    pagina = render_template_string(CASCA, chave_api=config.CHAVE_API,
+                                    T=textos.tabela(g.idioma), idioma=g.idioma)
     # Entra ANTES do script da tela, senão `shopify` ainda não existe na hora
     # em que `comecar()` roda.
     return pagina.replace(

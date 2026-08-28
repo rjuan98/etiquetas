@@ -19,13 +19,17 @@ do Flask enquanto o resto do app usa token de sessão do Shopify: são dois
 contextos diferentes de navegador, e cada um pede uma ferramenta.
 """
 from flask import (Blueprint, request, session, redirect, abort,
-                   render_template_string, current_app)
+                   render_template_string, current_app, g)
 
 from loja import oauth, dominio, rede
 from dados import lojas
-from . import config
+from . import config, textos
 
 rotas = Blueprint("instalacao", __name__)
+
+
+def _t(chave):
+    return textos.t(chave, getattr(g, "idioma", textos.PADRAO))
 
 # Página de escape do iframe. `window.top` porque `window.parent` só sobe um
 # nível, e o admin do Shopify às vezes aninha mais de um.
@@ -33,14 +37,15 @@ ESCAPAR = """<!doctype html><meta charset="utf-8">
 <title>Instalando…</title>
 <script>window.top.location.href = {{ destino|tojson }};</script>
 <p style="font:16px system-ui;padding:2rem">
-  Abrindo a tela de autorização…
-  <a href="{{ destino }}" target="_top">Clique aqui se não abrir sozinho.</a>
+  {{ T.abrindo_autorizacao }}
+  <a href="{{ destino }}" target="_top">{{ T.clique_se_nao_abrir }}</a>
 </p>"""
 
 
 def _ir_para(destino: str, embutido: bool):
     if embutido:
-        return render_template_string(ESCAPAR, destino=destino)
+        return render_template_string(ESCAPAR, destino=destino,
+                                      T=textos.tabela(g.idioma))
     return redirect(destino)
 
 
@@ -49,7 +54,7 @@ def instalar():
     """Começa o OAuth. É aqui que o lojista chega vindo da loja de apps."""
     loja = request.args.get("shop", "")
     if not dominio.valido(loja):
-        abort(400, "Domínio de loja inválido.")
+        abort(400, _t("erro_dominio"))
 
     estado = oauth.novo_estado()
     session["estado_oauth"] = estado
@@ -72,7 +77,7 @@ def volta():
         # O motivo exato vai pro log, não pra tela: dizer "o hmac não bateu" vs
         # "o state não bateu" ensina quem está tentando forjar onde parou.
         current_app.logger.warning("instalação recusada: %s", erro)
-        abort(400, "Instalação recusada.")
+        abort(400, _t("erro_instalacao"))
 
     # O `state` é de uso único. Sem apagar, um `code` capturado poderia ser
     # reapresentado depois e ainda passar na conferência.
@@ -84,7 +89,7 @@ def volta():
     try:
         resposta = rede.trocar_token(url, corpo)
     except rede.ErroDeRede as erro:
-        abort(502, "Não consegui concluir a instalação: %s" % erro)
+        abort(502, _t("erro_instalacao_rede") % erro)
 
     # Token que expira é bomba-relógio pra este app: ele funciona no dia da
     # instalação e no dia seguinte todo mundo vê erro, sem nada ter mudado. Pior,

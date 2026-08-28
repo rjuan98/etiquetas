@@ -26,6 +26,14 @@ E **conferir o HMAC antes de qualquer coisa**. Sem isso, qualquer um manda
 """
 
 # Os que a gente assina. Os três primeiros são exigência do Shopify.
+# Estas duas respostas vão pro Shopify, não pro lojista — ficam em inglês, que é
+# a língua da plataforma, e não passam pela tabela de textos por isso.
+EXPLICACAO_SEM_DADOS = (
+    "This app does not collect or store customer data. It only reads products "
+    "and variants, to build labels.")
+EXPLICACAO_NADA_A_APAGAR = (
+    "There was nothing to erase: this app stores no customer data.")
+
 OBRIGATORIOS = ("customers/data_request", "customers/redact", "shop/redact")
 NOSSOS = ("app/uninstalled", "app_subscriptions/update")
 TODOS = OBRIGATORIOS + NOSSOS
@@ -70,13 +78,9 @@ def resposta_de_privacidade(topico: str) -> dict:
     """
     if topico == "customers/data_request":
         return {"dados_do_cliente": None,
-                "explicacao": "Este app não coleta nem guarda dados de clientes. "
-                              "Ele lê apenas produtos e variantes, pra montar "
-                              "etiquetas."}
+                "explicacao": EXPLICACAO_SEM_DADOS}
     if topico == "customers/redact":
-        return {"apagado": True,
-                "explicacao": "Não havia nada pra apagar: este app não guarda "
-                              "dados de clientes."}
+        return {"apagado": True, "explicacao": EXPLICACAO_NADA_A_APAGAR}
     return {}
 
 

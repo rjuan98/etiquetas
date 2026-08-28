@@ -80,6 +80,7 @@ dados/             O BANCO — toda consulta filtra por loja_id
 
 web/               O FLASK
   config.py        variáveis de ambiente, conferidas no boot
+  textos.py        todo texto do lojista, em inglês e português
   sessao.py        @exige_loja — o portão de toda rota de dados
   rotas_instalacao.py   OAuth, com o escape do iframe
   rotas_webhooks.py     recebe, confere HMAC, responde 200 rápido
@@ -145,6 +146,21 @@ buscar por `id` sozinho porque "o id é único".
 No `UPDATE` importa ainda mais que no `SELECT`: ler o alheio é ruim, sobrescrever
 o alheio não tem volta.
 
+### Inglês por padrão, português quando pedido
+
+As 565 avaliações que fizeram este projeto existir são **em inglês**, e é lá que
+está o volume de lojas. Listar em português seria mirar num mercado que a gente
+nunca mediu.
+
+Todo texto vive em `web/textos.py`, e **o motor não sabe o que é idioma**: ele
+fala em identificador (`"titulo"`, `"pro"`, `"zebra_2x1"`), e quem transforma
+isso em palavra é a borda web. Se o `receitas.py` carregasse "Título do produto",
+traduzir viraria mexer no motor — e o motor tem arquivo-espelho justamente pra
+não mudar.
+
+O Shopify informa o idioma do lojista em `?locale=`; sem ele vale o
+`Accept-Language`; desconhecido cai no inglês.
+
 ### O token de acesso é cifrado no banco
 
 O token que o Shopify devolve **não expira** e dá acesso ao catálogo inteiro da
@@ -159,7 +175,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **724 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **762 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -172,7 +188,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 30 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 33 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

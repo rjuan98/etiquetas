@@ -26,7 +26,7 @@ from flask import request, jsonify, g
 
 from loja import assinatura
 from dados import lojas
-from . import config
+from . import config, textos
 
 
 def _token_do_cabecalho() -> str:
@@ -65,11 +65,12 @@ def loja_atual():
     return registro, ""
 
 
+# A chave do texto e o código HTTP. A frase mora em `textos.py`, como todas.
 MENSAGENS = {
-    "sem_token":     ("Abra o app pelo painel do Shopify.", 401),
-    "token_invalido": ("Sessão expirada. Recarregue a página.", 401),
-    "nao_instalada": ("Este app não está instalado nesta loja.", 403),
-    "desinstalada":  ("O app foi desinstalado desta loja. Instale de novo.", 403),
+    "sem_token":      ("abrir_pelo_admin", 401),
+    "token_invalido": ("sessao_expirada", 401),
+    "nao_instalada":  ("nao_instalado", 403),
+    "desinstalada":   ("desinstalado", 403),
 }
 
 
@@ -84,7 +85,9 @@ def exige_loja(rota):
     def dentro(*args, **kwargs):
         registro, motivo = loja_atual()
         if not registro:
-            texto, codigo = MENSAGENS.get(motivo, ("Não autorizado.", 401))
-            return jsonify({"erro": texto, "motivo": motivo}), codigo
+            chave, codigo = MENSAGENS.get(motivo, ("nao_autorizado", 401))
+            idioma = getattr(g, "idioma", textos.PADRAO)
+            return jsonify({"erro": textos.t(chave, idioma),
+                            "motivo": motivo}), codigo
         return rota(*args, loja=registro, **kwargs)
     return dentro

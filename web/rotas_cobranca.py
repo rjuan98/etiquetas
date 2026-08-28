@@ -21,10 +21,11 @@ O Shopify manda de volta por aqui tanto quem aprovou quanto quem desistiu. Como
 não confiamos no clique de qualquer jeito, os dois casos têm o mesmo tratamento:
 marca vencido, pergunta depois. Quem desistiu continua no plano que tinha.
 """
-from flask import Blueprint, request, redirect, abort, current_app
+from flask import Blueprint, request, redirect, abort, current_app, g
 
 from loja import dominio
 from dados import lojas
+from . import textos
 
 rotas = Blueprint("cobranca", __name__)
 
@@ -33,7 +34,7 @@ rotas = Blueprint("cobranca", __name__)
 def volta():
     bruto = request.args.get("shop", "")
     if not dominio.valido(bruto):
-        abort(400, "Domínio de loja inválido.")
+        abort(400, textos.t("erro_dominio", getattr(g, "idioma", textos.PADRAO)))
 
     loja = dominio.normalizar(bruto)
     registro = lojas.buscar(loja)
