@@ -48,7 +48,8 @@ def loja_atual():
         return None, "sem_token"
 
     try:
-        conteudo = assinatura.sessao_abrir(token, config.CHAVE_API, config.SEGREDO)
+        conteudo = assinatura.sessao_abrir(token, config.CHAVE_API,
+                                           config.segredos_aceitos())
     except assinatura.TokenInvalido as erro:
         # O motivo detalhado fica no log; pro chamador vai só a categoria.
         # Dizer "assinatura não confere" vs "expirado" ajuda quem está atacando

@@ -130,6 +130,20 @@ SABOTAGENS = [
      "            (dono, nome, texto, json.dumps(receita or {}), momento, momento))",
      "            (dono, nome, texto, '{}', momento, momento))"),
 
+    # A rota de retorno da instalacao era a unica sem teste, porque fala com a
+    # rede. E foi ela que quebrou na cara do lojista: renomeei uma variavel e
+    # deixei um uso antigo pra tras. Agora a rede e substituida e o resto do
+    # caminho e testado.
+    ("a gravacao da loja no fim da instalacao",
+     "web/rotas_instalacao.py",
+     '    lojas.salvar(loja, token, ",".join(oauth.ESCOPOS))',
+     "    pass  # sabotado"),
+
+    ("a assinatura dos webhooks na instalacao",
+     "web/rotas_instalacao.py",
+     "        _assinar_webhooks(loja, token)",
+     "        pass  # sabotado"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

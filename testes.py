@@ -1848,6 +1848,218 @@ check("chaves diferentes geram objetos diferentes em cache",
       len(banco._CHAVES) >= 2, len(banco._CHAVES))
 
 
+secao("53. Rotacao de segredo: a janela em que os dois valem")
+# Descoberto instalando de verdade: ao rotacionar o Client secret, o Shopify gera
+# o novo e CONTINUA ASSINANDO COM O ANTIGO ate a rotacao ser concluida no painel.
+# Com um segredo so, toda rotacao derruba o app — webhook recusado, instalacao
+# recusada, token de sessao recusado — e o motivo nao aparece em lugar nenhum.
+_NOVO_S, _VELHO_S = "segredo-novo-do-app", "segredo-velho-do-app"
+_DOIS = (_NOVO_S, _VELHO_S)
+
+_corpo_wh = b'{"loja":"x"}'
+def _assina_wh(corpo, s):
+    return _b64.b64encode(_hm.new(s.encode(), corpo, _hl.sha256).digest()).decode()
+
+check("webhook assinado com o segredo NOVO passa",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, _NOVO_S), _DOIS))
+check("webhook assinado com o ANTIGO tambem passa, durante a janela",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, _VELHO_S), _DOIS))
+check("mas um terceiro segredo NAO passa",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, "outro"), _DOIS) is False)
+# Passar um segredo sozinho continua funcionando: quem chama com string nao muda.
+check("com um segredo so, o antigo nao vale",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, _VELHO_S), _NOVO_S) is False)
+
+# O mesmo vale pros parametros do OAuth — foi exatamente onde a instalacao parou.
+def _params_assinados(s):
+    p = {"code": "abc", "shop": "loja.myshopify.com", "timestamp": "1787878288"}
+    msg = "&".join("%s=%s" % (k, p[k]) for k in sorted(p))
+    p["hmac"] = _hm.new(s.encode(), msg.encode(), _hl.sha256).hexdigest()
+    return p
+
+check("OAuth assinado com o novo passa",
+      assinatura.parametros_conferem(_params_assinados(_NOVO_S), _DOIS))
+check("OAuth assinado com o antigo passa na janela",
+      assinatura.parametros_conferem(_params_assinados(_VELHO_S), _DOIS))
+check("OAuth com segredo alheio nao passa",
+      assinatura.parametros_conferem(_params_assinados("invasor"), _DOIS) is False)
+
+# E pro token de sessao.
+def _tok(s):
+    _ag = _tm.time()
+    return assinatura.sessao_assinar({"dest": "https://loja.myshopify.com",
+        "aud": "chave", "exp": _ag + 60, "nbf": _ag - 5}, s)
+
+check("token de sessao assinado com o antigo abre na janela",
+      assinatura.sessao_abrir(_tok(_VELHO_S), "chave", _DOIS)["loja"] == "loja.myshopify.com")
+try:
+    assinatura.sessao_abrir(_tok("invasor"), "chave", _DOIS)
+    check("token de sessao com segredo alheio e recusado", False)
+except assinatura.TokenInvalido:
+    check("token de sessao com segredo alheio e recusado", True)
+
+# Lista vazia nao pode virar "aceita tudo". Sem segredo nenhum, nada passa.
+check("sem segredo nenhum, webhook nao passa",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, _NOVO_S), ()) is False)
+check("sem segredo nenhum, OAuth nao passa",
+      assinatura.parametros_conferem(_params_assinados(_NOVO_S), ()) is False)
+check("string vazia tambem nao vale como segredo",
+      assinatura.webhook_confere(_corpo_wh, _assina_wh(_corpo_wh, ""), "") is False)
+
+# A config so junta o antigo quando ele existe — e o antigo NUNCA e usado pra
+# assinar o que sai, so pra conferir o que chega.
+from web import config as _cfg2
+_guardado = _cfg2.SEGREDO_ANTIGO
+_cfg2.SEGREDO_ANTIGO = ""
+check("sem SHOPIFY_SEGREDO_ANTIGO, so um segredo e aceito",
+      len(_cfg2.segredos_aceitos()) == 1, _cfg2.segredos_aceitos())
+_cfg2.SEGREDO_ANTIGO = "o-anterior"
+check("com ele, dois sao aceitos", len(_cfg2.segredos_aceitos()) == 2)
+check("e o primeiro da lista e o ATUAL, que e o usado pra assinar",
+      _cfg2.segredos_aceitos()[0] == _cfg2.SEGREDO)
+_cfg2.SEGREDO_ANTIGO = _guardado
+
+
+secao("54. Token que expira nao pode ser guardado como se fosse permanente")
+# O app le o catalogo quando o lojista manda imprimir, e responde webhook a
+# qualquer hora — inclusive com ninguem logado. Um token por usuario expira em
+# ~24h: funciona no dia da instalacao e quebra no dia seguinte, sem nada ter
+# mudado. E o tipo de defeito que o lojista descobre antes de voce.
+from loja import rede as _rede2
+
+check("expires_in denuncia token que expira",
+      _rede2.token_expira({"access_token": "shpat_x", "expires_in": 86399}))
+check("associated_user tambem denuncia",
+      _rede2.token_expira({"access_token": "shpat_x",
+                           "associated_user": {"id": 1}}))
+# O prefixo NAO serve de prova, e este teste ja garantiu o contrario. Na
+# primeira instalacao de verdade o Shopify entregou um token "shpua_" SEM
+# expires_in — ou seja, permanente. Prefixo e convencao da plataforma e muda sem
+# aviso; expires_in e contrato. Teste que garante o palpite errado e pior que
+# teste nenhum, porque impede o conserto.
+check("prefixo shpua_ SEM expires_in nao e tratado como expiravel",
+      _rede2.token_expira({"access_token": "shpua_abc"}) is False)
+check("mas shpua_ COM expires_in e",
+      _rede2.token_expira({"access_token": "shpua_abc", "expires_in": 86399}))
+check("token offline (shpat_) nao dispara alarme falso",
+      _rede2.token_expira({"access_token": "shpat_abc", "scope": "read_products"})
+      is False)
+check("resposta vazia nao quebra", _rede2.token_expira({}) is False)
+check("resposta que nem e dicionario nao quebra",
+      _rede2.token_expira(None) is False)
+
+# trocar_token devolve a resposta INTEIRA, nao so o token: e o resto dela que
+# conta que tipo de token e. Devolver so a string apagaria essa informacao.
+import inspect as _insp
+check("trocar_token devolve o dicionario inteiro",
+      "-> dict" in _insp.signature(_rede2.trocar_token).__str__()
+      or _insp.signature(_rede2.trocar_token).return_annotation is dict)
+
+
+secao("55. A volta da instalacao, de ponta a ponta (com a rede substituida)")
+# Esta era a UNICA rota sem teste, porque ela fala com a rede. E foi ela que
+# quebrou em producao: renomeei uma variavel e deixei um uso antigo pra tras —
+# NameError na cara do lojista, no meio da instalacao.
+#
+# Trocando so a ida a rede, o resto do caminho fica testavel: conferencia de
+# hmac, conferencia de state, gravacao da loja, cifra do token e assinatura dos
+# webhooks. Que e onde os erros de verdade moram.
+from loja import rede as _rede3
+from web import rotas_instalacao as _inst
+
+_LOJA_NOVA = "recem-instalada.myshopify.com"
+_chamadas = {"graphql": 0}
+
+
+def _falso_trocar_token(url, corpo):
+    _chamadas["url"] = url
+    return {"access_token": "shpat_token_de_teste", "scope": "read_products,read_inventory"}
+
+
+def _falso_graphql(loja, token, corpo):
+    _chamadas["graphql"] += 1
+    return {"data": {"webhookSubscriptionCreate": {"userErrors": []}}}
+
+
+def _volta(loja_dominio, segredo=None, estado="estado-combinado", com_estado=True,
+           resposta_token=None):
+    """Simula o Shopify devolvendo o `code`, com hmac de verdade."""
+    original_troca, original_graphql = _rede3.trocar_token, _rede3.graphql
+    _rede3.trocar_token = resposta_token or _falso_trocar_token
+    _rede3.graphql = _falso_graphql
+    try:
+        p = {"code": "codigo-de-uso-unico", "shop": loja_dominio,
+             "state": estado, "timestamp": "1787878288"}
+        msg = "&".join("%s=%s" % (k, p[k]) for k in sorted(p))
+        p["hmac"] = _hm.new((segredo or _SEGREDO).encode(), msg.encode(),
+                            _hl.sha256).hexdigest()
+        with _cliente.session_transaction() as sessao:
+            if com_estado:
+                sessao["estado_oauth"] = "estado-combinado"
+            else:
+                sessao.pop("estado_oauth", None)
+        return _cliente.get("/instalar/volta", query_string=p)
+    finally:
+        _rede3.trocar_token, _rede3.graphql = original_troca, original_graphql
+
+
+_r = _volta(_LOJA_NOVA)
+check("a instalacao completa e redireciona pro admin", _r.status_code == 302, _r.status_code)
+check("e vai pro painel de apps da loja certa",
+      "recem-instalada/apps" in _r.headers.get("Location", ""),
+      _r.headers.get("Location"))
+
+_gravada = t_lojas.buscar(_LOJA_NOVA)
+check("a loja foi gravada", _gravada is not None)
+check("com o token que veio da troca", _gravada["token"] == "shpat_token_de_teste")
+check("e os escopos que a gente pede", _gravada["escopos"] == "read_products,read_inventory")
+check("ativa", _gravada["ativa"] is True)
+check("os webhooks foram assinados", _chamadas["graphql"] == len(webhooks.TODOS),
+      _chamadas["graphql"])
+check("a troca de token foi pro dominio da loja",
+      _chamadas["url"] == "https://%s/admin/oauth/access_token" % _LOJA_NOVA,
+      _chamadas.get("url"))
+
+# state errado: alguem forjando uma instalacao que a gente nao comecou.
+_r = _volta("outra-loja.myshopify.com", com_estado=False)
+check("sem o state guardado, a instalacao e recusada", _r.status_code == 400)
+check("e a loja NAO entra no banco",
+      t_lojas.buscar("outra-loja.myshopify.com") is None)
+
+# hmac errado: os parametros nao vieram do Shopify.
+_r = _volta("terceira-loja.myshopify.com", segredo="segredo-de-invasor")
+check("com hmac de outro segredo, recusada", _r.status_code == 400)
+check("e essa loja tambem NAO entra no banco",
+      t_lojas.buscar("terceira-loja.myshopify.com") is None)
+
+# Falha de rede na troca nao pode virar loja gravada sem token.
+def _troca_que_falha(url, corpo):
+    raise _rede3.ErroDeRede("o Shopify caiu")
+
+_r = _volta("quarta-loja.myshopify.com", resposta_token=_troca_que_falha)
+check("se a troca de token falha, responde 502", _r.status_code == 502, _r.status_code)
+check("e nao deixa loja pela metade no banco",
+      t_lojas.buscar("quarta-loja.myshopify.com") is None)
+
+# Webhook que falha NAO derruba a instalacao: o lojista ja autorizou, e falhar
+# aqui deixaria uma loja com token e sem app.
+def _graphql_que_falha(loja, token, corpo):
+    raise _rede3.ErroDeRede("limite de requisicoes")
+
+_orig = _rede3.graphql
+_rede3.graphql = _graphql_que_falha
+try:
+    _r = _volta("quinta-loja.myshopify.com")
+finally:
+    _rede3.graphql = _orig
+check("webhook falhando nao derruba a instalacao", _r.status_code == 302, _r.status_code)
+check("e a loja fica instalada mesmo assim",
+      t_lojas.buscar("quinta-loja.myshopify.com") is not None)
+
+for _d in (_LOJA_NOVA, "quinta-loja.myshopify.com"):
+    t_lojas.apagar(_d)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

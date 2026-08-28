@@ -28,6 +28,21 @@ import time
 TOLERANCIA_RELOGIO = 60
 
 
+def _lista(segredo) -> tuple:
+    """Aceita um segredo ou vários. Existe por causa da rotação.
+
+    Quando o Shopify rotaciona o Client secret, ele **continua assinando com o
+    antigo** até a rotação ser concluída no painel. Com um segredo só, toda
+    rotação derruba o app — e o sintoma é "recusado" sem motivo visível.
+
+    Conferir contra os dois durante a janela é o comportamento certo. Note que
+    isto vale só pra CONFERIR: o que a gente assina sai sempre com o atual.
+    """
+    if isinstance(segredo, str):
+        return (segredo,) if segredo else ()
+    return tuple(s for s in (segredo or ()) if s)
+
+
 def _b64_decodificar(pedaco: str) -> bytes:
     """Base64 de URL, que o JWT usa sem o `=` do fim."""
     faltando = -len(pedaco) % 4
@@ -43,12 +58,15 @@ def webhook_confere(corpo: bytes, cabecalho_hmac: str, segredo: str) -> bool:
     JSON e serializar de novo antes de conferir, a assinatura nunca mais bate —
     espaço a mais, ordem de chave diferente, e pronto. É o erro clássico aqui.
     """
-    if not cabecalho_hmac or not segredo:
+    if not cabecalho_hmac:
         return False
-    calculado = base64.b64encode(
-        hmac.new(segredo.encode("utf-8"), corpo, hashlib.sha256).digest()
-    ).decode("utf-8")
-    return hmac.compare_digest(calculado, cabecalho_hmac)
+    for s in _lista(segredo):
+        calculado = base64.b64encode(
+            hmac.new(s.encode("utf-8"), corpo, hashlib.sha256).digest()
+        ).decode("utf-8")
+        if hmac.compare_digest(calculado, cabecalho_hmac):
+            return True
+    return False
 
 
 # ------------------------------------------------------------------ oauth
@@ -60,14 +78,17 @@ def parametros_conferem(parametros: dict, segredo: str) -> bool:
     resto por nome, junta como `chave=valor&...`, e assina.
     """
     recebido = parametros.get("hmac")
-    if not recebido or not segredo:
+    if not recebido:
         return False
 
     resto = {k: v for k, v in parametros.items() if k not in ("hmac", "signature")}
     mensagem = "&".join("%s=%s" % (k, resto[k]) for k in sorted(resto))
-    calculado = hmac.new(segredo.encode("utf-8"), mensagem.encode("utf-8"),
-                         hashlib.sha256).hexdigest()
-    return hmac.compare_digest(calculado, recebido)
+    for s in _lista(segredo):
+        calculado = hmac.new(s.encode("utf-8"), mensagem.encode("utf-8"),
+                             hashlib.sha256).hexdigest()
+        if hmac.compare_digest(calculado, recebido):
+            return True
+    return False
 
 
 # ---------------------------------------------------------- token de sessão
@@ -107,13 +128,19 @@ def sessao_abrir(token: str, chave_api: str, segredo: str) -> dict:
     if cabecalho.get("alg") != "HS256":
         raise TokenInvalido("algoritmo %r não é aceito" % cabecalho.get("alg"))
 
-    # 2. Assinatura.
-    esperada = base64.urlsafe_b64encode(
-        hmac.new(segredo.encode("utf-8"),
-                 ("%s.%s" % (cabecalho_b64, conteudo_b64)).encode("utf-8"),
-                 hashlib.sha256).digest()
-    ).decode("utf-8").rstrip("=")
-    if not hmac.compare_digest(esperada, assinatura_b64.rstrip("=")):
+    # 2. Assinatura. Confere contra todos os segredos aceitos (ver `_lista`).
+    recebida = assinatura_b64.rstrip("=")
+    bate = False
+    for s in _lista(segredo):
+        esperada = base64.urlsafe_b64encode(
+            hmac.new(s.encode("utf-8"),
+                     ("%s.%s" % (cabecalho_b64, conteudo_b64)).encode("utf-8"),
+                     hashlib.sha256).digest()
+        ).decode("utf-8").rstrip("=")
+        if hmac.compare_digest(esperada, recebida):
+            bate = True
+            break
+    if not bate:
         raise TokenInvalido("assinatura do token não confere")
 
     # 3. O token é pra ESTE app.

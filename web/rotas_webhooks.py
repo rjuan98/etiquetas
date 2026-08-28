@@ -29,7 +29,7 @@ def receber():
     corpo = request.get_data()          # BYTES CRUS. Não trocar por request.json.
 
     try:
-        aviso = webhooks.conferir(corpo, request.headers, config.SEGREDO)
+        aviso = webhooks.conferir(corpo, request.headers, config.segredos_aceitos())
     except webhooks.Recusado as erro:
         # 401 é o que o Shopify espera de webhook não autenticado. E o corpo não
         # explica o motivo: quem mandou não tem por que saber onde falhou.

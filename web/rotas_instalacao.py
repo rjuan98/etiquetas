@@ -67,7 +67,7 @@ def volta():
 
     try:
         loja = oauth.volta_valida(parametros, session.get("estado_oauth", ""),
-                                  config.SEGREDO)
+                                  config.segredos_aceitos())
     except ValueError as erro:
         # O motivo exato vai pro log, não pra tela: dizer "o hmac não bateu" vs
         # "o state não bateu" ensina quem está tentando forjar onde parou.
@@ -82,10 +82,29 @@ def volta():
     url, corpo = oauth.troca_de_token(loja, config.CHAVE_API, config.SEGREDO,
                                       parametros["code"])
     try:
-        token = rede.trocar_token(url, corpo)
+        resposta = rede.trocar_token(url, corpo)
     except rede.ErroDeRede as erro:
         abort(502, "Não consegui concluir a instalação: %s" % erro)
 
+    # Token que expira é bomba-relógio pra este app: ele funciona no dia da
+    # instalação e no dia seguinte todo mundo vê erro, sem nada ter mudado. Pior,
+    # o webhook precisa funcionar com ninguém logado. Não dá pra consertar aqui —
+    # depende de como o app está configurado no painel — mas dá pra GRITAR, em
+    # vez de guardar quieto e descobrir pelo lojista.
+    # As CHAVES da resposta, nunca os valores: é o que diz o tipo do token sem
+    # jogar o token no log. Na primeira instalação de verdade eu registrei só
+    # `expires_in` e fiquei sem saber se `associated_user` tinha vindo junto —
+    # faltou justamente a informação que decidia a questão.
+    current_app.logger.info("troca de token: campos = %s",
+                            sorted(k for k in resposta if k != "access_token"))
+    if rede.token_expira(resposta):
+        current_app.logger.error(
+            "ATENCAO: o Shopify devolveu um token que EXPIRA (expires_in=%s). "
+            "Este app precisa de token offline, senão para de funcionar em ~24h. "
+            "Confira a configuracao do app no painel.",
+            resposta.get("expires_in"))
+
+    token = resposta["access_token"]
     lojas.salvar(loja, token, ",".join(oauth.ESCOPOS))
 
     # Assinar os webhooks é o passo que mais some do roteiro — e sem ele o app é

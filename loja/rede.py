@@ -113,13 +113,44 @@ def graphql(loja: str, token: str, corpo: dict) -> dict:
                      "Tente de novo em alguns segundos.")
 
 
-def trocar_token(url: str, corpo: dict) -> str:
-    """Executa a troca do `code` do OAuth pelo token permanente.
+def trocar_token(url: str, corpo: dict) -> dict:
+    """Executa a troca do `code` do OAuth pelo token.
 
-    A URL vem do `oauth.troca_de_token`, que já normalizou o domínio.
+    Devolve o dicionário inteiro, não só o token, porque o RESTO diz que tipo de
+    token é — e isso muda tudo:
+
+      offline  o token não expira. É o que este app precisa: ele lê o catálogo
+               quando o lojista manda imprimir, e responde webhook a qualquer
+               hora, inclusive com ninguém logado.
+
+      online   o token expira (~24h) e é amarrado ao usuário que instalou. Vem
+               com `expires_in` e `associated_user` na resposta.
+
+    Guardar um token online achando que é permanente é uma bomba-relógio: o app
+    funciona no dia da instalação e no dia seguinte todo mundo vê erro, sem nada
+    ter mudado. Por isso quem chama confere.
     """
     resposta = _post(url, corpo, {})
     token = (resposta or {}).get("access_token")
     if not token:
         raise ErroDeRede("o Shopify não devolveu o token de acesso")
-    return token
+    return resposta
+
+
+def token_expira(resposta: dict) -> bool:
+    """A resposta da troca descreve um token que expira?
+
+    Vale só o que o **protocolo** diz: token por usuário vem com `expires_in` e
+    `associated_user`; token permanente vem sem os dois.
+
+    A primeira versão disto também tratava o prefixo `shpua_` como prova, e
+    **deu alarme falso na primeira instalação de verdade**: o Shopify entregou
+    um token `shpua_` sem `expires_in` nenhum. Prefixo é convenção da plataforma,
+    muda sem aviso e não é contrato; `expires_in` é.
+
+    A lição é a mesma que já apareceu neste projeto: medir com o sinal certo, não
+    com o que parece.
+    """
+    if not isinstance(resposta, dict):
+        return False
+    return bool(resposta.get("expires_in") or resposta.get("associated_user"))
