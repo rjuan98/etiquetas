@@ -928,7 +928,8 @@ _corpo_cob = cobranca.corpo_para_assinar("pro", "https://app.exemplo/volta",
 check("a mutacao leva o preco certo", _corpo_cob["variables"]["preco"] == "9.99")
 check("e os dias de teste", _corpo_cob["variables"]["teste"] == 7)
 # Cobrar de verdade numa loja de desenvolvimento e motivo de reprovacao.
-check("loja de desenvolvimento nao e cobrada", _corpo_cob["variables"]["desenvolvimento"] is True)
+check("da pra pedir assinatura de teste explicitamente",
+      _corpo_cob["variables"]["desenvolvimento"] is True)
 try:
     cobranca.corpo_para_assinar("gratis", "https://x")
     check("nao da pra assinar o plano gratis", False)
@@ -2257,11 +2258,23 @@ _ID_C = t_lojas.salvar("quer-assinar.myshopify.com", "token-de-quem-vai-assinar"
 _pedidos = []
 
 
-def _shopify_de_mentira(resposta):
+def _shopify_de_mentira(resposta, desenvolvimento=True):
+    """Responde a DUAS consultas: que tipo de loja e, e a criacao da assinatura.
+
+    A rota pergunta o tipo antes de assinar, entao um duplo que devolve sempre a
+    mesma coisa faz a primeira pergunta voltar sem resposta — foi o que quebrou
+    este teste quando a deteccao entrou.
+    """
     original = _rede4.graphql
 
     def falso(loja, token, corpo, **kw):
         _pedidos.append(corpo)
+        if "partnerDevelopment" in corpo.get("query", ""):
+            if desenvolvimento is None:
+                return {"data": {"shop": None}}     # resposta que nao diz nada
+            return {"data": {"shop": {"myshopifyDomain": loja,
+                                      "plan": {"partnerDevelopment": desenvolvimento,
+                                               "shopifyPlus": False}}}}
         return resposta
     _rede4.graphql = falso
     return original
@@ -2282,15 +2295,64 @@ check("assinar devolve a URL de confirmacao do Shopify",
       _r.status_code == 200 and "charges/1/confirm" in _r.get_json()["url"],
       (_r.status_code, _r.get_json()))
 
-_vars = _pedidos[0]["variables"]
+# A rota faz DUAS consultas agora: primeiro o tipo da loja, depois a criacao.
+# Pegar _pedidos[0] pegava a pergunta do tipo, que nem tem variables.
+_vars = [p for p in _pedidos
+         if "appSubscriptionCreate" in p.get("query", "")][0]["variables"]
 check("com o preco do plano Pro", _vars["preco"] == "9.99", _vars["preco"])
 check("em dolar", _vars["moeda"] == "USD")
 check("com os dias de teste", _vars["teste"] == cobranca.DIAS_DE_TESTE)
 # Cobrar de verdade numa loja de desenvolvimento e motivo de REPROVACAO na
 # revisao do Shopify. O COBRANCA_TESTE existia na config e nao era usado por
 # ninguem — este teste e o que garante que ele chega na mutacao.
-check("e marcada como assinatura de TESTE quando COBRANCA_TESTE esta ligado",
+# Loja de desenvolvimento so aceita cobranca de teste; loja de verdade precisa da
+# cobranca de verdade. Antes isso era uma variavel de ambiente que ALGUEM tinha
+# que lembrar de trocar antes de publicar — e esquecer significava o app
+# publicado criando assinaturas de teste pra todo mundo: o lojista "assina",
+# ganha acesso, e nao paga nada. Nao apareceria em teste nenhum.
+check("loja de desenvolvimento vira assinatura de TESTE",
       _vars["desenvolvimento"] is True, _vars["desenvolvimento"])
+check("e o app perguntou ao Shopify antes de decidir",
+      any("partnerDevelopment" in p.get("query", "") for p in _pedidos))
+
+# Loja de verdade: cobranca de verdade.
+_pedidos.clear()
+_orig = _shopify_de_mentira(_OK, desenvolvimento=False)
+try:
+    _r_real = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "pro"})
+finally:
+    _rede4.graphql = _orig
+check("loja de verdade vira cobranca de verdade", _r_real.status_code == 200)
+_vars_real = [p for p in _pedidos if "appSubscriptionCreate" in p.get("query", "")][0]["variables"]
+check("e a assinatura NAO e de teste",
+      _vars_real["desenvolvimento"] is False, _vars_real["desenvolvimento"])
+
+# Sem saber o tipo, recusa. Chutar erra caro dos dois lados: cobranca real em
+# loja de teste e reprovacao na revisao, e cobranca de teste em loja real e
+# entregar o produto de graca sem ninguem perceber.
+_pedidos.clear()
+_orig = _shopify_de_mentira(_OK, desenvolvimento=None)
+try:
+    _r_sei_la = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "pro"})
+finally:
+    _rede4.graphql = _orig
+check("sem saber o tipo da loja, recusa em vez de chutar",
+      _r_sei_la.status_code == 502, _r_sei_la.status_code)
+check("e NAO chega a criar assinatura nenhuma",
+      not any("appSubscriptionCreate" in p.get("query", "") for p in _pedidos))
+
+# A leitura da resposta, isolada.
+check("resposta de loja de desenvolvimento e reconhecida",
+      cobranca.e_loja_de_desenvolvimento(
+          {"data": {"shop": {"plan": {"partnerDevelopment": True}}}}) is True)
+check("resposta de loja de verdade tambem",
+      cobranca.e_loja_de_desenvolvimento(
+          {"data": {"shop": {"plan": {"partnerDevelopment": False}}}}) is False)
+for _torta in ({}, None, {"data": {}}, {"data": {"shop": None}},
+               {"data": {"shop": {"plan": {}}}},
+               {"data": {"shop": {"plan": "isso nao e dicionario"}}}):
+    check("resposta torta %r vira None, nao um chute" % (str(_torta)[:26],),
+          cobranca.e_loja_de_desenvolvimento(_torta) is None)
 check("a URL de volta aponta pra nossa rota de retorno",
       _vars["volta"].endswith("/cobranca/volta?shop=quer-assinar.myshopify.com"),
       _vars["volta"])

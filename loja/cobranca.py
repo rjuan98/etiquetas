@@ -104,6 +104,41 @@ CONSULTA_ASSINATURA = """
 query { currentAppInstallation { activeSubscriptions { id name status } } }
 """.strip()
 
+# Loja de desenvolvimento não pode receber cobrança de verdade: o Shopify recusa,
+# e tentar é motivo de reprovação na revisão — que acontece justamente numa loja
+# dessas.
+#
+# A primeira versão disto era uma variável de ambiente que ALGUÉM tinha que
+# lembrar de trocar antes de publicar. Esquecer significava o app publicado
+# criando assinaturas de teste pra todo mundo: o lojista "assina", ganha acesso,
+# e não paga nada. O erro não apareceria em teste nenhum — só na conta bancária
+# que não enche.
+#
+# Perguntar custa uma chamada, e ela só acontece quando alguém clica em assinar.
+CONSULTA_TIPO_DE_LOJA = """
+query { shop { myshopifyDomain plan { partnerDevelopment shopifyPlus } } }
+""".strip()
+
+
+def e_loja_de_desenvolvimento(resposta: dict):
+    """A loja é de desenvolvimento? `None` quando não deu pra saber.
+
+    Os três valores são diferentes de propósito. `True` e `False` decidem o tipo
+    da cobrança; `None` significa que a resposta não veio no formato esperado —
+    e aí quem chama **recusa criar a assinatura** em vez de chutar.
+
+    Chutar aqui erra dos dois lados: cobrar de verdade numa loja de teste é
+    reprovação na revisão, e cobrar de teste numa loja real é entregar o produto
+    de graça sem ninguém perceber.
+    """
+    loja = ((resposta or {}).get("data") or {}).get("shop")
+    if not isinstance(loja, dict):
+        return None
+    plano = loja.get("plan")
+    if not isinstance(plano, dict) or "partnerDevelopment" not in plano:
+        return None
+    return bool(plano.get("partnerDevelopment"))
+
 
 def plano(codigo: str) -> dict:
     if codigo not in PLANOS:

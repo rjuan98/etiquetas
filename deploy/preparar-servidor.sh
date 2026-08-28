@@ -135,9 +135,6 @@ BANCO_CAMINHO=$PASTA/dados.db
 # /dev/ existe.
 MODO_DEV=0
 
-# 0 em produção: assinatura de teste não cobra de verdade.
-COBRANCA_TESTE=0
-
 # Aparecem na política de privacidade, que é pública.
 CONTATO_EMAIL=
 CONTATO_NOME=

@@ -74,9 +74,14 @@ EMAIL_SUPORTE = _texto("CONTATO_EMAIL")
 NOME_RESPONSAVEL = _texto("CONTATO_NOME")
 NOME_HOSPEDAGEM = _texto("HOSPEDAGEM")
 
-# Loja de desenvolvimento: assinatura de teste, que não cobra de verdade. Cobrar
-# numa loja de teste é motivo de reprovação na revisão do Shopify.
-COBRANCA_DE_TESTE = _texto("COBRANCA_TESTE", "1") in ("1", "true", "sim")
+# COBRANCA_TESTE não existe mais, e a ausência é o conserto.
+#
+# Ela dizia se a assinatura era de teste, e alguém tinha que lembrar de trocá-la
+# antes de publicar. Esquecer significava o app publicado criando assinaturas de
+# teste pra todo mundo — o lojista "assina", ganha acesso, e não paga nada.
+#
+# Agora o app PERGUNTA ao Shopify se a loja é de desenvolvimento, na hora de
+# assinar. Ver `cobranca.e_loja_de_desenvolvimento`.
 
 
 def url_de_volta() -> str:

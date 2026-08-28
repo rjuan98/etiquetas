@@ -114,12 +114,25 @@ SABOTAGENS = [
 
     # ------------------------------------------------------------- cobrança
     # Cobrar de verdade numa loja de desenvolvimento e motivo de REPROVACAO na
-    # revisao do Shopify. O COBRANCA_TESTE ficou meses na config sem ninguem
-    # usar — exatamente o tipo de ponta solta que so aparece na revisao.
-    ("a assinatura de teste em loja de desenvolvimento",
+    # revisao — e cobrar de teste numa loja real e entregar o produto de graca.
+    # Antes isso dependia de alguem lembrar de trocar uma variavel.
+    ("o tipo de cobranca sendo perguntado ao Shopify",
      "web/rotas_api.py",
-     "            desenvolvimento=config.COBRANCA_DE_TESTE)",
-     "            desenvolvimento=False)"),
+     "            desenvolvimento=tipo)",
+     "            desenvolvimento=True)"),
+
+    # Plano inexistente e erro de quem chamou. Validar DEPOIS da ida ao Shopify
+    # gasta chamada a toa e vira um 502 confuso quando a rede falha.
+    ("a validacao do plano antes de ir a rede",
+     "web/rotas_api.py",
+     '        cobranca.corpo_para_assinar(codigo, "https://validacao")',
+     "        pass"),
+
+    # Sem saber o tipo, nao da pra decidir — e chutar erra caro dos dois lados.
+    ("a recusa quando nao da pra saber o tipo da loja",
+     "web/rotas_api.py",
+     "    if tipo is None:",
+     "    if False:"),
 
     # userErrors vem DENTRO de uma resposta 200. Sem tratar, o lojista e mandado
     # pra lugar nenhum achando que assinou.

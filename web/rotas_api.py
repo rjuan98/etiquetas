@@ -484,14 +484,40 @@ def assinar(loja):
     dados = request.get_json(silent=True) or {}
     codigo = str(dados.get("plano") or "pro")
 
+    # Validar o pedido ANTES de ir à rede. Plano que não existe, ou o grátis
+    # (que não tem assinatura pra criar), são erro de quem chamou — recusar isso
+    # depois de uma ida ao Shopify gasta chamada à toa e transforma um 400 claro
+    # num 502 confuso quando a rede falha.
+    try:
+        cobranca.corpo_para_assinar(codigo, "https://validacao")
+    except ValueError as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    # Pergunta ao Shopify que tipo de loja é esta, em vez de depender de alguém
+    # ter lembrado de trocar uma variável antes de publicar. Loja de
+    # desenvolvimento só aceita cobrança de teste; loja de verdade precisa da
+    # cobrança de verdade.
+    try:
+        tipo = cobranca.e_loja_de_desenvolvimento(
+            rede.graphql(loja["dominio"], loja["token"],
+                         {"query": cobranca.CONSULTA_TIPO_DE_LOJA},
+                         tentativas=1))
+    except rede.ErroDeRede as erro:
+        return jsonify({"erro": str(erro)}), 502
+
+    if tipo is None:
+        # Sem saber o tipo, não dá pra decidir. Errar pra qualquer lado custa
+        # caro: cobrança real em loja de teste é reprovação, e cobrança de teste
+        # em loja real é entregar o produto de graça sem ninguém perceber.
+        current_app.logger.error(
+            "não consegui saber se a loja é de desenvolvimento; assinatura recusada")
+        return jsonify({"erro": _t("erro_assinatura_recusada")}), 502
+
     try:
         corpo = cobranca.corpo_para_assinar(
             codigo,
             "%s/cobranca/volta?shop=%s" % (config.URL_DO_APP, loja["dominio"]),
-            # Loja de desenvolvimento tem que criar assinatura de TESTE, que não
-            # cobra de verdade. Cobrar num ambiente de teste é motivo de
-            # reprovação na revisão do Shopify.
-            desenvolvimento=config.COBRANCA_DE_TESTE)
+            desenvolvimento=tipo)
     except ValueError as erro:
         return jsonify({"erro": str(erro)}), 400
 
@@ -514,7 +540,7 @@ def assinar(loja):
         current_app.logger.warning("assinatura sem URL de confirmação: %s", erro)
         return jsonify({"erro": str(erro)}), 502
 
-    return jsonify({"url": url, "teste": config.COBRANCA_DE_TESTE})
+    return jsonify({"url": url, "teste": tipo})
 
 
 @rotas.get("/planos")

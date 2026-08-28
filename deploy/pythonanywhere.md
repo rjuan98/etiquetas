@@ -104,7 +104,6 @@ APP_URL=https://SEUUSUARIO.pythonanywhere.com
 BANCO_CAMINHO=/home/SEUUSUARIO/etiquetas/dados.db
 
 MODO_DEV=0
-COBRANCA_TESTE=0
 
 CONTATO_EMAIL=<um e-mail que você lê de verdade>
 CONTATO_NOME=<seu nome ou o do MEI>
