@@ -86,11 +86,17 @@ def _foi_estrangulado(resposta: dict) -> bool:
     return False
 
 
-def graphql(loja: str, token: str, corpo: dict) -> dict:
+def graphql(loja: str, token: str, corpo: dict, tentativas: int = TENTATIVAS) -> dict:
     """Chama o GraphQL do admin, com espera crescente se levar limite.
 
     A URL passa pelo `catalogo.url_graphql`, que passa pelo `dominio.normalizar`.
     Montar essa string à mão aqui anularia a defesa contra SSRF.
+
+    `tentativas` existe porque nem toda chamada merece insistir. O padrão de 3
+    somado ao tempo limite dá **até 63 segundos** no pior caso — aceitável pra
+    quem está esperando o catálogo carregar, e péssimo pra uma reconferida de
+    cache que acontece dentro de um pedido de impressão. Quem só quer atualizar
+    um valor que já tem passa `tentativas=1` e desiste rápido.
     """
     from . import catalogo
 
@@ -99,13 +105,14 @@ def graphql(loja: str, token: str, corpo: dict) -> dict:
 
     url = catalogo.url_graphql(loja)
     cabecalhos = {"X-Shopify-Access-Token": token}
+    tentativas = max(1, int(tentativas))
 
     espera = ESPERA_BASE
-    for tentativa in range(TENTATIVAS):
+    for tentativa in range(tentativas):
         resposta = _post(url, corpo, cabecalhos)
         if not _foi_estrangulado(resposta):
             return resposta
-        if tentativa < TENTATIVAS - 1:
+        if tentativa < tentativas - 1:
             time.sleep(espera)
             espera *= 2
 

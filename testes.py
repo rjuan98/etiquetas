@@ -1976,7 +1976,7 @@ def _falso_trocar_token(url, corpo):
     return {"access_token": "shpat_token_de_teste", "scope": "read_products,read_inventory"}
 
 
-def _falso_graphql(loja, token, corpo):
+def _falso_graphql(loja, token, corpo, **kw):
     _chamadas["graphql"] += 1
     return {"data": {"webhookSubscriptionCreate": {"userErrors": []}}}
 
@@ -2043,7 +2043,7 @@ check("e nao deixa loja pela metade no banco",
 
 # Webhook que falha NAO derruba a instalacao: o lojista ja autorizou, e falhar
 # aqui deixaria uma loja com token e sem app.
-def _graphql_que_falha(loja, token, corpo):
+def _graphql_que_falha(loja, token, corpo, **kw):
     raise _rede3.ErroDeRede("limite de requisicoes")
 
 _orig = _rede3.graphql
@@ -2076,7 +2076,7 @@ def _com_shopify_dizendo(nome_do_plano, quebra=False):
     """Troca a ida ao Shopify por uma resposta conhecida."""
     original = _rede4.graphql
 
-    def falso(loja, token, corpo):
+    def falso(loja, token, corpo, **kw):
         if quebra:
             raise _rede4.ErroDeRede("o Shopify caiu")
         assinaturas = ([{"name": nome_do_plano, "status": "ACTIVE"}]
@@ -2183,7 +2183,7 @@ _pedidos = []
 def _shopify_de_mentira(resposta):
     original = _rede4.graphql
 
-    def falso(loja, token, corpo):
+    def falso(loja, token, corpo, **kw):
         _pedidos.append(corpo)
         return resposta
     _rede4.graphql = falso
@@ -2245,7 +2245,7 @@ check("e a mensagem dele chega na tela",
 _orig = _rede4.graphql
 
 
-def _cai(loja, token, corpo):
+def _cai(loja, token, corpo, **kw):
     raise _rede4.ErroDeRede("sem conexao")
 
 
@@ -2290,6 +2290,153 @@ check("com preco em numero, pra tela nao formatar moeda por conta propria",
       all(isinstance(p["preco_usd"], (int, float)) for p in _d["planos"]))
 
 t_lojas.apagar("quer-assinar.myshopify.com")
+
+
+secao("58. Revisao: os quatro problemas que a medicao achou")
+
+# --- 1. quebra de texto era quadratica --------------------------------------
+# O conteudo da etiqueta vem do navegador. A versao antiga descobria onde cortar
+# uma palavra TIRANDO UM CARACTERE POR VEZ: 10 mil caracteres custavam 16ms,
+# 40 mil custavam 472ms — dobrar o texto multiplicava o tempo por doze. Um
+# titulo de 2 MB, que o Flask aceita, travaria um processo por minutos.
+import time as _t2
+
+_ini = _t2.perf_counter()
+texto.preparar("A" * 200000, 32.0, 7.8, 2, "cortar")
+_ms = (_t2.perf_counter() - _ini) * 1000
+check("200 mil caracteres custam menos de 50ms", _ms < 50, "%.1f ms" % _ms)
+
+# O teste acima passa com as DUAS defesas: o algoritmo direto e o teto de
+# caracteres. Ou seja, ele nao prova que o algoritmo esta certo — sozinho, o teto
+# ja faria a conta caber. Descobri isso vendo a sabotagem do algoritmo escapar.
+#
+# Este mede o `quebrar` direto, que NAO tem teto. So o algoritmo pode salvar.
+_ini = _t2.perf_counter()
+texto.quebrar("A" * 60000, 32.0, 7.8, 2)
+_ms_puro = (_t2.perf_counter() - _ini) * 1000
+check("quebrar 60 mil caracteres, SEM o teto, custa menos de 30ms",
+      _ms_puro < 30, "%.1f ms" % _ms_puro)
+# E a prova de que nao e linear disfarcado: dobrar a entrada nao pode dobrar o
+# tempo de forma explosiva. Na versao antiga isso multiplicava por doze.
+_ini = _t2.perf_counter()
+texto.quebrar("A" * 120000, 32.0, 7.8, 2)
+_dobro = (_t2.perf_counter() - _ini) * 1000
+check("e dobrar a entrada nao explode o tempo",
+      _dobro < max(30, _ms_puro * 4), "%.1f ms -> %.1f ms" % (_ms_puro, _dobro))
+
+# E o corte continua caindo no MESMO lugar de antes — os arquivos-espelho
+# garantiriam isso, mas vale dizer aqui tambem.
+check("a conta direta acha o mesmo ponto de corte",
+      texto.quebrar("REF-ABC123456789012345678901234567890", 32.0, 7.8, 2)
+      == ["REF-ABC1234567890123", "45678901234567890"],
+      texto.quebrar("REF-ABC123456789012345678901234567890", 32.0, 7.8, 2))
+check("quantos_cabem bate com o que o cabe() aceita",
+      texto.cabe("A" * texto.quantos_cabem(32.0, 7.8), 32.0, 7.8)
+      and not texto.cabe("A" * (texto.quantos_cabem(32.0, 7.8) + 1), 32.0, 7.8))
+check("largura zero nao divide por zero", texto.quantos_cabem(0, 7.8) >= 1)
+check("fonte zero tambem nao", texto.quantos_cabem(32.0, 0) >= 1)
+
+# O teto e defesa em profundidade: mesmo que a medida deixe de ser linear um dia,
+# o custo continua limitado.
+check("texto passa a ser cortado num teto",
+      len("".join(texto.preparar("A" * 99999, 500.0, 8.0, 99, "cortar")[0]))
+      <= texto.TETO_DE_CARACTERES)
+check("e o teto e generoso o bastante pra nao afetar etiqueta real",
+      texto.TETO_DE_CARACTERES >= 2000)
+
+# --- 2. a tela lia so os 50 primeiros produtos ------------------------------
+# A API devolvia `tem_mais` e `cursor` desde sempre; a tela ignorava os dois.
+# Numa loja com 200 produtos, os 150 de baixo simplesmente nao existiam.
+from web import dev as _dev
+
+_pag1, _mais1, _cur1 = _dev.catalogo_falso(None, None)
+check("a primeira pagina traz 50", len(_pag1) == 50, len(_pag1))
+check("e avisa que tem mais", _mais1 is True)
+_pag2, _mais2, _cur2 = _dev.catalogo_falso(None, _cur1)
+check("a segunda pagina continua de onde parou", len(_pag2) == 50)
+check("sem repetir o que ja veio",
+      not ({i["variante"]["id"] for i in _pag1} & {i["variante"]["id"] for i in _pag2}))
+_pag3, _mais3, _ = _dev.catalogo_falso(None, _cur2)
+check("a ultima pagina fecha a conta", _mais3 is False)
+check("e o total bate", len(_pag1) + len(_pag2) + len(_pag3) == len(_dev.TODOS_FALSOS))
+check("cursor invalido nao quebra, recomeca do zero",
+      len(_dev.catalogo_falso(None, "isso nao e numero")[0]) == 50)
+
+# A tela precisa disso no JSON, senao o botao de carregar mais nunca aparece.
+# A loja A e "de verdade" pros testes, entao a ida ao Shopify e substituida.
+_orig_gql = _rede4.graphql
+
+
+def _produtos_de_mentira(loja, token, corpo, **kw):
+    return {"data": {"products": {
+        "pageInfo": {"hasNextPage": True, "endCursor": "cursor-do-shopify"},
+        "nodes": [{"title": "Um produto", "vendor": "", "productType": "",
+                   "onlineStoreUrl": "",
+                   "variants": {"pageInfo": {"hasNextPage": False},
+                                "nodes": [{"id": "v1", "title": "", "sku": "S1",
+                                           "barcode": "", "price": "1.00",
+                                           "compareAtPrice": "",
+                                           "inventoryQuantity": 4}]}}]}}}
+
+
+_rede4.graphql = _produtos_de_mentira
+try:
+    _r = _pega("/api/produtos", "loja-a.myshopify.com")
+finally:
+    _rede4.graphql = _orig_gql
+_corpo_prod = _r.get_json() or {}
+check("a rota de produtos devolve tem_mais e cursor",
+      {"itens", "tem_mais", "cursor"} <= set(_corpo_prod), (_r.status_code, _corpo_prod))
+check("com o cursor que o Shopify mandou",
+      _corpo_prod.get("cursor") == "cursor-do-shopify", _corpo_prod.get("cursor"))
+check("e a quantidade sugerida vem do estoque",
+      _corpo_prod["itens"][0]["quantidade"] == 4)
+
+# --- 3. produto com mais de 100 variantes sumia calado ----------------------
+# A consulta pede `variants(first: 100)`. Grade de roupa grande passa disso, e o
+# lojista imprimiria a prateleira faltando tamanhos sem nada avisar.
+_resp_cortada = {"data": {"products": {"nodes": [{
+    "title": "Camiseta com muitas grades", "vendor": "", "productType": "",
+    "onlineStoreUrl": "",
+    "variants": {"pageInfo": {"hasNextPage": True},
+                 "nodes": [{"id": "v1", "title": "P", "sku": "A", "barcode": "",
+                            "price": "10", "compareAtPrice": "",
+                            "inventoryQuantity": 1}]}}]}}}
+_itens_cortados = catalogo.para_etiquetas(_resp_cortada)
+check("o corte de variantes e detectado",
+      _itens_cortados[0]["variantes_cortadas"] is True)
+check("e vira uma lista de nomes pra tela avisar",
+      catalogo.produtos_com_variantes_cortadas(_itens_cortados)
+      == ["Camiseta com muitas grades"])
+check("produto normal nao dispara o aviso",
+      catalogo.produtos_com_variantes_cortadas(
+          catalogo.para_etiquetas({"data": {"products": {"nodes": [{
+              "title": "Normal", "variants": {"pageInfo": {"hasNextPage": False},
+              "nodes": [{"id": "v", "sku": "S"}]}}]}}})) == [])
+check("a consulta pede o pageInfo das variantes",
+      "pageInfo { hasNextPage }" in catalogo.CONSULTA_PRODUTOS)
+
+# --- 4. reconferir o plano podia travar a impressao por um minuto -----------
+# rede.graphql insiste 3 vezes com espera crescente: ate 63 segundos no pior
+# caso. Isso e aceitavel pra quem espera o catalogo, e pessimo pra uma
+# atualizacao de cache que roda DENTRO de um pedido de impressao.
+import inspect as _insp2
+check("da pra pedir menos tentativas",
+      "tentativas" in _insp2.signature(_rede4.graphql).parameters)
+check("e o padrao continua insistindo",
+      _insp2.signature(_rede4.graphql).parameters["tentativas"].default
+      == _rede4.TENTATIVAS)
+_fonte_api = _io.open("web/rotas_api.py", encoding="utf-8").read()
+check("a reconferida de plano desiste na primeira",
+      "tentativas=1" in _fonte_api.split("def _plano_de")[1].split("def ")[0])
+
+# --- 5. SQLite travando leitor e escritor -----------------------------------
+# No modo padrao uma escrita bloqueia TODAS as leituras. Com um processo so nao
+# aparece; com varios — que e como qualquer servidor roda — um lojista salvando
+# modelo trava a previa de todo mundo.
+with banco.conectar() as _con:
+    _modo = _con.execute("PRAGMA journal_mode").fetchone()[0]
+check("o banco esta em WAL", str(_modo).lower() == "wal", _modo)
 
 
 # ---------------------------------------------------------------- fim

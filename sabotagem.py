@@ -189,6 +189,40 @@ SABOTAGENS = [
      "        _assinar_webhooks(loja, token)",
      "        pass  # sabotado"),
 
+    # ------------------------------------------------------------- desempenho
+    # O conteudo da etiqueta vem do navegador. Achar o ponto de corte tirando um
+    # caractere por vez custava 472ms em 40 mil caracteres, crescendo com o
+    # QUADRADO — e um titulo de 2 MB, que o Flask aceita, travava um processo.
+    ("a conta direta do ponto de corte (era quadratica)",
+     "etiquetas/texto.py",
+     "            corte = min(len(palavra) - 1, quantos_cabem(largura_mm, tamanho_pt))",
+     "            corte = len(palavra) - 1"),
+
+    ("o teto de caracteres que entram na conta",
+     "etiquetas/texto.py",
+     "    if texto and len(texto) > TETO_DE_CARACTERES:\n        texto = texto[:TETO_DE_CARACTERES]",
+     "    pass  # sabotado"),
+
+    # No modo padrao do SQLite uma escrita bloqueia TODAS as leituras.
+    ("o WAL, que impede escritor e leitor de travarem um ao outro",
+     "dados/banco.py",
+     'con.execute("PRAGMA journal_mode = WAL")',
+     'pass  # sabotado'),
+
+    # A tela lia so os 50 primeiros produtos: a API devolvia o cursor e ninguem
+    # usava. Numa loja com 200 produtos, 150 nao existiam.
+    ("o cursor de paginacao chegando na tela",
+     "web/rotas_api.py",
+     '        "itens": itens, "tem_mais": tem_mais, "cursor": cursor,\n        "variantes_cortadas": catalogo.produtos_com_variantes_cortadas(itens),',
+     '        "itens": itens, "tem_mais": False, "cursor": None,\n        "variantes_cortadas": [],'),
+
+    # Grade de roupa grande passa de 100 variantes, e o lojista imprimiria a
+    # prateleira faltando tamanhos sem nada avisar.
+    ("o aviso de produto com variantes cortadas",
+     "loja/catalogo.py",
+     '        cortado = bool((bloco.get("pageInfo") or {}).get("hasNextPage"))',
+     "        cortado = False"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

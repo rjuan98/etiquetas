@@ -38,6 +38,29 @@ def cabe(texto: str, largura_mm: float, tamanho_pt: float) -> bool:
     return largura_estimada_mm(texto, tamanho_pt) <= largura_mm
 
 
+def quantos_cabem(largura_mm: float, tamanho_pt: float) -> int:
+    """Quantos caracteres cabem na largura, direto pela conta.
+
+    Existe porque a versão anterior descobria isso **tirando um caractere por
+    vez** até caber. Numa palavra de 40 mil caracteres — que chega fácil, já que
+    o conteúdo da etiqueta vem do navegador — isso virava meio segundo de CPU, e
+    o custo crescia com o QUADRADO do tamanho: dobrar o texto multiplicava o
+    tempo por doze.
+
+    Medido: 10 mil caracteres = 16ms, 20 mil = 39ms, 40 mil = 472ms. Um título
+    de 2 MB, que o Flask aceita, travaria um processo inteiro por minutos.
+
+    A medida é linear no número de caracteres (ver `largura_estimada_mm`), então
+    o resultado sai de uma divisão. Quem chama ainda confere com `cabe`, porque
+    arredondamento de ponto flutuante pode passar por um caractere.
+    """
+    altura_mm = tamanho_pt * 25.4 / 72
+    por_caractere = altura_mm * PROPORCAO_LARGURA
+    if por_caractere <= 0:
+        return 1
+    return max(1, int(largura_mm / por_caractere))
+
+
 def quebrar(texto: str, largura_mm: float, tamanho_pt: float,
             linhas_max: int = 1) -> list[str]:
     """Quebra em linhas que caibam na largura, respeitando o limite de linhas.
@@ -70,7 +93,10 @@ def quebrar(texto: str, largura_mm: float, tamanho_pt: float,
 
         # A palavra sozinha não cabe: corta no meio.
         while palavra and not cabe(palavra, largura_mm, tamanho_pt):
-            corte = len(palavra) - 1
+            # O ponto de corte sai de uma divisão, não de tirar letra por letra.
+            # A correção abaixo é só pro arredondamento — roda uma ou duas
+            # vezes, nunca milhares. Ver `quantos_cabem`.
+            corte = min(len(palavra) - 1, quantos_cabem(largura_mm, tamanho_pt))
             while corte > 1 and not cabe(palavra[:corte], largura_mm, tamanho_pt):
                 corte -= 1
             linhas.append(palavra[:corte])
@@ -102,6 +128,18 @@ def encolher_para_caber(texto: str, largura_mm: float, tamanho_pt: float,
     return minimo_pt
 
 
+# Teto de caracteres que entram na conta de quebra.
+#
+# Uma etiqueta de 10cm com fonte miúda mostra umas 300 letras; 4 mil é folgado
+# por qualquer medida. O que vier além disso não caberia de jeito nenhum — é
+# cadastro estranho, texto colado por engano, ou alguém empurrando um corpo de
+# 2 MB pra ver o servidor suar.
+#
+# Cortar aqui é barato e não muda nenhuma etiqueta real, porque o `linhas_max`
+# já descartaria esse excesso alguns passos adiante.
+TETO_DE_CARACTERES = 4000
+
+
 def preparar(texto: str, largura_mm: float, tamanho_pt: float,
              linhas_max: int = 1, excesso: str = "cortar") -> tuple[list[str], float]:
     """O que os motores chamam. Devolve (linhas, tamanho_final_pt).
@@ -110,6 +148,8 @@ def preparar(texto: str, largura_mm: float, tamanho_pt: float,
     PDF corta numa palavra e o ZPL corta noutra, e o lojista descobre que as
     etiquetas dele mudam de acordo com a impressora.
     """
+    if texto and len(texto) > TETO_DE_CARACTERES:
+        texto = texto[:TETO_DE_CARACTERES]
     if excesso == "encolher":
         tamanho_pt = encolher_para_caber(texto, largura_mm, tamanho_pt, linhas_max)
     return quebrar(texto, largura_mm, tamanho_pt, linhas_max), tamanho_pt

@@ -103,6 +103,17 @@ def conectar():
     # Chave estrangeira não vem ligada por padrão no SQLite. Sem isso, o CASCADE
     # das tabelas filhas não roda e apagar uma loja deixa lixo órfão.
     con.execute("PRAGMA foreign_keys = ON")
+
+    # WAL: leitor e escritor deixam de travar um ao outro.
+    #
+    # No modo padrão, uma escrita bloqueia TODAS as leituras. Com um processo só
+    # isso não aparece; com vários — que é como qualquer servidor de verdade
+    # roda — um lojista salvando modelo trava a prévia de todos os outros, e o
+    # sintoma é "o app está lento" sem nada no log.
+    #
+    # É configuração do arquivo, não da conexão: pega na primeira vez e as
+    # seguintes são no-op. Barato o bastante pra rodar sempre.
+    con.execute("PRAGMA journal_mode = WAL")
     try:
         yield con
         con.commit()

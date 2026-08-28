@@ -33,6 +33,7 @@ query produtos($quantos: Int!, $depois: String, $busca: String) {
       productType
       onlineStoreUrl
       variants(first: 100) {
+        pageInfo { hasNextPage }
         nodes {
           id
           title
@@ -96,7 +97,13 @@ def para_etiquetas(resposta: dict, nome_da_loja: str = "") -> list:
     for produto in produtos:
         if not isinstance(produto, dict):
             continue
-        variantes = ((produto.get("variants") or {}).get("nodes")) or []
+        bloco = produto.get("variants") or {}
+        variantes = bloco.get("nodes") or []
+        # Produto com mais de 100 variantes tem o resto cortado pela consulta.
+        # É raro (grade de roupa grande chega lá), e sumir em silêncio seria o
+        # lojista imprimir a prateleira faltando tamanhos sem saber por quê.
+        # Melhor dizer, e deixar a tela avisar.
+        cortado = bool((bloco.get("pageInfo") or {}).get("hasNextPage"))
         for variante in variantes:
             if not isinstance(variante, dict):
                 continue
@@ -119,8 +126,21 @@ def para_etiquetas(resposta: dict, nome_da_loja: str = "") -> list:
                     "url": _texto(produto.get("onlineStoreUrl")),
                 },
                 "loja": {"nome": nome_da_loja},
+                # Não vai pra etiqueta: é aviso pra tela.
+                "variantes_cortadas": cortado,
             })
     return saida
+
+
+def produtos_com_variantes_cortadas(itens) -> list:
+    """Os produtos que tinham mais variantes do que a consulta trouxe."""
+    vistos = []
+    for item in itens or []:
+        if item.get("variantes_cortadas"):
+            titulo = (item.get("produto") or {}).get("titulo") or ""
+            if titulo not in vistos:
+                vistos.append(titulo)
+    return vistos
 
 
 def tem_proxima_pagina(resposta: dict) -> tuple:

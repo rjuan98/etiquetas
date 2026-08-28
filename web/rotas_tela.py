@@ -158,6 +158,10 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
         <button class="b" id="buscar">Buscar</button>
       </div>
       <div id="lista"><p class="vazio">Carregando o catálogo…</p></div>
+      <div id="aviso_catalogo"></div>
+      <div class="linha" style="justify-content:center;margin:12px 0 0">
+        <button class="b oculto" id="mais">Carregar mais produtos</button>
+      </div>
     </div>
   </div>
 
@@ -559,18 +563,49 @@ function desenharLista() {
   $("lista").appendChild(tabela);
 }
 
-async function carregarProdutos(busca) {
-  $("lista").innerHTML = '<p class="vazio">Carregando…</p>';
-  const url = "/api/produtos?quantos=50" + (busca ? "&busca=" + encodeURIComponent(busca) : "");
+// O catálogo vem de 50 em 50. A primeira versão pedia a primeira página e
+// ignorava o cursor que a API devolvia — numa loja com 200 produtos, os 150 de
+// baixo simplesmente não existiam, e nada na tela dizia isso.
+let buscaAtual = "";
+let cursorAtual = null;
+
+async function carregarProdutos(busca, continuar) {
+  if (!continuar) {
+    buscaAtual = busca || "";
+    cursorAtual = null;
+    itens.length = 0;
+    $("lista").innerHTML = '<p class="vazio">Carregando…</p>';
+    $("aviso_catalogo").innerHTML = "";
+  }
+  $("mais").disabled = true;
+
+  let url = "/api/produtos?quantos=50";
+  if (buscaAtual) url += "&busca=" + encodeURIComponent(buscaAtual);
+  if (continuar && cursorAtual) url += "&depois=" + encodeURIComponent(cursorAtual);
+
   const r = await api(url);
   const d = await r.json();
-  itens.length = 0;
+  $("mais").disabled = false;
+
   if (!r.ok) {
     $("lista").innerHTML = '<p class="vazio"></p>';
     $("lista").firstChild.textContent = d.erro || "Não consegui ler o catálogo.";
+    $("mais").classList.add("oculto");
     return;
   }
+
   (d.itens || []).forEach(function (i) { itens.push(i); });
+  cursorAtual = d.cursor || null;
+  $("mais").classList.toggle("oculto", !d.tem_mais);
+
+  // Produto com mais de 100 variantes vem cortado pela consulta. Sumir em
+  // silêncio faria o lojista imprimir a prateleira faltando tamanhos.
+  if (d.variantes_cortadas && d.variantes_cortadas.length) {
+    $("aviso_catalogo").innerHTML = '<p class="aviso"></p>';
+    $("aviso_catalogo").firstChild.textContent =
+      "Estes produtos têm mais de 100 variações e só as 100 primeiras apareceram: " +
+      d.variantes_cortadas.join(", ") + ".";
+  }
   desenharLista();
 }
 
@@ -750,6 +785,9 @@ async function comecar() {
     });
   });
 
+  $("mais").addEventListener("click", function () {
+    carregarProdutos(buscaAtual, true);
+  });
   $("ver_planos").addEventListener("click", abrirPlanos);
   $("fechar_planos").addEventListener("click", function () {
     $("dlg_planos").close();

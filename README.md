@@ -159,7 +159,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **697 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **724 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -172,13 +172,16 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 25 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 30 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
-Isso já pegou dois testes fracos meus. O do ataque `alg:none` passava porque a
-conferência de assinatura salvava, não porque a checagem de algoritmo existia. E
-o da linha de base do preço sabotava uma linha que não fazia trabalho nenhum.
+Isso já pegou quatro testes fracos meus. O do ataque `alg:none` passava porque a
+conferência de assinatura salvava, não porque a checagem de algoritmo existia. O
+da linha de base do preço sabotava uma linha que não fazia trabalho nenhum. O do
+plano vencido testava a função na mão em vez do webhook, que era o caminho
+quebrado. E o da quebra de texto passava por causa do teto de caracteres, não do
+algoritmo — duas defesas, só uma provada.
 
 Quando aparece "ESCAPOU", não é o código que está errado — é o teste.
 

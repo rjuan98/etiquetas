@@ -49,10 +49,14 @@ def produtos(loja):
     if config.MODO_DEV:
         from . import dev
         if dev.loja_de_mentira(loja):
-            itens = dev.catalogo_falso(request.args.get("busca"))
+            itens, tem_mais, cursor = dev.catalogo_falso(
+                request.args.get("busca"), request.args.get("depois"))
             for item in itens:
                 item["quantidade"] = catalogo.quantidade_sugerida(item)
-            return jsonify({"itens": itens, "tem_mais": False, "cursor": None})
+            return jsonify({
+                "itens": itens, "tem_mais": tem_mais, "cursor": cursor,
+                "variantes_cortadas": catalogo.produtos_com_variantes_cortadas(itens),
+            })
 
     corpo = catalogo.consulta_de_produtos(
         quantos=request.args.get("quantos", 50),
@@ -77,7 +81,10 @@ def produtos(loja):
     for item in itens:
         item["quantidade"] = catalogo.quantidade_sugerida(item)
 
-    return jsonify({"itens": itens, "tem_mais": tem_mais, "cursor": cursor})
+    return jsonify({
+        "itens": itens, "tem_mais": tem_mais, "cursor": cursor,
+        "variantes_cortadas": catalogo.produtos_com_variantes_cortadas(itens),
+    })
 
 
 # ------------------------------------------------------------------- receita
@@ -347,8 +354,13 @@ def _plano_de(loja) -> str:
         return plano
 
     try:
+        # Uma tentativa só. Isto roda DENTRO de um pedido de impressão, e o
+        # padrão de 3 tentativas com espera pode levar até 63 segundos — o
+        # lojista ficaria olhando um botão travado por causa de uma atualização
+        # de cache que pode muito bem esperar as próximas horas.
         resposta = rede.graphql(loja["dominio"], loja["token"],
-                                {"query": cobranca.CONSULTA_ASSINATURA})
+                                {"query": cobranca.CONSULTA_ASSINATURA},
+                                tentativas=1)
         plano = cobranca.plano_ativo(resposta)
     except (rede.ErroDeRede, KeyError, ValueError) as erro:
         current_app.logger.warning(

@@ -208,15 +208,57 @@ def painel():
         https=config.URL_DO_APP.startswith("https://"))
 
 
-def catalogo_falso(busca=None):
-    """O catálogo de mentira, filtrado pela busca. Usado por `/api/produtos`."""
-    if not busca:
-        return list(CATALOGO_FALSO)
-    alvo = busca.strip().lower()
-    return [i for i in CATALOGO_FALSO
-            if alvo in i["produto"]["titulo"].lower()
-            or alvo in (i["variante"]["sku"] or "").lower()
-            or alvo in (i["variante"]["codigo_barras"] or "")]
+# Enchimento pra loja passar de uma página. Um catálogo de 4 itens não exercita
+# a paginação, e paginação que nunca rodou é paginação que não funciona — foi
+# exatamente assim que a tela ficou meses lendo só os 50 primeiros produtos.
+def _enchimento(quantos=118):
+    cheio = list(CATALOGO_FALSO)
+    for n in range(quantos):
+        cheio.append({
+            "produto": {"titulo": "Produto de Teste %03d" % (n + 1),
+                        "fornecedor": "Fornecedor %d" % (n % 7),
+                        "tipo": "Teste", "url": ""},
+            "variante": {"id": "vt%d" % n, "titulo": "Padrão",
+                         "sku": "TST-%03d" % (n + 1),
+                         # Um em cada cinco sem código, como catálogo de verdade.
+                         "codigo_barras": "" if n % 5 == 0 else "789%09d" % n,
+                         "preco": "%d.90" % (10 + n % 90), "preco_comparado": "",
+                         "estoque": n % 30, "url": ""},
+            # Um produto com mais variantes do que a consulta traz, pra exercitar
+            # o aviso de corte.
+            "variantes_cortadas": n == 3,
+        })
+    return cheio
+
+
+TODOS_FALSOS = _enchimento()
+POR_PAGINA = 50
+
+
+def catalogo_falso(busca=None, depois=None):
+    """O catálogo de mentira, com busca e paginação por cursor.
+
+    O cursor é só a posição na lista. O do Shopify é opaco e a gente nunca olha
+    dentro dele, então imitar com um número é fiel o bastante pro que a tela faz.
+    """
+    itens = TODOS_FALSOS
+    if busca:
+        alvo = busca.strip().lower()
+        itens = [i for i in itens
+                 if alvo in i["produto"]["titulo"].lower()
+                 or alvo in (i["variante"]["sku"] or "").lower()
+                 or alvo in (i["variante"]["codigo_barras"] or "")]
+
+    inicio = 0
+    if depois:
+        try:
+            inicio = max(0, int(depois))
+        except (TypeError, ValueError):
+            inicio = 0
+
+    pagina = itens[inicio:inicio + POR_PAGINA]
+    fim = inicio + len(pagina)
+    return pagina, fim < len(itens), str(fim)
 
 
 def loja_de_mentira(registro) -> bool:
