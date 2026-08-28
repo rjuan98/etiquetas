@@ -37,8 +37,22 @@ TEMPO_LIMITE = 20
 
 # ------------------------------------------------------------------ cifra
 
+# A chave derivada, guardada por segredo. O scrypt é caro DE PROPÓSITO — é isso
+# que torna a força bruta inviável — mas ele é caro toda vez que roda, e aqui ele
+# rodava a cada leitura de loja, ou seja, a cada requisição autenticada.
+#
+# Medido no navegador: 386ms num GET que devia custar 5ms, e 348ms numa rota que
+# não faz quase nada. A conta é a mesma sempre (mesmo segredo, mesmo sal), então
+# repeti-la não protege de nada; só cobra o preço de novo.
+#
+# A chave do dicionário é o segredo, e não um `True`, pra que trocar a variável
+# de ambiente troque a chave derivada junto — senão o cache esconderia a troca e
+# o teste que confere isso passaria pelo motivo errado.
+_CHAVES = {}
+
+
 def _chave_fernet() -> Fernet:
-    """Deriva a chave de cifragem do segredo do ambiente.
+    """Deriva a chave de cifragem do segredo do ambiente, uma vez por segredo.
 
     scrypt em vez de hash simples: se o segredo for fraco (e vai ser, porque
     alguém vai pôr uma frase), scrypt torna a força bruta cara. Sal fixo porque
@@ -53,9 +67,11 @@ def _chave_fernet() -> Fernet:
             "acesso ao catálogo de todos os lojistas. Gere uma com "
             "`python -c \"import secrets; print(secrets.token_urlsafe(32))\"`."
         )
-    bruta = hashlib.scrypt(segredo.encode("utf-8"), salt=b"etiquetas.token",
-                           n=2 ** 14, r=8, p=1, dklen=32)
-    return Fernet(base64.urlsafe_b64encode(bruta))
+    if segredo not in _CHAVES:
+        bruta = hashlib.scrypt(segredo.encode("utf-8"), salt=b"etiquetas.token",
+                               n=2 ** 14, r=8, p=1, dklen=32)
+        _CHAVES[segredo] = Fernet(base64.urlsafe_b64encode(bruta))
+    return _CHAVES[segredo]
 
 
 def cifrar(texto: str) -> str:

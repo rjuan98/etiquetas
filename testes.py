@@ -1343,6 +1343,12 @@ check("/api/uso diz que motores o plano libera", _uso["motores"] == ["pdf"])
 
 # Plano pago libera o resto. O banco aqui e so cache — quem manda e o Shopify.
 t_lojas.marcar_plano(_ID_A, "pro")
+
+# Uma loja nova pros testes de isolamento: a loja B foi APAGADA na secao 45, pelo
+# shop/redact. Reusar ela aqui daria 403 e eu estaria medindo "loja desinstalada"
+# achando que media isolamento.
+_ID_D = t_lojas.salvar("loja-d.myshopify.com", "token-da-D")
+t_lojas.marcar_plano(_ID_D, "pro")
 _r = _imprimir("loja-a.myshopify.com", {"motor": "zpl", "modelo_id": _MODELO_A,
                                         "itens": _ITENS})
 check("o Pro imprime em termica mesmo tendo passado de 100", _r.status_code == 200,
@@ -1716,6 +1722,130 @@ _ida = receitas.montar("avery_5160", simbolo="$", campos=("titulo", "preco"))
 check("o template da receita sobrevive ao JSON",
       esquema.para_dict(esquema.de_json(esquema.para_json(_ida)))
       == esquema.para_dict(_ida))
+
+
+secao("51. Salvar e reabrir: a receita volta com os botoes no lugar")
+# O template montado e o que imprime. A receita e o que REABRE o editor. Sem
+# guardar as duas, dava pra imprimir e nao dava pra editar: o lojista abriria o
+# modelo dele e veria todos os botoes no padrao, sem relacao com a etiqueta na
+# tela — e concluiria que o app perdeu o trabalho dele.
+_RECEITA = {"formato": "avery_5160", "campos": ["titulo", "fornecedor", "preco"],
+            "simbolo": "US$", "simbolo_depois": True, "separador_decimal": ".",
+            "separador_milhar": ",", "rotulo_sku": False, "simbologia": "CODE128",
+            "desvio_x_mm": 1.5, "desvio_y_mm": -0.5}
+
+# Esta secao e sobre salvar e reabrir, nao sobre cobranca. A loja A ficou no
+# gratis (1 modelo) la na secao 44, e ja tem um — sem isto os testes daqui
+# tomariam 402 e eu estaria medindo o limite de plano de novo, por acidente.
+t_lojas.marcar_plano(_ID_A, "pro")
+
+
+def _post(caminho, loja_dominio, corpo):
+    return _cliente.post(caminho, headers={"Authorization": "Bearer " + _token_de(loja_dominio)},
+                         json=corpo)
+
+
+_r = _post("/api/modelos", "loja-a.myshopify.com",
+           {"nome": "Prateleira EUA", "receita": _RECEITA})
+check("da pra criar modelo mandando so as ESCOLHAS", _r.status_code == 201, _r.status_code)
+_NOVO = _r.get_json()["id"]
+
+_r = _pega("/api/modelos/%d" % _NOVO, "loja-a.myshopify.com")
+_lido = _r.get_json()
+check("e a receita volta inteira", _lido["receita"] == _RECEITA, _lido.get("receita"))
+check("com o nome junto", _lido["nome"] == "Prateleira EUA")
+# O template montado tambem e guardado: e ele que imprime, e ele nao pode
+# depender de a receita ser remontada certinho toda vez.
+check("e o template montado veio junto",
+      _lido["modelo"]["midia"]["largura_mm"] == 66.7, _lido["modelo"]["midia"])
+check("com a calibracao que foi escolhida",
+      _lido["modelo"]["calibracao"]["desvio_x_mm"] == 1.5)
+check("e so os campos que foram ligados",
+      {e["campo"] for e in _lido["modelo"]["elementos"]}
+      == {"produto.titulo", "produto.fornecedor", "variante.preco"},
+      {e["campo"] for e in _lido["modelo"]["elementos"]})
+
+# Alterar troca as duas coisas juntas. Se so uma trocasse, o modelo imprimiria
+# uma etiqueta e reabriria mostrando outra.
+_r = _cliente.put("/api/modelos/%d" % _NOVO,
+                  headers={"Authorization": "Bearer " + _token_de("loja-a.myshopify.com")},
+                  json={"nome": "Prateleira BR",
+                        "receita": dict(_RECEITA, simbolo="R$", formato="zebra_2x1")})
+check("alterar aceita receita nova", _r.status_code == 200, _r.status_code)
+_lido = _pega("/api/modelos/%d" % _NOVO, "loja-a.myshopify.com").get_json()
+check("o nome mudou", _lido["nome"] == "Prateleira BR")
+check("a receita mudou", _lido["receita"]["simbolo"] == "R$")
+check("e o template montado mudou JUNTO",
+      _lido["modelo"]["midia"]["largura_mm"] == 50.8, _lido["modelo"]["midia"])
+
+# Duplicar leva a receita junto — senao a copia abriria no padrao e a pessoa
+# refaria tudo, que e exatamente o atrito que duplicar existe pra evitar.
+_r = _post("/api/modelos/%d/copia" % _NOVO, "loja-a.myshopify.com", {})
+check("duplicar cria outro modelo", _r.status_code == 201, _r.status_code)
+_COPIA = _r.get_json()["id"]
+_lido_copia = _pega("/api/modelos/%d" % _COPIA, "loja-a.myshopify.com").get_json()
+check("a copia leva a receita junto", _lido_copia["receita"]["simbolo"] == "R$")
+check("e o nome marcado como copia", "cópia" in _lido_copia["nome"])
+
+# O isolamento vale pra receita tambem: ela guarda como a loja monta a etiqueta
+# dela, e isso e informacao de negocio.
+check("outra loja nao le a receita da A",
+      _pega("/api/modelos/%d" % _NOVO, "loja-d.myshopify.com").status_code == 404)
+
+# Receita invalida nao pode virar modelo quebrado no banco.
+_r = _post("/api/modelos", "loja-a.myshopify.com",
+           {"nome": "torto", "receita": {"formato": "papel_que_nao_existe"}})
+check("formato inexistente e recusado ao salvar", _r.status_code == 400, _r.status_code)
+_r = _post("/api/modelos", "loja-a.myshopify.com",
+           {"nome": "vazio", "receita": {"formato": "zebra_2x1", "campos": []}})
+check("etiqueta sem campo nenhum e recusada", _r.status_code == 400, _r.status_code)
+
+# Da pra imprimir SEM salvar: obrigar a salvar antes de testar transforma
+# "deixa eu ver como fica" em tres cliques, e enche a lista de "teste2".
+_r = _post("/api/imprimir", "loja-a.myshopify.com",
+           {"motor": "pdf", "receita": _RECEITA, "itens": _ITENS})
+check("imprime sem modelo salvo", _r.status_code == 200, _r.status_code)
+check("e sai PDF", _r.data[:5] == b"%PDF-")
+
+# O modelo_id vai junto so como anotacao no historico. Ele vem do navegador,
+# entao um id de outra loja nao pode entrar no registro desta.
+_r = _post("/api/imprimir", "loja-d.myshopify.com",
+           {"motor": "pdf", "receita": _RECEITA, "itens": _ITENS, "modelo_id": _NOVO})
+check("imprimir com modelo_id de outra loja nao quebra", _r.status_code == 200,
+      _r.status_code)
+_ultima = t_impressoes.historico(_ID_D, 1)[0]
+check("e o id alheio NAO entra no historico desta loja",
+      _ultima["modelo_id"] is None, _ultima["modelo_id"])
+
+t_modelos.apagar(_ID_A, _COPIA)
+t_modelos.apagar(_ID_A, _NOVO)
+
+
+secao("52. A chave de cifra e derivada uma vez, nao a cada requisicao")
+# O scrypt e caro DE PROPOSITO — e o que torna forca bruta inviavel. Mas ele
+# rodava a cada leitura de loja, ou seja, a cada requisicao autenticada. Medido
+# no navegador: 386ms num GET que devia custar 5ms.
+import time as _tempo
+
+banco.cifrar("aquece")
+_ini = _tempo.perf_counter()
+for _ in range(100):
+    banco.decifrar(banco.cifrar("shpat_token_qualquer"))
+_por_vez = (_tempo.perf_counter() - _ini) / 100 * 1000
+check("cifrar e decifrar custa menos de 5ms", _por_vez < 5.0, "%.2f ms" % _por_vez)
+
+# O cache NAO pode esconder a troca de segredo: se escondesse, um token cifrado
+# com a chave antiga pareceria abrir com a nova, e a cifra nao valeria nada.
+_cifrado_a = banco.cifrar("segredo-do-token")
+_antiga = _os.environ["CHAVE_SEGREDO"]
+_os.environ["CHAVE_SEGREDO"] = "uma-chave-totalmente-diferente"
+check("trocar a chave ainda invalida o que estava cifrado",
+      banco.decifrar(_cifrado_a) == "")
+_os.environ["CHAVE_SEGREDO"] = _antiga
+check("e voltar a chave certa abre de novo",
+      banco.decifrar(_cifrado_a) == "segredo-do-token")
+check("chaves diferentes geram objetos diferentes em cache",
+      len(banco._CHAVES) >= 2, len(banco._CHAVES))
 
 
 # ---------------------------------------------------------------- fim

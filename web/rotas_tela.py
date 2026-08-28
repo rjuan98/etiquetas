@@ -144,6 +144,22 @@ summary:focus-visible{outline:2px solid #005bd3}
     </div>
 
     <div class="cx">
+      <h2>Modelo</h2>
+      <label for="modelo">Modelo salvo</label>
+      <select id="modelo"></select>
+      <div style="margin:10px 0 0">
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" placeholder="Etiqueta de prateleira" maxlength="60">
+      </div>
+      <div class="linha" style="margin:10px 0 0;flex-wrap:wrap">
+        <button class="b forte" id="salvar">Salvar</button>
+        <button class="b" id="duplicar">Duplicar</button>
+        <button class="b" id="apagar">Apagar</button>
+      </div>
+      <p class="ajuda" id="estado_modelo" style="margin:9px 0 0"></p>
+    </div>
+
+    <div class="cx">
       <h2>O que aparece</h2>
       <div class="campos" id="campos"></div>
 
@@ -249,6 +265,148 @@ function receita() {
   };
 }
 
+// ------------------------------------------------------------------ modelos
+// `salvo` é a receita como ela está no banco. Comparar com a atual é o que
+// permite dizer "tem alteração não salva" — sem isso a pessoa mexe em tudo,
+// fecha a aba e perde o trabalho achando que estava guardado.
+let modeloAtual = null;      // id do modelo aberto, ou null pra "novo"
+let salvo = null;            // JSON da receita como está no banco
+let limiteModelos = 0;       // 0 = sem limite
+let quantosModelos = 0;
+
+function aplicarReceita(r) {
+  const set = function (id, v) { if (v !== undefined) $(id).value = v; };
+  set("formato", r.formato);
+  set("simbolo", r.simbolo);
+  set("posicao", r.simbolo_depois ? "depois" : "antes");
+  set("decimal", r.separador_decimal);
+  set("simbologia", r.simbologia);
+  set("dx", r.desvio_x_mm);
+  set("dy", r.desvio_y_mm);
+  $("rotulo_sku").checked = r.rotulo_sku !== false;
+  const ligados = r.campos || [];
+  document.querySelectorAll(".campo").forEach(function (c) {
+    c.checked = ligados.indexOf(c.value) >= 0;
+  });
+}
+
+function marcarEstado() {
+  const mudou = salvo !== null && salvo !== JSON.stringify(receita());
+  const p = $("estado_modelo");
+  if (modeloAtual === null) {
+    p.textContent = limiteModelos && quantosModelos >= limiteModelos
+      ? "Seu plano guarda " + limiteModelos + " modelo. Salvar vai pedir o Pro."
+      : "Ainda não salvo.";
+  } else {
+    p.textContent = mudou ? "Tem alteração não salva." : "Salvo.";
+  }
+  $("apagar").disabled = $("duplicar").disabled = modeloAtual === null;
+  $("apagar").textContent = "Apagar";
+}
+
+async function carregarModelos(selecionar) {
+  const r = await api("/api/modelos");
+  const d = await r.json();
+  const lista = (d.modelos || []);
+  quantosModelos = lista.length;
+
+  $("modelo").innerHTML = "";
+  const novo = document.createElement("option");
+  novo.value = ""; novo.textContent = "— Novo modelo —";
+  $("modelo").appendChild(novo);
+  lista.forEach(function (m) {
+    const o = document.createElement("option");
+    o.value = String(m.id); o.textContent = m.nome;
+    $("modelo").appendChild(o);
+  });
+  $("modelo").value = selecionar === undefined || selecionar === null
+    ? (modeloAtual === null ? "" : String(modeloAtual))
+    : String(selecionar);
+  marcarEstado();
+}
+
+async function abrirModelo(id) {
+  if (!id) {
+    modeloAtual = null; salvo = null; $("nome").value = "";
+    marcarEstado(); atualizarPrevia(); return;
+  }
+  const r = await api("/api/modelos/" + id);
+  const d = await r.json();
+  if (!r.ok) { avisar(d.erro || "Não consegui abrir o modelo."); return; }
+  modeloAtual = d.id;
+  $("nome").value = d.nome || "";
+  // A receita é o que devolve os botões ao estado em que foram salvos. Sem ela
+  // o modelo abriria com tudo no padrão, sem relação com a etiqueta na tela.
+  if (d.receita && Object.keys(d.receita).length) aplicarReceita(d.receita);
+  salvo = JSON.stringify(receita());
+  marcarEstado();
+  atualizarPrevia();
+}
+
+function avisar(texto, tipo) {
+  $("recado").innerHTML = '<p class="' + (tipo || "erro") + '"></p>';
+  $("recado").firstChild.textContent = texto;
+}
+
+// Enquanto uma operação está no ar, os botões que mexem em modelo ficam
+// travados. Sem isto, dois cliques em Salvar criam dois modelos, e apagar
+// durante um duplicar apaga o registro errado — foi o que aconteceu num teste:
+// cliquei em apagar e o modelo continuou lá, porque a lista ainda estava sendo
+// recarregada por trás.
+const BOTOES = ["salvar", "duplicar", "apagar", "pdf", "zpl", "regua"];
+let ocupado = false;
+
+async function comTrava(tarefa) {
+  if (ocupado) return;
+  ocupado = true;
+  BOTOES.forEach(function (id) { $(id).disabled = true; });
+  try {
+    await tarefa();
+  } catch (e) {
+    avisar("Alguma coisa deu errado. Tente de novo.");
+  } finally {
+    ocupado = false;
+    BOTOES.forEach(function (id) { $(id).disabled = false; });
+    marcarEstado();   // devolve apagar/duplicar ao estado certo
+    contar();         // devolve pdf/zpl ao estado certo
+  }
+}
+
+async function guardar() {
+  const corpo = {nome: $("nome").value || "Sem nome", receita: receita()};
+  const novo = modeloAtual === null;
+  const r = await api(novo ? "/api/modelos" : "/api/modelos/" + modeloAtual,
+                      {method: novo ? "POST" : "PUT", body: JSON.stringify(corpo)});
+  const d = await r.json();
+  if (!r.ok) {
+    avisar(d.erro || "Não consegui salvar.",
+           d.motivo === "limite_de_modelos" ? "aviso" : "erro");
+    return;
+  }
+  if (novo) modeloAtual = d.id;
+  salvo = JSON.stringify(receita());
+  $("recado").innerHTML = "";
+  await carregarModelos(modeloAtual);
+}
+
+// Mexer num controle não dispara a prévia na hora. Quem mexe numa opção
+// costuma mexer em três seguidas, e sem isto cada uma vira uma ida ao servidor
+// — as respostas se enfileiram e o resto do app espera atrás delas. Deu pra
+// medir: o botão Salvar levou 1,2s pra responder porque estava na fila.
+//
+// 250ms é curto o bastante pra parecer imediato e longo o bastante pra juntar
+// uma rajada de cliques numa requisição só.
+let temporizador = null;
+function pedirPrevia() {
+  clearTimeout(temporizador);
+  temporizador = setTimeout(atualizarPrevia, 250);
+}
+
+function mudou() {
+  pedirPrevia();
+  marcarEstado();      // esse é local e instantâneo: não espera o servidor
+}
+
 function primeiroEscolhido() {
   for (const it of itens) {
     if (escolhidos.has(it.variante.id)) return it;
@@ -343,7 +501,7 @@ function desenharLista() {
     marca.addEventListener("change", function () {
       if (marca.checked) escolhidos.set(id, parseInt(q.value, 10) || 1);
       else escolhidos.delete(id);
-      contar(); atualizarPrevia();
+      contar(); pedirPrevia();
     });
     q.addEventListener("change", function () {
       if (escolhidos.has(id)) escolhidos.set(id, Math.max(1, parseInt(q.value, 10) || 1));
@@ -406,6 +564,8 @@ async function carregarUso() {
   const r = await api("/api/uso");
   const d = await r.json();
   if (!r.ok) { $("plano").textContent = d.erro || ""; return; }
+  limiteModelos = d.limite_modelos || 0;
+  quantosModelos = d.modelos || 0;
   $("plano").textContent = d.limite_mes
     ? "Plano " + d.nome_do_plano + " — " + d.etiquetas_no_mes + " de " +
       d.limite_mes + " etiquetas neste mês"
@@ -437,34 +597,80 @@ async function comecar() {
     const i = document.createElement("input");
     i.type = "checkbox"; i.className = "campo"; i.value = c.chave;
     i.checked = marcados.indexOf(c.chave) >= 0;
-    i.addEventListener("change", atualizarPrevia);
+    i.addEventListener("change", mudou);
     l.appendChild(i);
     l.appendChild(document.createTextNode(" " + c.nome));
     $("campos").appendChild(l);
   });
 
   ["formato", "simbolo", "posicao", "decimal", "simbologia", "rotulo_sku", "dx", "dy"]
-    .forEach(function (id) { $(id).addEventListener("change", atualizarPrevia); });
+    .forEach(function (id) { $(id).addEventListener("change", mudou); });
+
+  $("modelo").addEventListener("change", function () {
+    abrirModelo($("modelo").value);
+  });
+  $("salvar").addEventListener("click", function () { comTrava(guardar); });
+  $("duplicar").addEventListener("click", function () {
+    comTrava(async function () {
+      const r = await api("/api/modelos/" + modeloAtual + "/copia", {method: "POST"});
+      const d = await r.json();
+      if (!r.ok) { avisar(d.erro || "Não consegui duplicar."); return; }
+      await carregarModelos(d.id);
+      await abrirModelo(d.id);
+    });
+  });
+  // Apagar em dois cliques em vez de uma caixa do navegador: dentro do iframe
+  // do Shopify um `confirm()` pode ser bloqueado, e aí o botão não faria nada —
+  // sem erro, sem explicação.
+  $("apagar").addEventListener("click", async function () {
+    if ($("apagar").dataset.certeza !== "1") {
+      $("apagar").dataset.certeza = "1";
+      $("apagar").textContent = "Apagar mesmo?";
+      setTimeout(function () {
+        $("apagar").dataset.certeza = "0";
+        $("apagar").textContent = "Apagar";
+      }, 4000);
+      return;
+    }
+    $("apagar").dataset.certeza = "0";
+    comTrava(async function () {
+      const r = await api("/api/modelos/" + modeloAtual, {method: "DELETE"});
+      if (!r.ok) { avisar("Não consegui apagar."); return; }
+      modeloAtual = null; salvo = null; $("nome").value = "";
+      await carregarModelos("");
+      await atualizarPrevia();
+    });
+  });
 
   $("buscar").addEventListener("click", function () { carregarProdutos($("busca").value); });
   $("busca").addEventListener("keydown", function (e) {
     if (e.key === "Enter") carregarProdutos($("busca").value);
   });
+  // Imprime SEMPRE o que está na tela, salvo ou não — é o que a prévia mostra.
+  // O `modelo_id` vai junto só pro histórico saber de qual modelo veio.
   $("pdf").addEventListener("click", function () {
-    baixar("/api/imprimir", {motor: "pdf", receita: receita(), itens: fila()},
-           "etiquetas.pdf");
+    comTrava(function () {
+      return baixar("/api/imprimir", {motor: "pdf", receita: receita(),
+                    itens: fila(), modelo_id: modeloAtual}, "etiquetas.pdf");
+    });
   });
   $("zpl").addEventListener("click", function () {
-    baixar("/api/imprimir", {motor: "zpl", receita: receita(), itens: fila()},
-           "etiquetas.zpl");
+    comTrava(function () {
+      return baixar("/api/imprimir", {motor: "zpl", receita: receita(),
+                    itens: fila(), modelo_id: modeloAtual}, "etiquetas.zpl");
+    });
   });
   $("regua").addEventListener("click", function () {
-    baixar("/api/calibracao.pdf", {receita: receita()}, "regua-de-calibracao.pdf");
+    comTrava(function () {
+      return baixar("/api/calibracao.pdf", {receita: receita()},
+                    "regua-de-calibracao.pdf");
+    });
   });
 
   contar();
   atualizarPrevia();
-  carregarUso();
+  await carregarUso();
+  await carregarModelos("");
   carregarProdutos("");
 }
 

@@ -75,7 +75,7 @@ loja/              O SHOPIFY — só regra, sem rede (exceto rede.py)
 dados/             O BANCO — toda consulta filtra por loja_id
   banco.py         conexão, esquema, cifra do token de acesso
   lojas.py         instalar, reinstalar, desinstalar, apagar
-  modelos.py       os modelos de etiqueta de cada loja
+  modelos.py       os modelos: o template que imprime + a receita que reabre
   impressoes.py    a conta do mês (só a conta, nada do conteúdo)
 
 web/               O FLASK
@@ -158,7 +158,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **595 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **619 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -171,7 +171,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 15 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 17 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
@@ -225,8 +225,13 @@ webhooks, catálogo, cobrança), o **banco** com isolamento entre lojas, as
 **rotas Flask** e a **tela** — escolher produtos, montar a etiqueta, ver a
 prévia, baixar PDF ou ZPL, e a régua de calibração.
 
-Falta: o motor da DYMO (precisa do aparelho pra valer a pena), salvar e reabrir
-modelos pela tela, e subir num servidor de verdade.
+Salvar guarda **duas coisas**: o template montado, que é o que imprime, e a
+receita — as escolhas que o geraram. Sem a receita dava pra imprimir e não dava
+pra editar: o lojista reabriria o modelo dele e veria todos os botões no padrão,
+sem relação nenhuma com a etiqueta na tela.
+
+Falta: o motor da DYMO (precisa do aparelho pra valer a pena) e subir num
+servidor de verdade.
 
 O motor continua sem saber o que é Shopify. Se um dia a plataforma mudar de
 ideia, ele vem junto inteiro.

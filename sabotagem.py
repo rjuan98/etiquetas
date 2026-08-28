@@ -115,6 +115,21 @@ SABOTAGENS = [
      "                    y_mm=y_da_linha + (linha_valor - linha_normal),",
      "                    y_mm=y_da_linha,"),
 
+    # O modelo_id vem do navegador. Sem conferir de quem e, o historico desta
+    # loja guardaria o id de um modelo de outra — e o suporte olharia o registro
+    # errado. E o mesmo IDOR de sempre, so que num campo de anotacao.
+    ("a conferencia de dono do modelo_id que vem do navegador",
+     "web/rotas_api.py",
+     "        if modelo_id and not tabela_modelos.buscar_cru(loja[\"id\"], modelo_id):\n            modelo_id = None",
+     "        pass  # sabotado"),
+
+    # A receita e o que reabre o editor. Sem guardar, da pra imprimir e nao da
+    # pra editar: o modelo abriria com todos os botoes no padrao.
+    ("a receita sendo guardada junto do modelo",
+     "dados/modelos.py",
+     "            (dono, nome, texto, json.dumps(receita or {}), momento, momento))",
+     "            (dono, nome, texto, '{}', momento, momento))"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

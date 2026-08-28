@@ -371,7 +371,12 @@ def imprimir(loja):
             template = _receita_do_pedido(dados)
         except (ValueError, KeyError) as erro:
             return jsonify({"erro": str(erro)}), 400
-        modelo_id = None
+        # O `modelo_id` vira só anotação no histórico — o que imprime é a receita,
+        # que é o que está na tela. Mas ele vem do navegador, então precisa ser
+        # conferido: sem isso o histórico desta loja guardaria o id de um modelo
+        # de outra, e o suporte olharia pro registro errado.
+        if modelo_id and not tabela_modelos.buscar_cru(loja["id"], modelo_id):
+            modelo_id = None
     elif modelo_id:
         template = tabela_modelos.buscar(loja["id"], modelo_id)
         if not template:
