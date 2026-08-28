@@ -19,6 +19,7 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 
 from loja import catalogo, cobranca, rede
 from dados import modelos as tabela_modelos, impressoes
+from dados import lojas as tabela_lojas
 from etiquetas import esquema, formatos, receitas
 from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf, svg as motor_svg
 from .sessao import exige_loja
@@ -322,13 +323,39 @@ def _fila(itens):
 
 
 def _plano_de(loja) -> str:
-    """O plano da loja, caindo pro grátis se for algo que a gente não conhece.
+    """O plano da loja, reconferido com o Shopify quando o cache vence.
 
-    O webhook de assinatura grava `"conferir"` pra marcar que o cache venceu. Se
-    isso escorregasse pro `cobranca.plano()`, levantaria erro — ou pior, poderia
-    liberar recurso pago por engano. Desconhecido é sempre o plano mais restrito.
+    O Shopify é a fonte da verdade sobre pagamento; o nosso banco é só cache.
+    O webhook avisa quando muda, e esta função é quem vai buscar o valor novo —
+    **na hora em que ele é necessário**, não dentro do webhook, que precisa
+    responder rápido.
+
+    ## Se o Shopify não responder, o lojista NÃO perde acesso
+
+    A tentação é cair pro grátis quando a consulta falha. Isso significaria que
+    uma instabilidade do Shopify tira o recurso pago de quem está pagando, no
+    meio do trabalho. O contrário — alguém que cancelou manter acesso por mais
+    algumas horas — custa muito menos.
+
+    Por isso a falha mantém o último plano conhecido e só adia a próxima
+    tentativa. Adiar é de propósito: sem isso, cada requisição tentaria de novo
+    e uma queda do Shopify viraria lentidão em tudo.
     """
-    return loja["plano"] if loja["plano"] in cobranca.PLANOS else "gratis"
+    plano = loja["plano"] if loja["plano"] in cobranca.PLANOS else "gratis"
+
+    if not tabela_lojas.plano_venceu(loja):
+        return plano
+
+    try:
+        resposta = rede.graphql(loja["dominio"], loja["token"],
+                                {"query": cobranca.CONSULTA_ASSINATURA})
+        plano = cobranca.plano_ativo(resposta)
+    except (rede.ErroDeRede, KeyError, ValueError) as erro:
+        current_app.logger.warning(
+            "não consegui reconferir o plano da loja; mantendo %r: %s", plano, erro)
+
+    tabela_lojas.marcar_plano(loja["id"], plano)
+    return plano
 
 
 @rotas.post("/imprimir")

@@ -2060,6 +2060,116 @@ for _d in (_LOJA_NOVA, "quinta-loja.myshopify.com"):
     t_lojas.apagar(_d)
 
 
+secao("56. O plano do lojista que paga nao pode sumir")
+# Medido antes de consertar: o webhook de assinatura gravava a palavra "conferir"
+# DENTRO da coluna do plano. Como "conferir" nao e um plano conhecido, o app caia
+# no mais restrito — e o lojista que ACABOU de pagar era rebaixado pro gratis,
+# em silencio e pra sempre, porque nada resolvia esse estado de volta.
+from web import rotas_api as _api
+from loja import rede as _rede4
+
+_ID_P = t_lojas.salvar("paga-o-pro.myshopify.com", "token-da-pagante")
+t_lojas.marcar_plano(_ID_P, "pro")
+
+
+def _com_shopify_dizendo(nome_do_plano, quebra=False):
+    """Troca a ida ao Shopify por uma resposta conhecida."""
+    original = _rede4.graphql
+
+    def falso(loja, token, corpo):
+        if quebra:
+            raise _rede4.ErroDeRede("o Shopify caiu")
+        assinaturas = ([{"name": nome_do_plano, "status": "ACTIVE"}]
+                       if nome_do_plano else [])
+        return {"data": {"currentAppInstallation":
+                         {"activeSubscriptions": assinaturas}}}
+    _rede4.graphql = falso
+    return original
+
+
+def _plano_agora():
+    with _app.app_context():
+        return _api._plano_de(t_lojas.por_id(_ID_P))
+
+
+check("plano recem-conferido nao vence", t_lojas.plano_venceu(t_lojas.por_id(_ID_P)) is False)
+
+# Enquanto esta fresco, nem pergunta ao Shopify. Se perguntasse toda vez, cada
+# clique do lojista viraria uma ida a API.
+_orig = _com_shopify_dizendo(None)   # se consultar, cai pro gratis
+try:
+    check("plano fresco e entregue sem consultar o Shopify", _plano_agora() == "pro")
+finally:
+    _rede4.graphql = _orig
+
+# O webhook marca vencido — e NAO destroi o plano conhecido.
+t_lojas.marcar_plano_vencido(_ID_P)
+check("depois do webhook, o plano guardado continua 'pro'",
+      t_lojas.por_id(_ID_P)["plano"] == "pro")
+check("mas ele esta marcado como vencido", t_lojas.plano_venceu(t_lojas.por_id(_ID_P)))
+
+# Shopify fora do ar NAO pode tirar o recurso pago de quem esta pagando. Cair pro
+# gratis aqui seria uma instabilidade do Shopify virando prejuizo pro lojista no
+# meio do trabalho.
+_orig = _com_shopify_dizendo(None, quebra=True)
+try:
+    check("com o Shopify fora do ar, o pagante NAO e rebaixado", _plano_agora() == "pro")
+finally:
+    _rede4.graphql = _orig
+check("e a proxima tentativa e adiada, pra nao martelar a API",
+      t_lojas.plano_venceu(t_lojas.por_id(_ID_P)) is False)
+
+# Quando o Shopify responde, a verdade dele manda — nos dois sentidos.
+t_lojas.marcar_plano_vencido(_ID_P)
+_orig = _com_shopify_dizendo("Etiquetas — Negócio")
+try:
+    check("o Shopify dizendo Negocio promove a loja", _plano_agora() == "negocio")
+finally:
+    _rede4.graphql = _orig
+
+t_lojas.marcar_plano_vencido(_ID_P)
+_orig = _com_shopify_dizendo(None)     # cancelou: nenhuma assinatura ativa
+try:
+    check("e cancelamento rebaixa pro gratis", _plano_agora() == "gratis")
+finally:
+    _rede4.graphql = _orig
+
+# Plano desconhecido no banco (dado velho, ou a palavra "conferir" de antes)
+# nunca pode liberar recurso pago.
+with banco.conectar() as _con:
+    _con.execute("UPDATE lojas SET plano='conferir' WHERE id=?", (_ID_P,))
+_orig = _com_shopify_dizendo(None, quebra=True)
+try:
+    check("plano desconhecido com Shopify fora do ar cai pro gratis, nao estoura",
+          _plano_agora() == "gratis")
+finally:
+    _rede4.graphql = _orig
+
+# A validade tambem serve de rede pro dia em que o webhook se perder — e webhook
+# se perde. Sem ela, um cancelamento sem webhook daria acesso pago pra sempre.
+check("a validade do plano e de horas, nao infinita",
+      0 < t_lojas.VALIDADE_DO_PLANO_EM_HORAS <= 24, t_lojas.VALIDADE_DO_PLANO_EM_HORAS)
+with banco.conectar() as _con:
+    _con.execute("UPDATE lojas SET plano='pro', plano_conferido_em=? WHERE id=?",
+                 ("2020-01-01T00:00:00+00:00", _ID_P))
+check("plano conferido ha anos vence sozinho",
+      t_lojas.plano_venceu(t_lojas.por_id(_ID_P)))
+check("data ilegivel tambem conta como vencida",
+      t_lojas.plano_venceu({"plano_conferido_em": "isso nao e data"}))
+
+# E agora o caminho DE VERDADE: o webhook chegando pela rota, nao a funcao
+# chamada na mao. Sem isto o teste acima passava com o webhook gravando
+# "conferir" por cima do plano — foi a sabotagem que mostrou o furo.
+t_lojas.marcar_plano(_ID_P, "pro")
+_r = _webhook("app_subscriptions/update", "paga-o-pro.myshopify.com")
+check("o webhook de assinatura responde 200", _r.status_code == 200, _r.status_code)
+check("e NAO escreve nada por cima do plano conhecido",
+      t_lojas.por_id(_ID_P)["plano"] == "pro", t_lojas.por_id(_ID_P)["plano"])
+check("so marca que venceu", t_lojas.plano_venceu(t_lojas.por_id(_ID_P)))
+
+t_lojas.apagar("paga-o-pro.myshopify.com")
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

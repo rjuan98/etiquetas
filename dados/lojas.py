@@ -86,8 +86,14 @@ def por_id(loja_id: int):
     return registro
 
 
+# Quanto tempo o plano guardado vale sem reconferir com o Shopify. O webhook
+# avisa quando muda; isto é a rede de segurança pro dia em que o webhook se
+# perder — e webhook se perde.
+VALIDADE_DO_PLANO_EM_HORAS = 6
+
+
 def marcar_plano(loja_id: int, plano: str):
-    """Guarda o plano lido do Shopify.
+    """Guarda o plano lido do Shopify, e anota QUANDO foi conferido.
 
     Isto é CACHE, não a verdade. Quem manda é a resposta do Shopify
     (`cobranca.plano_ativo`) — se o lojista cancelar, o banco daqui fica velho por
@@ -95,8 +101,40 @@ def marcar_plano(loja_id: int, plano: str):
     Serve pra pintar a tela sem uma ida à API a cada clique.
     """
     with banco.conectar() as con:
-        con.execute("UPDATE lojas SET plano = ? WHERE id = ?",
-                    (str(plano), int(loja_id)))
+        con.execute("UPDATE lojas SET plano = ?, plano_conferido_em = ? WHERE id = ?",
+                    (str(plano), agora(), int(loja_id)))
+
+
+def marcar_plano_vencido(loja_id: int):
+    """O plano mudou lá no Shopify: o que a gente tem não vale mais.
+
+    **Apaga a data, não o plano.** A primeira versão escrevia a palavra
+    "conferir" dentro da coluna `plano` — e como "conferir" não é um plano
+    conhecido, o app caía no mais restrito e o lojista que ACABOU de pagar era
+    rebaixado pro grátis. Em silêncio, e pra sempre, porque nada resolvia esse
+    estado de volta.
+
+    Guardando a validade separada, o plano conhecido sobrevive: ele continua
+    valendo enquanto a gente pergunta ao Shopify qual é o novo.
+    """
+    with banco.conectar() as con:
+        con.execute("UPDATE lojas SET plano_conferido_em = NULL WHERE id = ?",
+                    (int(loja_id),))
+
+
+def plano_venceu(registro) -> bool:
+    """Está na hora de reconferir o plano com o Shopify?"""
+    if not registro:
+        return False
+    quando = registro.get("plano_conferido_em")
+    if not quando:
+        return True
+    try:
+        lido = datetime.fromisoformat(quando)
+    except (TypeError, ValueError):
+        return True
+    idade = datetime.now(timezone.utc) - lido
+    return idade.total_seconds() > VALIDADE_DO_PLANO_EM_HORAS * 3600
 
 
 def desativar(dominio_bruto: str):

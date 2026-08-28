@@ -55,10 +55,15 @@ def receber():
     if topico == "app_subscriptions/update":
         # Não confia no que veio no corpo pra liberar recurso pago: o corpo diz
         # que mudou, e a fonte da verdade é perguntar ao Shopify. Aqui só marca
-        # que o cache está velho.
+        # que o cache venceu — sem apagar o plano conhecido, que continua valendo
+        # até a resposta do Shopify chegar. Ver `lojas.marcar_plano_vencido`.
+        #
+        # E não perguntamos ao Shopify aqui de propósito: webhook tem que
+        # responder rápido, e uma ida à API no meio dele é o jeito clássico de
+        # estourar o prazo e o Shopify desassinar o webhook.
         registro = lojas.buscar(loja)
         if registro:
-            lojas.marcar_plano(registro["id"], "conferir")
+            lojas.marcar_plano_vencido(registro["id"])
         return jsonify({"ok": True}), 200
 
     # Tópico que a gente não trata ainda: 200 mesmo assim, pelo motivo do topo.

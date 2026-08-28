@@ -90,6 +90,28 @@ SABOTAGENS = [
      'if not cobranca.pode_usar(plano, motor):',
      'if False:'),
 
+    # O buraco que a medicao achou: o webhook gravava "conferir" DENTRO da
+    # coluna do plano, e o lojista que acabou de pagar caia pro gratis — em
+    # silencio e pra sempre, porque nada resolvia esse estado de volta.
+    ("o webhook marcando vencido sem destruir o plano conhecido",
+     "web/rotas_webhooks.py",
+     '            lojas.marcar_plano_vencido(registro["id"])',
+     '            lojas.marcar_plano(registro["id"], "conferir")'),
+
+    # Cair pro gratis quando o Shopify nao responde e uma instabilidade DELES
+    # virando prejuizo pro lojista que esta pagando, no meio do trabalho.
+    ("o pagante nao ser rebaixado quando o Shopify nao responde",
+     "web/rotas_api.py",
+     '    except (rede.ErroDeRede, KeyError, ValueError) as erro:',
+     '    except (rede.ErroDeRede, KeyError, ValueError) as erro:\n        plano = "gratis"'),
+
+    # Sem validade, um cancelamento cujo webhook se perdeu daria acesso pago pra
+    # sempre. E webhook se perde.
+    ("a validade que reconfere o plano mesmo sem webhook",
+     "dados/lojas.py",
+     "    idade = datetime.now(timezone.utc) - lido\n    return idade.total_seconds() > VALIDADE_DO_PLANO_EM_HORAS * 3600",
+     "    return False"),
+
     # -------------------------------------------------------------- receita
     # O codigo de barras e o motivo do app existir. Sem a reserva, o titulo come
     # a etiqueta e a barra some — foi um bug de verdade na etiqueta de joia.

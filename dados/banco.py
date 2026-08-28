@@ -161,6 +161,10 @@ CREATE INDEX IF NOT EXISTS idx_impressoes_loja_data ON impressoes(loja_id, criad
 # máquina de quem já tinha rodado antes, que é o pior tipo de bug pra descobrir.
 ACRESCENTAR = [
     ("modelos", "receita", "TEXT NOT NULL DEFAULT '{}'"),
+    # Quando o plano foi conferido com o Shopify pela última vez. Vazio = venceu.
+    # Ver `lojas.marcar_plano_vencido` pra o porquê de ser uma data e não um
+    # valor mágico dentro da coluna `plano`.
+    ("lojas", "plano_conferido_em", "TEXT"),
 ]
 
 
