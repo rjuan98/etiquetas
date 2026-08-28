@@ -227,6 +227,15 @@ TEXTOS = {
                              "pt": "Não consegui concluir a instalação: %s"},
     "nao_autorizado":      {"en": "Not authorized.",     "pt": "Não autorizado."},
 
+    # ---------------------------------- o produto de exemplo da prévia
+    # Aparece antes de o lojista escolher qualquer coisa. Etiqueta em branco na
+    # primeira tela parece app quebrado; um exemplo mostra o que vai sair.
+    "exemplo_titulo":      {"en": "White Porcelain Mug 300ml",
+                            "pt": "Caneca de Porcelana Branca 300ml"},
+    "exemplo_variante":    {"en": "White / 300ml",       "pt": "Branca / 300ml"},
+    "exemplo_fornecedor":  {"en": "Real Ceramics",       "pt": "Cerâmica Real"},
+    "exemplo_moeda":       {"en": "$",                   "pt": "R$"},
+
     # ------------------------------------------------- campos da etiqueta
     "campo_titulo":        {"en": "Product title",       "pt": "Título do produto"},
     "campo_variante":      {"en": "Variant (color, size)",

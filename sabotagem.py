@@ -140,7 +140,7 @@ SABOTAGENS = [
     # a etiqueta e a barra some — foi um bug de verdade na etiqueta de joia.
     ("a reserva de altura do codigo de barras",
      "etiquetas/receitas.py",
-     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM",
+     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo",
      "            custo = 0.0"),
 
     ("o piso de altura que faz o codigo de barras bipar",
@@ -244,6 +244,22 @@ SABOTAGENS = [
      "web/rotas_api.py",
      '"campos": [{"chave": k, "nome": _t("campo_" + k)} for k in receitas.CAMPOS],',
      '"campos": [{"chave": k, "nome": v["nome"]} for k, v in receitas.CAMPOS.items()],'),
+
+    # A altura de linha poe a linha de base no fim do bloco, e a letra desce
+    # abaixo dela. Contra o codigo de barras, que e tinta solida, a descida cai
+    # em cima das barras. Apareceu numa captura de tela: os testes de borda nao
+    # pegavam porque tudo continuava DENTRO da etiqueta.
+    ("a folga entre o texto e as barras",
+     "etiquetas/receitas.py",
+     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo",
+     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM"),
+
+    # Folga fixa resolvia nas etiquetas pequenas e continuava colidindo na de
+    # 3x2 polegadas, onde a fonte e o dobro e a letra desce o dobro junto.
+    ("a folga sendo proporcional a fonte, nao fixa",
+     "etiquetas/receitas.py",
+     "_mm_da_fonte(pt_preco) * (DESCIDA_DA_LETRA + 0.04))",
+     "FOLGA_MINIMA_MM)"),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",

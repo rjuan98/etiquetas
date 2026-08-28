@@ -68,7 +68,18 @@ body{margin:0;background:var(--fundo);color:var(--tinta);
 @media(max-width:900px){.grade{grid-template-columns:1fr}}
 .cx{background:var(--caixa);border:1px solid var(--borda);border-radius:10px;padding:14px}
 .cx h2{font-size:13px;margin:0 0 10px;font-weight:650}
-.direita{position:sticky;top:16px;display:flex;flex-direction:column;gap:16px}
+/* A coluna acompanha a rolagem, e ROLA POR DENTRO quando não cabe.
+   Sem o max-height, ela ficava pregada no topo e a parte de baixo — a
+   calibração, que é a resposta pra reclamação nº 1 — só aparecia depois de
+   rolar até o fim de uma lista de 118 produtos. Numa tela de notebook ela era,
+   na prática, inalcançável. Apareceu tentando fotografar a tela.
+
+   O desconto de 110px é o cabeçalho mais as margens: sem ele a coluna cabia só
+   DEPOIS que a página rolava o bastante pra ela grudar no topo, e numa loja com
+   poucos produtos não havia rolagem nenhuma pra dar. */
+.direita{position:sticky;top:16px;display:flex;flex-direction:column;gap:16px;
+         max-height:calc(100vh - 110px);overflow-y:auto;scrollbar-width:thin;
+         padding-right:2px}
 label{display:block;font-size:12px;color:var(--fraco);margin:0 0 4px}
 input[type=text],input[type=number],input[type=search],select{
   width:100%;padding:7px 9px;border:1px solid #8a8a8a;border-radius:7px;
@@ -202,7 +213,7 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
         <div class="par" style="margin:10px 0 0">
           <div>
             <label for="simbolo">{{ T.simbolo }}</label>
-            <input type="text" id="simbolo" value="R$" maxlength="4">
+            <input type="text" id="simbolo" value="{{ T.exemplo_moeda }}" maxlength="4">
           </div>
           <div>
             <label for="posicao">{{ T.posicao }}</label>
@@ -213,9 +224,12 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
           </div>
           <div>
             <label for="decimal">{{ T.decimal }}</label>
+            <!-- O padrão segue o idioma: dólar com vírgula decimal ("$ 24,90")
+                 é o tipo de detalhe que faz um lojista americano desconfiar do
+                 app inteiro. Só apareceu na captura de tela. -->
             <select id="decimal">
-              <option value=",">24,90</option>
-              <option value=".">24.90</option>
+              <option value="," {% if idioma != 'en' %}selected{% endif %}>24,90</option>
+              <option value="." {% if idioma == 'en' %}selected{% endif %}>24.90</option>
             </select>
           </div>
           <div>
@@ -569,6 +583,10 @@ function desenharLista() {
   tabela.appendChild(corpo);
   $("lista").innerHTML = "";
   $("lista").appendChild(tabela);
+  // Avisa quem estiver esperando a lista existir. Serve pras cenas de captura
+  // de tela, que precisavam adivinhar quanto tempo o catálogo demora — e
+  // adivinhavam errado, capturando a tela antes de os produtos chegarem.
+  document.dispatchEvent(new Event("lista-pronta"));
 }
 
 // O catálogo vem de 50 em 50. A primeira versão pedia a primeira página e

@@ -90,7 +90,7 @@ web/               O FLASK
   rotas_tela.py         a tela: produtos à esquerda, etiqueta à direita
   dev.py                a tela rodando sem Shopify nenhum
 
-docs/              ficha da loja de apps, e o icone (SVG e PNG do mesmo gerador)
+docs/              ficha da loja de apps, ícone e capturas — todos gerados por script
 sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
@@ -177,7 +177,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **783 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **806 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -190,7 +190,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 33 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 35 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

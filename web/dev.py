@@ -33,7 +33,7 @@ só bastaria pra alguém publicar sem perceber.
 """
 import time
 
-from flask import Blueprint, render_template_string, jsonify, g
+from flask import Blueprint, render_template_string, jsonify, g, request
 
 from loja import assinatura
 from dados import lojas
@@ -48,24 +48,29 @@ TOKEN_FALSO = "dev-token-sem-valor"
 # Catálogo de mentira, escolhido pra ser difícil de propósito: título gigante,
 # produto sem código de barras, código com dígito verificador errado, preço com
 # milhar, e uma variante com SKU comprido. Catálogo bonitinho esconde defeito.
+# Em inglês porque é a língua do mercado que a gente mediu, e porque estas são as
+# telas que viram captura na loja de apps. Cada item continua sendo um caso
+# difícil de propósito — catálogo bonitinho esconde defeito.
 CATALOGO_FALSO = [
-    {"produto": {"titulo": "Canudo de Vidro Reto 20cm - Kit 4 unidades Reutilizável",
-                 "fornecedor": "EcoVida", "tipo": "Canudo", "url": ""},
-     "variante": {"id": "v1", "titulo": "Transparente / 20cm", "sku": "CAN-VD-20",
+    # título longo: exercita a quebra em duas linhas
+    {"produto": {"titulo": "Reusable Glass Straw Set — 4 pieces with cleaning brush",
+                 "fornecedor": "EcoVida", "tipo": "Drinkware", "url": ""},
+     "variante": {"id": "v1", "titulo": "Clear / 20cm", "sku": "STRW-GL-20",
                   "codigo_barras": "7891234567895", "preco": "24.90",
                   "preco_comparado": "34.90", "estoque": 40, "url": ""}},
-    {"produto": {"titulo": "Caneca de Porcelana Branca 300ml",
-                 "fornecedor": "Cerâmica Real", "tipo": "Caneca", "url": ""},
-     "variante": {"id": "v2", "titulo": "Branca / 300ml", "sku": "CAN-BR-300",
+    {"produto": {"titulo": "White Porcelain Mug 300ml",
+                 "fornecedor": "Real Ceramics", "tipo": "Drinkware", "url": ""},
+     "variante": {"id": "v2", "titulo": "White / 300ml", "sku": "MUG-WH-300",
                   "codigo_barras": "7899876543210", "preco": "39.90",
                   "preco_comparado": "", "estoque": 12, "url": ""}},
-    {"produto": {"titulo": "Camiseta P&B Estampada", "fornecedor": "Malharia Sul",
-                 "tipo": "Camiseta", "url": ""},
-     "variante": {"id": "v3", "titulo": "Preta / M", "sku": "CAM-PB-M-LONGO-DEMAIS",
+    # sem código de barras, e SKU comprido de propósito
+    {"produto": {"titulo": "Organic Cotton T-Shirt", "fornecedor": "Sul Knitwear",
+                 "tipo": "Apparel", "url": ""},
+     "variante": {"id": "v3", "titulo": "Black / M", "sku": "TSH-ORG-BLK-M-LONG",
                   "codigo_barras": "", "preco": "1249.90",
                   "preco_comparado": "", "estoque": 3, "url": ""}},
-    {"produto": {"titulo": "Vaso de Cerâmica", "fornecedor": "", "tipo": "", "url": ""},
-     "variante": {"id": "v4", "titulo": "Bege / P", "sku": "VAS-BG-P",
+    {"produto": {"titulo": "Ceramic Plant Pot", "fornecedor": "", "tipo": "", "url": ""},
+     "variante": {"id": "v4", "titulo": "Beige / S", "sku": "POT-BG-S",
                   "codigo_barras": "7891234567890",     # verificador ERRADO, de propósito
                   "preco": "89.00", "preco_comparado": "", "estoque": 7, "url": ""}},
 ]
@@ -100,9 +105,112 @@ def tela():
                                     T=textos.tabela(g.idioma), idioma=g.idioma)
     # Entra ANTES do script da tela, senão `shopify` ainda não existe na hora
     # em que `comecar()` roda.
-    return pagina.replace(
+    pagina = pagina.replace(
         '<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>',
         REMENDO)
+
+    cena = request.args.get("cena")
+    if cena in CENAS:
+        pagina = pagina.replace(
+            "</body>",
+            "<script>window.__cena = async function(){ %s };</script>%s</body>"
+            % (CENAS[cena], AJUDANTES))
+    return pagina
+
+
+# Cenas pras capturas de tela da loja de apps.
+#
+# Captura tirada clicando na mão não se refaz: quando a tela muda, alguém tem que
+# lembrar da sequência exata de cliques, e não lembra. Aqui cada cena é um script
+# que monta o estado, então refazer as quatro capturas é rodar um comando.
+#
+# Não é código de produção: vive só no modo de desenvolvimento, como o resto
+# deste arquivo.
+CENAS = {
+    "principal": """
+        marcar(0); marcar(1);
+        await esperar(900);
+    """,
+    "campos": """
+        marcar(0);
+        campo("fornecedor", true);
+        escolher("formato", "avery_5160");
+        await esperar(900);
+    """,
+    # A calibracao fica no fim da coluna da direita: sem rolar, a captura
+    # mostrava a tela inteira MENOS justamente o que ela deveria contar.
+    "calibracao": """
+        marcar(0);
+        const cx = document.querySelectorAll("details")[1];
+        cx.open = true;
+        document.getElementById("dy").value = "-0.5";
+        escolher("dx", "1.5");
+        await esperar(700);
+        // Só a rolagem de DENTRO da coluna: é assim que o lojista chega nesta
+        // parte da tela, e a página fica no topo, com o cabeçalho à vista.
+        const col = document.querySelector(".direita");
+        col.scrollTop = col.scrollHeight;
+        await esperar(500);
+    """,
+    "planos": """
+        marcar(0);
+        document.getElementById("ver_planos").click();
+        await esperar(900);
+    """,
+}
+
+AJUDANTES = """
+<script>
+// Os ajudantes ficam em `window` de proposito. A primeira versao declarava eles
+// como `const` dentro desta funcao, e o roteiro da cena vive em OUTRO script, no
+// escopo global — ele estourava ReferenceError em cima da primeira linha.
+//
+// O que fez isso demorar pra aparecer nao foi o erro de escopo: foi o `catch`
+// logo abaixo, que engolia a excecao e marcava a cena como pronta mesmo assim.
+// A captura saia sem produto nenhum selecionado, e o script dizia "ok".
+window.esperar = ms => new Promise(r => setTimeout(r, ms));
+window.marcar = i => {
+  const c = document.querySelectorAll("#lista input[type=checkbox]")[i];
+  if (c && !c.checked) c.click();
+  if (!c) throw new Error("nao existe produto no indice " + i);
+};
+window.campo = (nome, ligado) => {
+  const c = document.querySelector(".campo[value=" + nome + "]");
+  if (!c) throw new Error("nao existe o campo " + nome);
+  if (c.checked !== ligado) c.click();
+};
+window.escolher = (id, v) => {
+  const e = document.getElementById(id);
+  if (!e) throw new Error("nao existe o controle " + id);
+  e.value = v; e.dispatchEvent(new Event("change"));
+};
+
+(async function () {
+  const cena = new URLSearchParams(location.search).get("cena");
+  if (!cena) return;
+  const esperar = window.esperar;
+  // Espera o catálogo chegar. Contar tempo aqui não funcionava: o Chrome sem
+  // janela adianta os temporizadores, então a espera passava num piscar e a
+  // cena rodava antes de existir um produto pra marcar.
+  if (!document.querySelector("#lista tbody tr")) {
+    await new Promise(function (pronto) {
+      document.addEventListener("lista-pronta", pronto, {once: true});
+    });
+  }
+  await esperar(300);
+  // A falha vai pro DOM, nao só pro console. Quem captura precisa conseguir
+  // DISTINGUIR "cena montada" de "cena estourou" — senão a captura sai errada
+  // e o script relata sucesso, que foi exatamente o que aconteceu aqui.
+  try {
+    await window.__cena();
+    document.documentElement.setAttribute("data-cena-pronta", "1");
+  } catch (e) {
+    console.error(e);
+    document.documentElement.setAttribute("data-cena-erro", String(e));
+  }
+})();
+</script>
+"""
 
 
 @rotas.get("/token")
@@ -216,10 +324,10 @@ def _enchimento(quantos=118):
     cheio = list(CATALOGO_FALSO)
     for n in range(quantos):
         cheio.append({
-            "produto": {"titulo": "Produto de Teste %03d" % (n + 1),
-                        "fornecedor": "Fornecedor %d" % (n % 7),
-                        "tipo": "Teste", "url": ""},
-            "variante": {"id": "vt%d" % n, "titulo": "Padrão",
+            "produto": {"titulo": "Sample Product %03d" % (n + 1),
+                        "fornecedor": "Vendor %d" % (n % 7),
+                        "tipo": "Sample", "url": ""},
+            "variante": {"id": "vt%d" % n, "titulo": "Default",
                          "sku": "TST-%03d" % (n + 1),
                          # Um em cada cinco sem código, como catálogo de verdade.
                          "codigo_barras": "" if n % 5 == 0 else "789%09d" % n,

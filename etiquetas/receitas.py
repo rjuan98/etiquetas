@@ -66,6 +66,24 @@ BARRA_MINIMA_MM = 6.0
 # O número legível embaixo do código ocupa espaço próprio no desenho do reportlab.
 TEXTO_DO_CODIGO_MM = 2.6
 
+# Folga entre o último texto e o topo do código de barras.
+#
+# A altura de linha põe a LINHA DE BASE no fim do bloco, e a letra desce abaixo
+# dela — o "p" de "preço", o rabo do "y", o traço do hífen. Entre duas linhas de
+# texto isso é normal e até desejável. Contra um código de barras, que é tinta
+# sólida a partir do topo, a descida cai em cima das barras.
+#
+# Medido na etiqueta Avery com fornecedor ligado: SKU e preço com base em
+# 12,581mm e o código começando em 12,581mm exatos. Sobrepunha meio milímetro.
+# Apareceu numa captura de tela, não num teste — os testes de borda não pegavam
+# porque tudo continuava DENTRO da etiqueta.
+#
+# A folga é PROPORCIONAL à fonte, não um número fixo. A primeira tentativa usou
+# 0,7mm pra tudo: resolveu nas etiquetas pequenas e continuou colidindo na de
+# 3x2 polegadas, onde a fonte é o dobro e a letra desce o dobro junto.
+DESCIDA_DA_LETRA = 0.22        # quanto a letra passa da linha de base
+FOLGA_MINIMA_MM = 0.4
+
 
 def _limitar(valor, minimo, maximo):
     return max(minimo, min(maximo, valor))
@@ -121,6 +139,10 @@ def montar(formato: str = "zebra_2x1",
     linha_preco = _mm_da_fonte(pt_preco) * 1.15
     linha_valor = max(linha_normal, linha_preco)
 
+    # Espaço pra letra do último texto descer sem encostar nas barras.
+    folga_do_codigo = max(FOLGA_MINIMA_MM,
+                          _mm_da_fonte(pt_preco) * (DESCIDA_DA_LETRA + 0.04))
+
     # --- 1. quem entra ------------------------------------------------------
     # O código de barras reserva o mínimo dele ANTES de o texto pegar espaço.
     # Sem essa reserva, o título come a etiqueta e a barra fica ilegível — e
@@ -131,7 +153,7 @@ def montar(formato: str = "zebra_2x1",
         if chave not in ligados:
             continue
         if chave == "codigo_barras":
-            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM
+            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo
         elif chave in ("sku", "preco"):
             # Dividem a mesma linha: só o primeiro paga, e paga pela altura do
             # mais alto dos dois.

@@ -97,14 +97,21 @@ def produtos(loja):
 # Dados de exemplo pra prévia, quando o lojista ainda não escolheu produto. Sem
 # isto a primeira tela do app é uma etiqueta em branco, e etiqueta em branco
 # parece app quebrado.
-EXEMPLO = {
-    "produto": {"titulo": "Caneca de Porcelana Branca 300ml",
-                "fornecedor": "Cerâmica Real", "tipo": "Caneca"},
-    "variante": {"titulo": "Branca / 300ml", "sku": "CAN-BR-300",
-                 "preco": "39.90", "preco_comparado": "49.90",
-                 "codigo_barras": "7891234567895"},
-    "loja": {"nome": "Sua loja"},
-}
+def _exemplo() -> dict:
+    """O produto de exemplo, no idioma de quem está olhando.
+
+    A primeira versão era um dicionário fixo em português. Numa tela em inglês, a
+    prévia — que é o elemento mais visível do app — aparecia com "Caneca de
+    Porcelana Branca" e "R$ 39,90". Só apareceu tirando a captura de tela.
+    """
+    return {
+        "produto": {"titulo": _t("exemplo_titulo"),
+                    "fornecedor": _t("exemplo_fornecedor"), "tipo": ""},
+        "variante": {"titulo": _t("exemplo_variante"), "sku": "MUG-WH-300",
+                     "preco": "39.90", "preco_comparado": "49.90",
+                     "codigo_barras": "7891234567895"},
+        "loja": {"nome": ""},
+    }
 
 
 def _receita_do_pedido(dados: dict):
@@ -197,7 +204,7 @@ def previa(loja):
     except (ValueError, KeyError) as erro:
         return jsonify({"erro": str(erro)}), 400
 
-    item = dados.get("item") or EXEMPLO
+    item = dados.get("item") or _exemplo()
     try:
         desenho = motor_svg.render(template, item)
     except ValueError as erro:

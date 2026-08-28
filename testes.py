@@ -2695,6 +2695,71 @@ check("a 60px ainda ha variacao de tom, nao um bloco chapado",
 _sys.path.pop(0)
 
 
+secao("62. Texto nao pode encostar nas barras")
+# A altura de linha poe a LINHA DE BASE no fim do bloco, e a letra desce abaixo
+# dela — o "p" de "preco", o rabo do "y", o traco do hifen. Entre duas linhas de
+# texto isso e normal. Contra um codigo de barras, que e tinta solida a partir do
+# topo, a descida cai em cima das barras.
+#
+# Medido na Avery com fornecedor ligado: SKU e preco com base em 12,581mm e o
+# codigo comecando em 12,581mm EXATOS. Apareceu numa captura de tela, nao num
+# teste: os testes de borda nao pegavam porque tudo continuava DENTRO da etiqueta.
+import re as _re4
+
+_TODOS_CAMPOS = ("titulo", "variante", "fornecedor", "sku", "preco", "codigo_barras")
+_DIFICIL = {"produto": {"titulo": "Reusable Glass Straw Set — 4 pieces with brush",
+                        "fornecedor": "EcoVida"},
+            "variante": {"titulo": "Clear / 20cm", "sku": "STRW-GL-20",
+                         "preco": "1249.90", "codigo_barras": "7891234567895"}}
+
+
+def _folga_ate_o_codigo(fmt, campos):
+    """Distancia entre o ponto mais baixo do texto e o topo das barras."""
+    t = receitas.montar(fmt, campos=campos)
+    s = motor_svg.render(t, _DIFICIL)
+    descidas = [float(y) + float(tam) * receitas.DESCIDA_DA_LETRA
+                for _, y, tam, _ in _re4.findall(
+                    r'<text x="([\d.]+)" y="([\d.]+)" [^>]*font-size="([\d.]+)"[^>]*>([^<]*)<', s)]
+    codigo = _re4.search(r'<svg x="[\d.]+" y="([\d.]+)"', s)
+    if not codigo or not descidas:
+        return None
+    return float(codigo.group(1)) - max(descidas)
+
+
+for _f in _fmt.CATALOGO:
+    _folga = _folga_ate_o_codigo(_f.codigo, _TODOS_CAMPOS)
+    if _folga is None:
+        continue                    # etiqueta pequena demais pra ter os dois
+    check("%s: a letra nao encosta nas barras" % _f.codigo, _folga >= 0,
+          "%+.2f mm" % _folga)
+
+# E com o conjunto padrao tambem, que e o que a maioria vai usar.
+for _f in _fmt.CATALOGO:
+    _folga = _folga_ate_o_codigo(_f.codigo, receitas.PADRAO)
+    if _folga is None:
+        continue
+    check("%s: idem com os campos padrao" % _f.codigo, _folga >= 0,
+          "%+.2f mm" % _folga)
+
+# A folga tem que CRESCER com a fonte. A primeira tentativa usou 0,7mm fixo:
+# resolveu nas etiquetas pequenas e continuou colidindo na de 3x2 polegadas,
+# onde a fonte e o dobro e a letra desce o dobro junto.
+_pequena = receitas.montar("zebra_2x1", campos=_TODOS_CAMPOS)
+_grande = receitas.montar("zebra_3x2", campos=_TODOS_CAMPOS)
+
+
+def _fonte_do_preco(t):
+    return [e.tamanho_pt for e in t.elementos if isinstance(e, Preco)][0]
+
+
+check("a fonte do preco cresce com a etiqueta",
+      _fonte_do_preco(_grande) > _fonte_do_preco(_pequena) * 1.5,
+      (_fonte_do_preco(_pequena), _fonte_do_preco(_grande)))
+check("e a folga minima nao e zero", receitas.FOLGA_MINIMA_MM > 0)
+check("a descida considerada e a de fonte de verdade",
+      0.15 <= receitas.DESCIDA_DA_LETRA <= 0.3, receitas.DESCIDA_DA_LETRA)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))
