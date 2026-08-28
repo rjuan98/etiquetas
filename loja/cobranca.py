@@ -35,6 +35,16 @@ precisa instalar coisa e se frustraria antes de imprimir a primeira etiqueta.
 
 VERSAO_API = "2026-07"
 
+# O nome do app. Aparece na FATURA do lojista, junto do plano — é ele que a
+# pessoa vê quando confere o que está pagando à Shopify.
+#
+# Mora aqui, e não em duas constantes, porque `plano_ativo` reconhece a
+# assinatura procurando o nome do plano dentro do nome que o Shopify devolve.
+# Se `corpo_para_assinar` e `plano_ativo` usassem strings diferentes, a
+# assinatura seria criada e nunca reconhecida — o lojista pagaria e continuaria
+# no grátis, que é o defeito que já cavamos uma vez por outro caminho.
+NOME_DO_APP = "Etik Barcode Labels"
+
 # O plano grátis existe pra pessoa provar que funciona ANTES de pagar. Sem ele, a
 # primeira tela do app é uma cobrança, e ninguém instala nada assim.
 PLANOS = {
@@ -54,15 +64,17 @@ PLANOS = {
         "motores": ("pdf", "zpl"),
         "resumo": "Etiquetas e modelos ilimitados. Inclui impressora térmica.",
     },
-    "negocio": {
-        "nome": "Negócio",
-        "preco_usd": 19.99,
-        "limite_etiquetas_mes": 0,
-        "templates": 0,
-        "motores": ("pdf", "zpl", "dymo"),
-        "resumo": "Tudo do Pro, mais múltiplos locais e histórico de modelos",
-    },
 }
+
+# Não existe terceiro plano, e isso é escolha.
+#
+# Havia um "Negócio" prometendo múltiplos locais e histórico de modelos —
+# **nenhum dos dois construído**. Vender o que não existe é reprovação na revisão
+# do Shopify e reclamação depois, e um terceiro nível existe pra ancorar preço,
+# não pra encher a página.
+#
+# Ele volta quando houver o que pôr nele. E aí quem diz o que é são os clientes,
+# não eu adivinhando antes de ter o primeiro.
 
 DIAS_DE_TESTE = 7
 
@@ -113,7 +125,7 @@ def corpo_para_assinar(codigo: str, url_de_volta: str, desenvolvimento=False) ->
     return {
         "query": MUTACAO_ASSINAR,
         "variables": {
-            "nome": "Etiquetas — %s" % p["nome"],
+            "nome": "%s — %s" % (NOME_DO_APP, p["nome"]),
             "volta": url_de_volta,
             "teste": DIAS_DE_TESTE,
             "preco": "%.2f" % p["preco_usd"],

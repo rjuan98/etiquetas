@@ -30,7 +30,10 @@ PADRAO = "en"
 
 TEXTOS = {
     # ------------------------------------------------------------ a tela
-    "app_titulo":          {"en": "Labels",              "pt": "Etiquetas"},
+    # Nome do produto: não traduz, como "Google Docs" não traduz. É o mesmo nome
+    # que vai na loja de apps e na fatura do lojista (ver `cobranca.NOME_DO_APP`).
+    "app_titulo":          {"en": "Etik Barcode Labels",
+                            "pt": "Etik Barcode Labels"},
     "carregando":          {"en": "loading…",            "pt": "carregando…"},
     "montando":            {"en": "building…",           "pt": "montando…"},
     "ver_planos":          {"en": "See plans",           "pt": "Ver planos"},
@@ -177,17 +180,12 @@ TEXTOS = {
 
     "plano_gratis_nome":   {"en": "Free",                "pt": "Grátis"},
     "plano_pro_nome":      {"en": "Pro",                 "pt": "Pro"},
-    "plano_negocio_nome":  {"en": "Business",            "pt": "Negócio"},
     "plano_gratis_resumo": {"en": "1 template, 100 labels a month, sheet labels",
                             "pt": "1 modelo, 100 etiquetas por mês, folha adesiva"},
     "plano_pro_resumo":    {"en": "Unlimited labels and templates. "
                                   "Thermal printing included.",
                             "pt": "Etiquetas e modelos ilimitados. "
                                   "Inclui impressora térmica."},
-    "plano_negocio_resumo": {"en": "Everything in Pro, plus multiple locations "
-                                   "and template history",
-                             "pt": "Tudo do Pro, mais múltiplos locais e "
-                                   "histórico de modelos"},
 
     "erro_limite_mes":     {"en": "You've used %d of the %d labels in your "
                                   "monthly plan. Go Pro for no limit.",

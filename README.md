@@ -177,7 +177,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **806 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **810 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 

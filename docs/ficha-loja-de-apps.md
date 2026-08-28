@@ -4,27 +4,30 @@ Escrito em inglês porque é onde está o mercado que a gente mediu: as 565
 avaliações do app oficial, as reclamações sobre etiqueta Avery, o volume de
 lojas. Ver `loja/cobranca.py` pra o raciocínio completo.
 
-**Nada aqui está decidido.** Onde há escolha, ela está marcada e explicada.
+O nome e os preços estão **decididos**. O que ainda depende de você está na
+lista do fim.
 
 ---
 
-## O nome — a decisão que trava o resto
+## O nome — decidido
 
-O app está cadastrado como **Etik** no painel. Antes de escrever a ficha, vale
-saber o que isso custa.
+```
+Etik Barcode Labels
+```
 
-A maior parte das instalações da loja de apps vem de **busca**. O lojista digita
-"barcode labels" ou "product labels". Um nome que ninguém procura não aparece.
+19 dos 30 caracteres permitidos. Mantém a marca e carrega as duas palavras que o
+lojista realmente digita — a maior parte das instalações vem de busca, e um nome
+que ninguém procura não aparece.
 
-| nome | a favor | contra |
-|---|---|---|
-| **Etik** | curto, seu, memorável depois que a pessoa conhece | não diz nada em inglês, e ninguém busca por ele |
-| **Etik Barcode Labels** | tem a palavra que as pessoas buscam, e mantém a marca | mais longo (25 de 30 caracteres) |
-| **Straight Labels** | fala direto da reclamação nº 1 (etiqueta torta) | perde a marca, e "straight" tem outros sentidos |
+**Este nome precisa ser trocado em dois lugares**, e os dois importam:
 
-**Minha sugestão: `Etik Barcode Labels`.** Mantém o que você já tem e coloca a
-palavra buscada. O limite do Shopify é 30 caracteres e não pode conter
-"Shopify".
+1. no painel do app, em *Configurações do app → Nome*
+2. no código já está: `loja/cobranca.py`, em `NOME_DO_APP`
+
+O do código é o que aparece na **fatura do lojista**, junto do plano — "Etik
+Barcode Labels — Pro". Tem teste garantindo que o nome que a gente cria é o
+mesmo que a gente reconhece de volta: se divergissem, a assinatura seria criada
+e nunca reconhecida, e o lojista pagaria continuando no grátis.
 
 ---
 
@@ -110,14 +113,14 @@ avery labels, zebra printer, zpl, dymo, barcode generator, sku labels
 |---|---|---|
 | Free | US$ 0 | 1 template, 100 labels/month, sheet labels (PDF) |
 | Pro | US$ 9.99/mês | Unlimited labels and templates, thermal printing (ZPL) |
-| Business | US$ 19.99/mês | Everything in Pro, multiple locations, template history |
 
-**7 dias de teste grátis** em ambos os pagos.
+**7 dias de teste grátis** no Pro.
 
-> Uma ressalva honesta sobre o Business: ele promete "múltiplos locais e
-> histórico de modelos", e **nenhuma das duas coisas está construída**. Ou você
-> constrói antes de publicar, ou tira o plano da ficha. Vender o que não existe é
-> reprovação na revisão e reclamação depois.
+> **Não há terceiro plano, e isso é escolha.** Havia um "Business" prometendo
+> múltiplos locais e histórico de modelos, e nenhum dos dois estava construído.
+> Um terceiro nível serve pra ancorar preço, não pra encher a página — ele volta
+> quando houver o que pôr nele, e aí quem diz o que é são os clientes, não a
+> gente adivinhando antes do primeiro.
 
 ---
 
@@ -137,12 +140,12 @@ vista.
 
 ## O que ainda falta pra submeter
 
-- [ ] **Ícone** — 1200×1200px, sem texto dentro
-- [ ] **Capturas de tela** — mínimo 3, 1600×900px
+- [x] **Ícone** — `docs/icone.png`, 1200×1200, sem texto. Regerar: `python docs/icone.py`
+- [x] **Capturas de tela** — `docs/capturas/`, quatro em 1600×900.
+      Regerar: subir o servidor e `python docs/capturas.py`
 - [ ] **Hospedagem fixa** — o endereço do túnel muda e a revisão não sobrevive a isso
 - [ ] **Preencher `CONTATO_EMAIL`, `CONTATO_NOME` e `HOSPEDAGEM`** no `.env`,
       senão a política de privacidade vai ao ar dizendo "(preencha …)"
-- [ ] **Decidir o plano Business** — construir ou tirar da ficha
 - [ ] **`MODO_DEV=0`** em produção, senão o traceback do Flask fica exposto e a
       rota `/dev/` existe
 

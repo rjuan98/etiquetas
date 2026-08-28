@@ -887,7 +887,32 @@ check("a consulta nao pede pedido nem cliente",
       and "order" not in catalogo.CONSULTA_PRODUTOS.lower())
 
 secao("34. Cobranca pelo Shopify")
-check("tem plano gratis, pro e negocio", set(cobranca.PLANOS) == {"gratis", "pro", "negocio"})
+# Dois planos, nao tres. Havia um "Negocio" prometendo multiplos locais e
+# historico de modelos, e NENHUM dos dois estava construido — vender o que nao
+# existe e reprovacao na revisao e reclamacao depois. Ele volta quando houver o
+# que por nele, e ai quem diz o que e sao os clientes.
+check("tem plano gratis e pro", set(cobranca.PLANOS) == {"gratis", "pro"},
+      set(cobranca.PLANOS))
+check("e nenhum plano promete o que nao existe",
+      all("dymo" not in p["motores"] for p in cobranca.PLANOS.values()))
+
+# O nome que a gente CRIA e o nome que a gente RECONHECE tem que ser o mesmo.
+# `corpo_para_assinar` monta "Etik Barcode Labels — Pro" e `plano_ativo` procura
+# o nome do plano dentro do que o Shopify devolve. Se os dois usassem strings
+# diferentes, a assinatura seria criada e nunca reconhecida: o lojista pagaria e
+# continuaria no gratis. E o mesmo defeito que ja cavamos por outro caminho, e a
+# volta inteira e o unico jeito de garantir que ele nao volte.
+for _cod, _p in cobranca.PLANOS.items():
+    if _p["preco_usd"] <= 0:
+        continue
+    _nome_na_fatura = cobranca.corpo_para_assinar(
+        _cod, "https://x")["variables"]["nome"]
+    _reconhecido = cobranca.plano_ativo({"data": {"currentAppInstallation": {
+        "activeSubscriptions": [{"name": _nome_na_fatura, "status": "ACTIVE"}]}}})
+    check("a assinatura de %s volta reconhecida como %s" % (_cod, _cod),
+          _reconhecido == _cod, (_nome_na_fatura, _reconhecido))
+    check("e o nome na fatura leva o nome do app",
+          cobranca.NOME_DO_APP in _nome_na_fatura, _nome_na_fatura)
 # Sem plano gratis, a primeira tela do app e uma cobranca e ninguem instala.
 check("o gratis existe e nao cobra", cobranca.plano("gratis")["preco_usd"] == 0)
 check("o gratis so tem PDF, sem termica",
@@ -2131,9 +2156,9 @@ check("e a proxima tentativa e adiada, pra nao martelar a API",
 
 # Quando o Shopify responde, a verdade dele manda — nos dois sentidos.
 t_lojas.marcar_plano_vencido(_ID_P)
-_orig = _com_shopify_dizendo("Etiquetas — Negócio")
+_orig = _com_shopify_dizendo("%s — Pro" % cobranca.NOME_DO_APP)
 try:
-    check("o Shopify dizendo Negocio promove a loja", _plano_agora() == "negocio")
+    check("o Shopify dizendo Pro promove a loja", _plano_agora() == "pro")
 finally:
     _rede4.graphql = _orig
 
@@ -2293,7 +2318,7 @@ check("volta de loja desconhecida nao quebra",
 # --- a lista de planos que a tela mostra ---------------------------------
 t_lojas.marcar_plano(_ID_C, "gratis")
 _d = _pega("/api/planos", "quer-assinar.myshopify.com").get_json()
-check("a tela recebe os tres planos", len(_d["planos"]) == 3, len(_d["planos"]))
+check("a tela recebe os dois planos", len(_d["planos"]) == 2, len(_d["planos"]))
 check("sabe qual e o atual", _d["atual"] == "gratis", _d["atual"])
 check("e os dias de teste", _d["dias_de_teste"] == cobranca.DIAS_DE_TESTE)
 check("com preco em numero, pra tela nao formatar moeda por conta propria",
@@ -2472,9 +2497,15 @@ check("nenhuma chave sem portugues", _sem_pt == [], _sem_pt)
 # E os dois tem que ser DIFERENTES onde faz sentido — se alguem copiar o
 # portugues no campo do ingles, isto nao pega, mas pega o esquecimento comum de
 # deixar a mesma frase nos dois por preguica.
+# Nome de produto nao traduz — "Google Docs" tambem nao. Fora esses, frase longa
+# identica nos dois idiomas quase sempre e traducao esquecida.
+NAO_TRADUZEM = {"app_titulo"}
 _iguais = [k for k, v in _tx.TEXTOS.items()
-           if v["en"] == v["pt"] and len(v["en"]) > 12]
+           if v["en"] == v["pt"] and len(v["en"]) > 12 and k not in NAO_TRADUZEM]
 check("nenhuma frase longa identica nos dois idiomas", _iguais == [], _iguais)
+check("e o nome do produto e o mesmo nos dois",
+      _tx.t("app_titulo", "en") == _tx.t("app_titulo", "pt")
+      == cobranca.NOME_DO_APP, _tx.t("app_titulo", "en"))
 
 # Chave que nao existe volta visivel, nao estoura: tela feia da pra ver e
 # consertar, tela em branco o lojista so reporta como "nao abre".
@@ -2490,8 +2521,9 @@ check("a tela em ingles diz Products", "<h2>Products</h2>" in _html_en)
 check("a tela em portugues diz Produtos", "<h2>Produtos</h2>" in _html_pt)
 check("o lang do html acompanha",
       'lang="en"' in _html_en and 'lang="pt"' in _html_pt)
-check("o titulo acompanha",
-      "<title>Labels</title>" in _html_en and "<title>Etiquetas</title>" in _html_pt)
+check("o titulo e o nome do produto, igual nos dois idiomas",
+      ("<title>%s</title>" % cobranca.NOME_DO_APP) in _html_en
+      and ("<title>%s</title>" % cobranca.NOME_DO_APP) in _html_pt)
 # Chave faltando apareceria como [chave] na pagina. Isto varre a tela inteira.
 import re as _re3
 check("nenhuma chave faltando na tela em ingles",
@@ -2544,7 +2576,7 @@ check("e o portugues fica como estava",
 
 _p_en = _pega("/api/planos?idioma=en", "loja-a.myshopify.com").get_json()
 check("os planos vem traduzidos",
-      [p["nome"] for p in _p_en["planos"]] == ["Free", "Pro", "Business"],
+      [p["nome"] for p in _p_en["planos"]] == ["Free", "Pro"],
       [p["nome"] for p in _p_en["planos"]])
 check("e o resumo tambem",
       "Unlimited labels" in [p["resumo"] for p in _p_en["planos"]][1])
