@@ -124,6 +124,90 @@ def token():
     }, config.SEGREDO)})
 
 
+PAINEL = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>O que colar no painel do Shopify</title><style>
+body{font:14px/1.6 -apple-system,"Segoe UI",system-ui,sans-serif;background:#f1f2f4;
+     color:#303030;margin:0;padding:26px}
+.cx{background:#fff;border:1px solid #e1e3e5;border-radius:10px;padding:18px;
+    max-width:660px;margin:0 0 16px}
+h1{font-size:17px;margin:0 0 4px} h2{font-size:13px;margin:0 0 10px}
+.sub{color:#616161;font-size:13px;margin:0 0 20px;max-width:660px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:#616161;font-weight:600;font-size:11px;padding:0 0 7px;
+   text-transform:uppercase;letter-spacing:.03em;width:34%}
+td,th{border-bottom:1px solid #f1f2f4;padding:9px 8px 9px 0;vertical-align:top}
+code{font:12.5px ui-monospace,Consolas,monospace;background:#f1f2f4;border-radius:5px;
+     padding:2px 6px;word-break:break-all;display:inline-block}
+.ruim{color:#8e1f0b;background:#fee9e5;border-radius:8px;padding:11px 13px;font-size:13px}
+.bom{color:#0c5132;background:#e3f4e9;border-radius:8px;padding:11px 13px;font-size:13px}
+ul{margin:8px 0 0;padding-left:20px} li{margin:3px 0}
+</style></head><body>
+<h1>O que colar no painel do Shopify</h1>
+<p class="sub">Gerado a partir do <code>APP_URL</code> que este servidor está usando
+agora. O OAuth recusa por um caractere de diferença e não explica o motivo — então
+copie daqui, não digite.</p>
+
+{% if not https %}
+<div class="cx"><p class="ruim"><strong>O APP_URL ainda é local.</strong>
+O Shopify exige https público. Suba o túnel primeiro, ponha a URL dele no
+<code>.env</code>, e recarregue esta página.</p></div>
+{% else %}
+<div class="cx"><p class="bom">APP_URL válido. Os valores abaixo estão prontos.</p></div>
+{% endif %}
+
+<div class="cx"><h2>App setup</h2><table>
+<tr><th>App URL</th><td><code>{{ url }}</code></td></tr>
+<tr><th>Allowed redirection URL(s)</th><td><code>{{ url }}/instalar/volta</code></td></tr>
+<tr><th>Embed app in Shopify admin</th><td>ligado</td></tr>
+</table></div>
+
+<div class="cx"><h2>Webhooks (Compliance / GDPR)</h2><table>
+<tr><th>Customer data request</th><td><code>{{ url }}/webhooks</code></td></tr>
+<tr><th>Customer data erasure</th><td><code>{{ url }}/webhooks</code></td></tr>
+<tr><th>Shop data erasure</th><td><code>{{ url }}/webhooks</code></td></tr>
+</table>
+<p class="sub" style="margin:12px 0 0">Os três são obrigatórios pra passar na
+revisão, e o Shopify testa. Este app responde honestamente que não guarda dado de
+cliente — dá pra conferir nos escopos abaixo.</p></div>
+
+<div class="cx"><h2>Escopos (Access scopes)</h2><table>
+<tr><th>Pedidos</th><td><code>read_products, read_inventory</code></td></tr>
+</table>
+<p class="sub" style="margin:12px 0 0">Só isso. Sem pedido, sem cliente, sem
+endereço — cada escopo a mais é uma tela de susto na instalação e uma pergunta
+na revisão.</p></div>
+
+<div class="cx"><h2>No seu <code>.env</code></h2><table>
+<tr><th>SHOPIFY_CHAVE_API</th><td>o <em>Client ID</em> do painel</td></tr>
+<tr><th>SHOPIFY_SEGREDO</th><td>o <em>Client secret</em> — cole direto no arquivo</td></tr>
+<tr><th>APP_URL</th><td><code>{{ url }}</code></td></tr>
+<tr><th>MODO_DEV</th><td><code>1</code> enquanto testa</td></tr>
+</table></div>
+
+<div class="cx"><h2>Depois de mudar o túnel</h2>
+<ul>
+<li>trocar <code>APP_URL</code> no <code>.env</code></li>
+<li>trocar <strong>App URL</strong> e <strong>redirection URL</strong> no painel</li>
+<li>reinstalar o app na loja de teste</li>
+</ul>
+<p class="sub" style="margin:10px 0 0">O endereço do túnel grátis muda a cada vez
+que ele sobe. É chato e é o preço de não ter servidor ainda.</p></div>
+</body></html>"""
+
+
+@rotas.get("/shopify")
+def painel():
+    """Os valores exatos pra colar no painel de Partner.
+
+    Existe porque o OAuth recusa por diferença de um caractere entre a URL
+    cadastrada e a que o app manda — e a mensagem não diz isso. Uma barra a mais
+    no fim custa uma tarde.
+    """
+    return render_template_string(
+        PAINEL, url=config.URL_DO_APP,
+        https=config.URL_DO_APP.startswith("https://"))
+
+
 def catalogo_falso(busca=None):
     """O catálogo de mentira, filtrado pela busca. Usado por `/api/produtos`."""
     if not busca:
