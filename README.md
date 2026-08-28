@@ -86,9 +86,11 @@ web/               O FLASK
   rotas_webhooks.py     recebe, confere HMAC, responde 200 rápido
   rotas_api.py          catálogo, receita, prévia, impressão, assinatura
   rotas_cobranca.py     a volta do lojista depois de aprovar a cobrança
+  rotas_publicas.py     política de privacidade, sem exigir login
   rotas_tela.py         a tela: produtos à esquerda, etiqueta à direita
   dev.py                a tela rodando sem Shopify nenhum
 
+docs/              ficha da loja de apps, pronta pra colar
 sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
@@ -175,7 +177,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **762 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **775 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 

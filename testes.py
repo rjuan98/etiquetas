@@ -2560,6 +2560,76 @@ for _mod in ("etiquetas/receitas.py", "etiquetas/formatos.py", "etiquetas/modelo
           _mod)
 
 
+secao("60. A politica de privacidade tem que ser verdade, nao promessa")
+# Ela afirma coisas verificaveis: que o app so pede dois escopos de leitura, e
+# que o banco nao guarda dado de cliente nem catalogo. Se alguem acrescentar uma
+# coluna ou um escopo, a pagina passa a MENTIR — e mentir em politica de
+# privacidade nao e bug, e problema regulatorio.
+_priv_en = _cliente.get("/privacy?lang=en").get_data(as_text=True)
+_priv_pt = _cliente.get("/privacy?lang=pt").get_data(as_text=True)
+
+check("a politica abre sem token de sessao",
+      _cliente.get("/privacy").status_code == 200)
+check("nos dois idiomas",
+      "Privacy Policy" in _priv_en and "Política de Privacidade" in _priv_pt)
+check("e no idioma da requisicao quando nao pedem",
+      "Privacy Policy" in _cliente.get("/privacy?idioma=en").get_data(as_text=True))
+
+# 1. os escopos citados sao os que o app pede DE VERDADE
+for _e in oauth.ESCOPOS:
+    check("a politica cita o escopo %s" % _e, _e in _priv_en and _e in _priv_pt)
+check("e o app pede exatamente dois",
+      len(oauth.ESCOPOS) == 2, oauth.ESCOPOS)
+# Se alguem pedir escopo de cliente ou pedido, a promessa central cai.
+_proibidos = ("read_customers", "write_customers", "read_orders", "write_orders",
+              "read_all_orders", "write_products")
+check("nenhum escopo de cliente, pedido ou escrita",
+      not any(p in oauth.ESCOPOS for p in _proibidos), oauth.ESCOPOS)
+
+# 2. o banco nao pode ganhar coluna de dado pessoal sem a politica mudar junto
+with banco.conectar() as _con:
+    _colunas = set()
+    for _tab in ("lojas", "modelos", "impressoes"):
+        for _c in _con.execute("PRAGMA table_info(%s)" % _tab).fetchall():
+            _colunas.add("%s.%s" % (_tab, _c["name"]))
+
+_ESPERADAS = {
+    "lojas.id", "lojas.dominio", "lojas.token_cifrado", "lojas.escopos",
+    "lojas.plano", "lojas.ativa", "lojas.instalada_em", "lojas.desinstalada_em",
+    "lojas.plano_conferido_em",
+    "modelos.id", "modelos.loja_id", "modelos.nome", "modelos.json",
+    "modelos.receita", "modelos.criado_em", "modelos.alterado_em",
+    "impressoes.id", "impressoes.loja_id", "impressoes.modelo_id",
+    "impressoes.motor", "impressoes.quantidade", "impressoes.criado_em",
+}
+# Este teste FALHA de proposito quando o esquema muda. Nao e chatice: coluna
+# nova e o momento de reler a politica e decidir se ela continua verdadeira.
+check("o esquema do banco e exatamente o que a politica descreve",
+      _colunas == _ESPERADAS, sorted(_colunas ^ _ESPERADAS))
+
+# 3. nenhuma tabela guarda o catalogo — a promessa mais forte da pagina
+_suspeitas = [c for c in _colunas
+              if any(p in c for p in ("cliente", "customer", "pedido", "order",
+                                      "email", "endereco", "address", "telefone",
+                                      "phone", "produto", "product", "titulo",
+                                      "sku", "barcode", "preco", "price"))]
+check("nenhuma coluna com cara de dado de cliente ou de produto",
+      _suspeitas == [], _suspeitas)
+
+# 4. as respostas dos webhooks de privacidade dizem a mesma coisa que a pagina
+check("o webhook de dados do cliente responde que nao ha nada",
+      webhooks.resposta_de_privacidade("customers/data_request")["dados_do_cliente"]
+      is None)
+check("e a pagina afirma o mesmo",
+      "never" in _priv_en.lower() and "nunca" in _priv_pt.lower())
+
+# 5. o contato precisa estar preenchido antes de publicar
+check("a pagina tem um endereco de contato", "mailto:" in _priv_en)
+_r = _cliente.get("/privacy?lang=en").get_data(as_text=True)
+check("e se nao estiver preenchido, a pagina DIZ isso em vez de sumir",
+      ("preencha" in _r) or ("@" in _r.split("mailto:")[1][:40]))
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

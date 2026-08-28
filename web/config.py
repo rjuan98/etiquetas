@@ -56,6 +56,13 @@ URL_DO_APP = _texto("APP_URL", "http://localhost:5000").rstrip("/")
 
 CHAVE_SEGREDO = _texto("CHAVE_SEGREDO")
 
+# Dados do negócio, pra política de privacidade e suporte. Ficam no ambiente e
+# não no código: são do negócio, não do programa — e um e-mail no repositório
+# vira alvo de robô de spam.
+EMAIL_SUPORTE = _texto("CONTATO_EMAIL")
+NOME_RESPONSAVEL = _texto("CONTATO_NOME")
+NOME_HOSPEDAGEM = _texto("HOSPEDAGEM")
+
 # Loja de desenvolvimento: assinatura de teste, que não cobra de verdade. Cobrar
 # numa loja de teste é motivo de reprovação na revisão do Shopify.
 COBRANCA_DE_TESTE = _texto("COBRANCA_TESTE", "1") in ("1", "true", "sim")
