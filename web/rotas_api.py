@@ -423,6 +423,73 @@ def imprimir(loja):
                      as_attachment=True, download_name="etiquetas.pdf")
 
 
+# ------------------------------------------------------------------ cobrança
+
+@rotas.post("/assinar")
+@exige_loja
+def assinar(loja):
+    """Cria a assinatura no Shopify e devolve pra onde mandar o lojista.
+
+    A cobrança entra na fatura que ele já paga: sem cartão, sem checkout, sem
+    criar conta em lugar nenhum. É a maior vantagem de cobrar por aqui, e é por
+    isso que a gente não montou pagamento próprio.
+
+    Esta rota **não libera nada**. Ela só pede a assinatura; quem confirma é o
+    lojista, na tela do Shopify, e quem diz que ela existe é o Shopify quando o
+    `_plano_de` for reconferir. Liberar aqui seria acreditar num clique.
+    """
+    dados = request.get_json(silent=True) or {}
+    codigo = str(dados.get("plano") or "pro")
+
+    try:
+        corpo = cobranca.corpo_para_assinar(
+            codigo,
+            "%s/cobranca/volta?shop=%s" % (config.URL_DO_APP, loja["dominio"]),
+            # Loja de desenvolvimento tem que criar assinatura de TESTE, que não
+            # cobra de verdade. Cobrar num ambiente de teste é motivo de
+            # reprovação na revisão do Shopify.
+            desenvolvimento=config.COBRANCA_DE_TESTE)
+    except ValueError as erro:
+        return jsonify({"erro": str(erro)}), 400
+
+    try:
+        resposta = rede.graphql(loja["dominio"], loja["token"], corpo)
+    except rede.ErroDeRede as erro:
+        return jsonify({"erro": str(erro)}), 502
+
+    erros = catalogo.erros_do_graphql(resposta)
+    if erros:
+        current_app.logger.warning("assinatura recusada: %s", "; ".join(erros))
+        return jsonify({"erro": "O Shopify recusou a assinatura.",
+                        "detalhes": erros}), 502
+
+    try:
+        # `userErrors` vem DENTRO de uma resposta 200. Sem isto o lojista seria
+        # mandado pra lugar nenhum achando que assinou.
+        url = cobranca.url_de_confirmacao(resposta)
+    except ValueError as erro:
+        current_app.logger.warning("assinatura sem URL de confirmação: %s", erro)
+        return jsonify({"erro": str(erro)}), 502
+
+    return jsonify({"url": url, "teste": config.COBRANCA_DE_TESTE})
+
+
+@rotas.get("/planos")
+@exige_loja
+def planos(loja):
+    """Os planos, pra tela montar a comparação sem repetir os preços no JS."""
+    atual = _plano_de(loja)
+    return jsonify({
+        "atual": atual,
+        "dias_de_teste": cobranca.DIAS_DE_TESTE,
+        "planos": [{
+            "codigo": c, "nome": p["nome"], "preco_usd": p["preco_usd"],
+            "resumo": p["resumo"], "limite_etiquetas_mes": p["limite_etiquetas_mes"],
+            "templates": p["templates"], "motores": list(p["motores"]),
+        } for c, p in cobranca.PLANOS.items()],
+    })
+
+
 @rotas.get("/uso")
 @exige_loja
 def uso(loja):

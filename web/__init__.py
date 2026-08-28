@@ -62,10 +62,12 @@ def criar_app(banco_caminho=None) -> Flask:
 
     banco.iniciar()
 
-    from . import rotas_instalacao, rotas_webhooks, rotas_api, rotas_tela
+    from . import (rotas_instalacao, rotas_webhooks, rotas_api, rotas_tela,
+                   rotas_cobranca)
     app.register_blueprint(rotas_instalacao.rotas)
     app.register_blueprint(rotas_webhooks.rotas)
     app.register_blueprint(rotas_api.rotas)
+    app.register_blueprint(rotas_cobranca.rotas)
     app.register_blueprint(rotas_tela.rotas)
 
     # A tela de desenvolvimento só existe com MODO_DEV. Não é `if` dentro de uma

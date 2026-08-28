@@ -83,7 +83,8 @@ web/               O FLASK
   sessao.py        @exige_loja — o portão de toda rota de dados
   rotas_instalacao.py   OAuth, com o escape do iframe
   rotas_webhooks.py     recebe, confere HMAC, responde 200 rápido
-  rotas_api.py          catálogo, receita, prévia, impressão
+  rotas_api.py          catálogo, receita, prévia, impressão, assinatura
+  rotas_cobranca.py     a volta do lojista depois de aprovar a cobrança
   rotas_tela.py         a tela: produtos à esquerda, etiqueta à direita
   dev.py                a tela rodando sem Shopify nenhum
 
@@ -158,7 +159,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **619 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **697 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -171,7 +172,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 17 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 25 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

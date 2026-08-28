@@ -13,8 +13,24 @@ Google levam 30% desde o primeiro centavo.
 
 O concorrente pago do nicho cobra US$ 5,99. Não vale brigar em preço — copiar o
 valor dele deixa a gente sem margem e sem argumento. Melhor cobrar mais e
-entregar o que ele não entrega: ZPL de verdade, calibração e versionamento de
+entregar o que ele não entrega: calibração de verdade, ZPL e versionamento de
 template.
+
+## O que o plano pago vende, e o que ele NÃO vende
+
+Vende **volume**. Quem imprime 2.000 etiquetas — que é literalmente a pessoa das
+reclamações — bate no limite do grátis no primeiro dia. Esse é o gatilho, e ele
+não depende de hardware nenhum.
+
+A impressora térmica é **bônus, não pilar**, e isso foi decidido medindo. As
+reclamações que fizeram este projeto existir falam de etiqueta **Avery** — folha
+adesiva, que é PDF e já funciona sem instalar nada. E todo caminho do navegador
+até uma impressora térmica exige software instalado na máquina do lojista (Zebra
+Browser Print, QZ Tray e afins); nenhum navegador deixa uma página falar com
+hardware local sem intermediário.
+
+Vender "impressora térmica" como manchete atrairia justamente o cliente que
+precisa instalar coisa e se frustraria antes de imprimir a primeira etiqueta.
 """
 
 VERSAO_API = "2026-07"
@@ -28,7 +44,7 @@ PLANOS = {
         "limite_etiquetas_mes": 100,
         "templates": 1,
         "motores": ("pdf",),
-        "resumo": "Folha adesiva, 1 modelo, 100 etiquetas por mês",
+        "resumo": "1 modelo, 100 etiquetas por mês, folha adesiva",
     },
     "pro": {
         "nome": "Pro",
@@ -36,7 +52,7 @@ PLANOS = {
         "limite_etiquetas_mes": 0,          # 0 = sem limite
         "templates": 0,
         "motores": ("pdf", "zpl"),
-        "resumo": "Modelos ilimitados, impressora térmica, quantidade por regra",
+        "resumo": "Etiquetas e modelos ilimitados. Inclui impressora térmica.",
     },
     "negocio": {
         "nome": "Negócio",

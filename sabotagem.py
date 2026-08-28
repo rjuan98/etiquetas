@@ -112,6 +112,29 @@ SABOTAGENS = [
      "    idade = datetime.now(timezone.utc) - lido\n    return idade.total_seconds() > VALIDADE_DO_PLANO_EM_HORAS * 3600",
      "    return False"),
 
+    # ------------------------------------------------------------- cobrança
+    # Cobrar de verdade numa loja de desenvolvimento e motivo de REPROVACAO na
+    # revisao do Shopify. O COBRANCA_TESTE ficou meses na config sem ninguem
+    # usar — exatamente o tipo de ponta solta que so aparece na revisao.
+    ("a assinatura de teste em loja de desenvolvimento",
+     "web/rotas_api.py",
+     "            desenvolvimento=config.COBRANCA_DE_TESTE)",
+     "            desenvolvimento=False)"),
+
+    # userErrors vem DENTRO de uma resposta 200. Sem tratar, o lojista e mandado
+    # pra lugar nenhum achando que assinou.
+    ("o tratamento de userErrors ao criar a assinatura",
+     "web/rotas_api.py",
+     "        url = cobranca.url_de_confirmacao(resposta)",
+     '        url = ((resposta.get("data") or {}).get("appSubscriptionCreate")\n               or {}).get("confirmationUrl") or "https://exemplo"'),
+
+    # A volta da cobranca nao pode promover ninguem por conta propria: quem diz
+    # se a assinatura existe e o Shopify, nao um clique num link.
+    ("a volta da cobranca so marcando pra reconferir",
+     "web/rotas_cobranca.py",
+     "        lojas.marcar_plano_vencido(registro[\"id\"])",
+     "        lojas.marcar_plano(registro[\"id\"], \"pro\")"),
+
     # -------------------------------------------------------------- receita
     # O codigo de barras e o motivo do app existir. Sem a reserva, o titulo come
     # a etiqueta e a barra some — foi um bug de verdade na etiqueta de joia.

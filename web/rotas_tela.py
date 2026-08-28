@@ -115,13 +115,39 @@ summary{font-size:12.5px;font-weight:600;cursor:pointer;color:var(--tinta)}
 summary:focus-visible{outline:2px solid #005bd3}
 .ajuda{font-size:11.5px;color:var(--fraco);margin:7px 0 9px;line-height:1.45}
 .oculto{display:none}
+dialog{border:1px solid var(--borda);border-radius:12px;padding:20px;max-width:32rem;
+       width:calc(100% - 32px);color:var(--tinta);background:var(--caixa)}
+dialog::backdrop{background:rgba(0,0,0,.42)}
+dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
+.pl{border:1px solid var(--borda);border-radius:9px;padding:12px;margin:10px 0 0;
+    display:flex;gap:12px;align-items:flex-start}
+.pl.atual{border-color:var(--tinta);background:#fafafa}
+.pl .txt{flex:1}
+.pl .nm{font-weight:650;font-size:13.5px}
+.pl .rs{font-size:12px;color:var(--fraco);margin:2px 0 0}
+.pl .pr{font-size:13px;font-weight:650;white-space:nowrap}
+.selo{font-size:11px;font-weight:650;color:#0c5132;background:#e3f4e9;
+      border-radius:20px;padding:2px 9px;white-space:nowrap}
 </style>
 </head><body>
 
 <div class="topo">
   <h1>Etiquetas</h1>
-  <span class="plano" id="plano">carregando…</span>
+  <div class="linha">
+    <span class="plano" id="plano">carregando…</span>
+    <button class="b" id="ver_planos">Ver planos</button>
+  </div>
 </div>
+
+<dialog id="dlg_planos">
+  <h2>Planos</h2>
+  <p class="ajuda" id="teste_gratis"></p>
+  <div id="lista_planos"></div>
+  <div class="linha" style="justify-content:flex-end;margin:14px 0 0">
+    <button class="b" id="fechar_planos">Fechar</button>
+  </div>
+  <p class="ajuda" id="aviso_teste" style="margin:12px 0 0"></p>
+</dialog>
 
 <div class="grade">
   <div>
@@ -348,6 +374,22 @@ function avisar(texto, tipo) {
   $("recado").firstChild.textContent = texto;
 }
 
+// Motivos em que o app está recusando por causa do PLANO, não por erro. Aqui a
+// resposta certa não é só dizer não: é mostrar a saída. Recusar sem oferecer
+// caminho é onde o lojista fecha a aba.
+const MOTIVOS_DE_PLANO = ["limite_do_mes", "limite_de_modelos", "motor_bloqueado"];
+
+function avisarSobrePlano(texto, motivo) {
+  avisar(texto, "aviso");
+  if (MOTIVOS_DE_PLANO.indexOf(motivo) < 0) return;
+  const b = document.createElement("button");
+  b.className = "b forte";
+  b.style.margin = "9px 0 0";
+  b.textContent = "Ver planos";
+  b.addEventListener("click", abrirPlanos);
+  $("recado").appendChild(b);
+}
+
 // Enquanto uma operação está no ar, os botões que mexem em modelo ficam
 // travados. Sem isto, dois cliques em Salvar criam dois modelos, e apagar
 // durante um duplicar apaga o registro errado — foi o que aconteceu num teste:
@@ -379,8 +421,8 @@ async function guardar() {
                       {method: novo ? "POST" : "PUT", body: JSON.stringify(corpo)});
   const d = await r.json();
   if (!r.ok) {
-    avisar(d.erro || "Não consegui salvar.",
-           d.motivo === "limite_de_modelos" ? "aviso" : "erro");
+    if (d.motivo === "limite_de_modelos") avisarSobrePlano(d.erro, d.motivo);
+    else avisar(d.erro || "Não consegui salvar.");
     return;
   }
   if (novo) modeloAtual = d.id;
@@ -545,10 +587,10 @@ function fila() {
 async function baixar(caminho, corpo, arquivo) {
   const r = await api(caminho, {method: "POST", body: JSON.stringify(corpo)});
   if (!r.ok) {
-    let m = "Não consegui gerar o arquivo.";
-    try { m = (await r.json()).erro || m; } catch (e) {}
-    $("recado").innerHTML = '<p class="erro"></p>';
-    $("recado").firstChild.textContent = m;
+    let m = "Não consegui gerar o arquivo.", motivo = "";
+    try { const d = await r.json(); m = d.erro || m; motivo = d.motivo || ""; }
+    catch (e) {}
+    avisarSobrePlano(m, motivo);
     return;
   }
   const blob = await r.blob();
@@ -558,6 +600,72 @@ async function baixar(caminho, corpo, arquivo) {
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
   carregarUso();
+}
+
+// ----------------------------------------------------------------- cobrança
+
+async function abrirPlanos() {
+  const r = await api("/api/planos");
+  const d = await r.json();
+  if (!r.ok) { avisar(d.erro || "Não consegui ler os planos."); return; }
+
+  $("teste_gratis").textContent = d.dias_de_teste
+    ? d.dias_de_teste + " dias grátis pra testar. A cobrança entra na fatura que " +
+      "você já paga à Shopify — sem cartão, sem cadastro."
+    : "";
+
+  const caixa = $("lista_planos");
+  caixa.innerHTML = "";
+  (d.planos || []).forEach(function (p) {
+    const linha = document.createElement("div");
+    linha.className = "pl" + (p.codigo === d.atual ? " atual" : "");
+
+    const txt = document.createElement("div"); txt.className = "txt";
+    const nm = document.createElement("div"); nm.className = "nm";
+    nm.textContent = p.nome;
+    const rs = document.createElement("div"); rs.className = "rs";
+    rs.textContent = p.resumo;
+    txt.appendChild(nm); txt.appendChild(rs);
+
+    const dir = document.createElement("div");
+    if (p.codigo === d.atual) {
+      const selo = document.createElement("span");
+      selo.className = "selo"; selo.textContent = "seu plano";
+      dir.appendChild(selo);
+    } else if (p.preco_usd > 0) {
+      const b = document.createElement("button");
+      b.className = "b forte";
+      b.textContent = "US$ " + p.preco_usd.toFixed(2) + "/mês";
+      b.addEventListener("click", function () { assinar(p.codigo, b); });
+      dir.appendChild(b);
+    } else {
+      const pr = document.createElement("span");
+      pr.className = "pr"; pr.textContent = "grátis";
+      dir.appendChild(pr);
+    }
+
+    linha.appendChild(txt); linha.appendChild(dir);
+    caixa.appendChild(linha);
+  });
+
+  $("dlg_planos").showModal();
+}
+
+async function assinar(codigo, botao) {
+  botao.disabled = true;
+  botao.textContent = "abrindo…";
+  const r = await api("/api/assinar", {method: "POST",
+                       body: JSON.stringify({plano: codigo})});
+  const d = await r.json();
+  if (!r.ok || !d.url) {
+    botao.disabled = false;
+    $("aviso_teste").textContent = d.erro || "Não consegui iniciar a assinatura.";
+    return;
+  }
+  // A confirmação é uma página do admin do Shopify: ela não pode ser carregada
+  // dentro do nosso iframe. Tem que sair pra janela de cima, senão o lojista vê
+  // um retângulo branco no lugar da tela de aprovar a cobrança.
+  window.top.location.href = d.url;
 }
 
 async function carregarUso() {
@@ -640,6 +748,11 @@ async function comecar() {
       await carregarModelos("");
       await atualizarPrevia();
     });
+  });
+
+  $("ver_planos").addEventListener("click", abrirPlanos);
+  $("fechar_planos").addEventListener("click", function () {
+    $("dlg_planos").close();
   });
 
   $("buscar").addEventListener("click", function () { carregarProdutos($("busca").value); });

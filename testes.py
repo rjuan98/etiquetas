@@ -2170,6 +2170,128 @@ check("so marca que venceu", t_lojas.plano_venceu(t_lojas.por_id(_ID_P)))
 t_lojas.apagar("paga-o-pro.myshopify.com")
 
 
+secao("57. Cobranca ligada de ponta a ponta")
+# O modulo de cobranca existia, testado e correto, e NINGUEM chamava ele. Um
+# motor sem chave de ignicao. Isto liga: criar a assinatura, mandar o lojista
+# aprovar, e receber ele de volta.
+from web import config as _cfg3
+
+_ID_C = t_lojas.salvar("quer-assinar.myshopify.com", "token-de-quem-vai-assinar")
+_pedidos = []
+
+
+def _shopify_de_mentira(resposta):
+    original = _rede4.graphql
+
+    def falso(loja, token, corpo):
+        _pedidos.append(corpo)
+        return resposta
+    _rede4.graphql = falso
+    return original
+
+
+_OK = {"data": {"appSubscriptionCreate": {
+    "confirmationUrl": "https://admin.shopify.com/store/x/charges/1/confirm",
+    "appSubscription": {"id": "gid://1", "status": "PENDING"}, "userErrors": []}}}
+
+_pedidos.clear()
+_orig = _shopify_de_mentira(_OK)
+try:
+    _r = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "pro"})
+finally:
+    _rede4.graphql = _orig
+
+check("assinar devolve a URL de confirmacao do Shopify",
+      _r.status_code == 200 and "charges/1/confirm" in _r.get_json()["url"],
+      (_r.status_code, _r.get_json()))
+
+_vars = _pedidos[0]["variables"]
+check("com o preco do plano Pro", _vars["preco"] == "9.99", _vars["preco"])
+check("em dolar", _vars["moeda"] == "USD")
+check("com os dias de teste", _vars["teste"] == cobranca.DIAS_DE_TESTE)
+# Cobrar de verdade numa loja de desenvolvimento e motivo de REPROVACAO na
+# revisao do Shopify. O COBRANCA_TESTE existia na config e nao era usado por
+# ninguem — este teste e o que garante que ele chega na mutacao.
+check("e marcada como assinatura de TESTE quando COBRANCA_TESTE esta ligado",
+      _vars["desenvolvimento"] is True, _vars["desenvolvimento"])
+check("a URL de volta aponta pra nossa rota de retorno",
+      _vars["volta"].endswith("/cobranca/volta?shop=quer-assinar.myshopify.com"),
+      _vars["volta"])
+
+# Assinar NAO pode liberar nada: quem confirma e o lojista, na tela do Shopify.
+check("pedir assinatura nao promove a loja sozinho",
+      t_lojas.por_id(_ID_C)["plano"] == "gratis", t_lojas.por_id(_ID_C)["plano"])
+
+# O plano gratis nao tem assinatura pra criar.
+_r = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "gratis"})
+check("nao da pra assinar o plano gratis", _r.status_code == 400, _r.status_code)
+_r = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "inventado"})
+check("plano que nao existe e recusado", _r.status_code == 400)
+
+# userErrors vem DENTRO de uma resposta 200. Sem tratar, o lojista seria mandado
+# pra lugar nenhum achando que assinou.
+_orig = _shopify_de_mentira({"data": {"appSubscriptionCreate": {
+    "userErrors": [{"message": "loja sem meio de pagamento"}]}}})
+try:
+    _r = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "pro"})
+finally:
+    _rede4.graphql = _orig
+check("erro do Shopify dentro do 200 vira 502, nao redirecionamento torto",
+      _r.status_code == 502, _r.status_code)
+check("e a mensagem dele chega na tela",
+      "meio de pagamento" in _r.get_json()["erro"], _r.get_json())
+
+# Rede caindo no meio.
+_orig = _rede4.graphql
+
+
+def _cai(loja, token, corpo):
+    raise _rede4.ErroDeRede("sem conexao")
+
+
+_rede4.graphql = _cai
+try:
+    _r = _post("/api/assinar", "quer-assinar.myshopify.com", {"plano": "pro"})
+finally:
+    _rede4.graphql = _orig
+check("rede caindo vira 502 com explicacao", _r.status_code == 502)
+
+# --- a volta -------------------------------------------------------------
+t_lojas.marcar_plano(_ID_C, "pro")
+check("antes da volta, o plano esta fresco",
+      t_lojas.plano_venceu(t_lojas.por_id(_ID_C)) is False)
+
+_r = _cliente.get("/cobranca/volta?shop=quer-assinar.myshopify.com")
+check("a volta redireciona pro admin da loja", _r.status_code == 302, _r.status_code)
+check("e pro painel de apps dela",
+      "quer-assinar/apps" in _r.headers.get("Location", ""), _r.headers.get("Location"))
+# Ela nao promove ninguem: so marca que precisa reconferir com o Shopify. E por
+# isso que ela pode ser uma rota aberta.
+check("a volta marca o plano pra reconferir",
+      t_lojas.plano_venceu(t_lojas.por_id(_ID_C)))
+check("mas NAO muda o plano por conta propria",
+      t_lojas.por_id(_ID_C)["plano"] == "pro", t_lojas.por_id(_ID_C)["plano"])
+
+check("a volta com dominio invalido e recusada",
+      _cliente.get("/cobranca/volta?shop=evil.com").status_code == 400)
+check("e sem loja nenhuma tambem",
+      _cliente.get("/cobranca/volta").status_code == 400)
+# Loja que nunca instalou nao pode derrubar a rota.
+check("volta de loja desconhecida nao quebra",
+      _cliente.get("/cobranca/volta?shop=nunca-vi.myshopify.com").status_code == 302)
+
+# --- a lista de planos que a tela mostra ---------------------------------
+t_lojas.marcar_plano(_ID_C, "gratis")
+_d = _pega("/api/planos", "quer-assinar.myshopify.com").get_json()
+check("a tela recebe os tres planos", len(_d["planos"]) == 3, len(_d["planos"]))
+check("sabe qual e o atual", _d["atual"] == "gratis", _d["atual"])
+check("e os dias de teste", _d["dias_de_teste"] == cobranca.DIAS_DE_TESTE)
+check("com preco em numero, pra tela nao formatar moeda por conta propria",
+      all(isinstance(p["preco_usd"], (int, float)) for p in _d["planos"]))
+
+t_lojas.apagar("quer-assinar.myshopify.com")
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))
