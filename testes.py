@@ -1487,6 +1487,22 @@ _sem_proxy = _rede._montar_abridor()
 
 check("com proxy no ambiente, o abridor passa a usar ele",
       any(isinstance(h, _url.ProxyHandler) for h in _com_proxy.handlers))
+
+# PROXY_SAIDA manda sobre as variaveis padrao: o processo do site nem sempre
+# recebe `https_proxy`, e ai a configuracao explicita e a unica saida.
+_guardado_saida = _os.environ.get("PROXY_SAIDA")
+_os.environ["PROXY_SAIDA"] = "http://explicito:3128"
+_ab_explicito = _rede._montar_abridor()
+if _guardado_saida is None:
+    _os.environ.pop("PROXY_SAIDA", None)
+else:
+    _os.environ["PROXY_SAIDA"] = _guardado_saida
+_phs = [h for h in _ab_explicito.handlers if isinstance(h, _url.ProxyHandler)]
+check("PROXY_SAIDA no ambiente e respeitado",
+      _phs and _phs[0].proxies.get("https") == "http://explicito:3128",
+      _phs[0].proxies if _phs else None)
+check("e vale pros dois protocolos",
+      _phs and _phs[0].proxies.get("http") == "http://explicito:3128")
 check("e sem proxy nada muda",
       not any(isinstance(h, _url.ProxyHandler) and h.proxies
               for h in _sem_proxy.handlers))

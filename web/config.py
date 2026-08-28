@@ -56,6 +56,17 @@ URL_DO_APP = _texto("APP_URL", "http://localhost:5000").rstrip("/")
 
 CHAVE_SEGREDO = _texto("CHAVE_SEGREDO")
 
+# Proxy de saída, quando a hospedagem obriga a passar por um.
+#
+# O plano grátis do PythonAnywhere é assim: toda requisição para fora passa por
+# `proxy.server:3128`, e é por ali que eles aplicam a lista de sites permitidos
+# (onde `.myshopify.com` está). O `urllib` lê `https_proxy` do ambiente sozinho,
+# mas o processo do site nem sempre recebe essa variável — então dá pra dizer
+# explicitamente aqui, e não depender de sorte.
+#
+# Vazio significa conexão direta, que é o caso de qualquer servidor normal.
+PROXY_SAIDA = _texto("PROXY_SAIDA")
+
 # Dados do negócio, pra política de privacidade e suporte. Ficam no ambiente e
 # não no código: são do negócio, não do programa — e um e-mail no repositório
 # vira alvo de robô de spam.

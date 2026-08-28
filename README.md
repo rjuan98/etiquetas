@@ -91,7 +91,7 @@ web/               O FLASK
   dev.py                a tela rodando sem Shopify nenhum
 
 docs/              ficha da loja de apps, ícone e capturas — todos gerados por script
-deploy/            montar o servidor do zero, num comando
+deploy/            subir no PythonAnywhere, ou montar um servidor do zero
 sabotagem.py       quebra cada defesa e confere que um teste grita
 
 espelho.py         arquivo-espelho: congela a saída byte a byte
@@ -178,7 +178,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **814 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **816 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 

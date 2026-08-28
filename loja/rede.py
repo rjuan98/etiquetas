@@ -22,6 +22,7 @@ dentro do JSON. Quem só olha o código HTTP acha que deu certo e mostra tela va
 A espera é exponencial porque insistir no mesmo ritmo só afunda mais o balde.
 """
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -64,8 +65,12 @@ def _montar_abridor():
     Sem isto, o app subiria e falharia em TODA chamada ao Shopify, com erro de
     conexão e nada dizendo que o motivo é proxy.
     """
+    # `PROXY_SAIDA` no ambiente manda; sem ele, o ProxyHandler vazio lê as
+    # variáveis padrão (`https_proxy`) e, não havendo nenhuma, conecta direto.
+    explicito = os.environ.get("PROXY_SAIDA", "").strip()
+    proxies = {"http": explicito, "https": explicito} if explicito else None
     return urllib.request.build_opener(
-        urllib.request.ProxyHandler(), _SemRedirecionamento)
+        urllib.request.ProxyHandler(proxies), _SemRedirecionamento)
 
 
 _abridor = _montar_abridor()
