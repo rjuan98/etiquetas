@@ -52,7 +52,7 @@ resolve queima o contato e é desonesto.
 | **The Scented Cardinal** | EUA | *"can't remove price for certain labels. My prices fluctuate"* | Cada campo liga e desliga, inclusive o preço. |
 | **Patch Magazine** | Reino Unido | *"all of a sudden my barcodes are longer and a different font"* | Seu modelo não muda sozinho — tem teste que congela a saída byte a byte. |
 | **Boutique Venus** | Holanda | *"price is not visible when there is no space"* | Você controla símbolo, espaço e separadores. |
-| **Vintage Dragonfly Boutique** | EUA | *"labels printing with a HUGE barcode"* | A altura do código é sua, e a prévia mostra antes de imprimir. |
+| **Vintage Dragonfly Boutique** | EUA | *"labels printing with a HUGE barcode"* | O código é dimensionado a partir da etiqueta — ganha o que precisa pra bipar e nada além. E a prévia mostra antes de imprimir. |
 
 ### Nível 2 — o grupo da quantidade
 
@@ -96,6 +96,12 @@ uma tinha nome e sobrenome.
 | Lasting Impressions, HAUTE MESS BOUTIQUE | reclamam de **suporte**, não do produto |
 
 ---
+
+> **Uma promessa que estava errada aqui.** A versão anterior desta linha dizia
+> *"a altura do código é sua"*. Não é: o lojista não escolhe a altura do código,
+> ela é calculada a partir da etiqueta (10,4mm numa 2x1, 21,3mm numa 3x2).
+> Conferido contra o código antes de escrever a mensagem — que é a razão de
+> conferir antes.
 
 ## O molde da mensagem
 
@@ -143,6 +149,11 @@ serrado pela borda. Exatamente o defeito que o app existe pra corrigir.
 Foi consertado antes da medida livre existir.
 
 ---
+
+## As mensagens
+
+Escritas, uma por loja, em [`mensagens.md`](mensagens.md) — as cinco do Nível 1
+e as três do Nível 3.
 
 ## O critério de parar
 
