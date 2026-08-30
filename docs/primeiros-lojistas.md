@@ -121,14 +121,36 @@ tell me if it actually solves it? No cost, no commitment — I'd just like
 to know if it works for someone who isn't me.
 ```
 
-Se ela topar, o link de instalação é este, trocando o domínio da loja:
+### Não mande link de instalação junto
 
-```
-https://etikbarcode.pythonanywhere.com/instalar?shop=LOJA.myshopify.com
-```
+**Corrigido em 30/08/2026, e a versão anterior deste documento estava errada.**
 
-O app funciona sem estar na loja de apps — foi assim que ele foi instalado na
-Etik.
+Aqui dizia que bastava mandar `…/instalar?shop=LOJA.myshopify.com` porque "app
+não listado instala em qualquer loja". **Não instala.** Resposta de um
+funcionário da Shopify, no fórum de desenvolvedores:
+
+> *"app review is required, as the app does need to have a `Public` distribution
+> status in order to install it on multiple stores, even if you are leaving the
+> app in an 'unlisted' state."*
+
+O link direto funcionou na **loja de desenvolvimento** porque loja de
+desenvolvimento instala app não aprovado. Loja de verdade, não.
+
+As opções reais são duas:
+
+| caminho | revisão | custo | limite |
+|---|---|---|---|
+| **Público** (listado ou não) | sim | US$ 19, uma vez | nenhum |
+| **Custom distribution** | não | zero | **uma loja só**, sem cobrança pelo Shopify, e **irreversível** |
+
+O "irreversível" é literal: *"You can't change the distribution method after you
+select it."* Escolher custom neste app fecha a porta da loja de apps para
+sempre — daria pra criar um segundo app só pro piloto, mas isso é outro conjunto
+de credenciais.
+
+**Por isso a mensagem pergunta antes e não manda link.** Se a pessoa responder
+que topa, aí sim vale gastar os US$ 19 — o dinheiro vai atrás de um sim, não na
+frente dele.
 
 ---
 

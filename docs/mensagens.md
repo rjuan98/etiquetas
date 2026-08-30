@@ -12,11 +12,20 @@ cada, escrita para aquela queixa.
 >   código. Onde há ressalva, ela está escrita.
 > - **Fácil de ignorar.** Ninguém deve a você uma resposta.
 
-O link de instalação, trocando o domínio:
-
-```
-https://etikbarcode.pythonanywhere.com/instalar?shop=LOJA.myshopify.com
-```
+> **Nenhuma destas mensagens leva link de instalação, e isso é de propósito.**
+>
+> Uma loja de verdade **não instala** um app da Shopify que não passou pela
+> revisão — nem mesmo "não listado". Resposta de um funcionário da Shopify:
+> *"app review is required […] even if you are leaving the app in an 'unlisted'
+> state"*. O link direto só funcionou na loja de **desenvolvimento**.
+>
+> Então a ordem é: **perguntar primeiro, gastar depois.** Cada mensagem pede um
+> "sim" pequeno. Se alguém disser sim, aí valem os US$ 19 da submissão — o
+> dinheiro vai atrás de um interessado, não na frente dele.
+>
+> Ver [`primeiros-lojistas.md`](primeiros-lojistas.md) para as duas rotas de
+> distribuição e por que a "custom" (grátis, sem revisão) não serve aqui: ela
+> vale para **uma loja só** e é **irreversível**.
 
 ---
 
@@ -220,6 +229,20 @@ won't take more of your time.
 ```
 
 ---
+
+## Se alguém disser sim
+
+É aí que os US$ 19 fazem sentido, e não antes. A ordem:
+
+1. **Responda rápido**, e diga a verdade: o app está pronto e a submissão leva
+   alguns dias. Ninguém se ofende com isso; some quem fica sem resposta.
+2. **Submeta o app** — [`ficha-loja-de-apps.md`](ficha-loja-de-apps.md) tem o
+   texto todo pronto pra colar, e a lista do que falta preencher.
+3. **Avise quando estiver no ar** e mande o link. Essa pessoa é sua primeira
+   avaliação, e cinco avaliações dão o selo *Built for Shopify*.
+
+Se ninguém disser sim, você não gastou nada — que é a razão de a pergunta vir
+antes do dinheiro.
 
 ## Depois de enviar
 
