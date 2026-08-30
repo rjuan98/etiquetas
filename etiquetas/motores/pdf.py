@@ -41,7 +41,30 @@ NOME_REPORTLAB = {
     "UPCA": "UPCA",
     "CODE128": "Code128",
     "QRCODE": "QR",
+    "ITF14": "I2of5",
 }
+
+def argumentos_reportlab(simbologia) -> dict:
+    """O que o reportlab precisa além do valor, por simbologia.
+
+    Existe pra ser chamado pelos DOIS motores que usam reportlab (o PDF e a
+    prévia). Escrever em cada um seria garantir que um dia divergissem — e
+    divergir aqui significa a prévia mostrar um código de uma largura e o papel
+    sair com outra.
+
+    O `ratio` é o caso que obrigou a criar isto: o reportlab usa 2,2 por padrão
+    e o `^BY` do ZPL usa 3,0. Sem igualar, o mesmo ITF-14 sairia 21% mais largo
+    na Zebra. Medido, não suposto.
+
+    O `checksum=0` é porque a gente já valida e já manda o código COMPLETO. Com
+    o padrão (1) o reportlab acrescentaria um 15º dígito.
+    """
+    extras = {}
+    if simbologia.razao_larga:
+        extras["ratio"] = simbologia.razao_larga
+        extras["checksum"] = 0
+    return extras
+
 
 # Helvetica vem embutida no PDF e cobre acento latino sem precisar carregar
 # arquivo de fonte. Fonte customizada é assunto de depois, e vai exigir embutir
@@ -154,6 +177,7 @@ def _desenhar_codigo(c, el: CodigoBarras, dados: dict, ox_mm: float, oy_mm: floa
             barHeight=_pt(el.altura_mm),
             humanReadable=el.mostrar_texto,
             quiet=False,
+            **argumentos_reportlab(simbologia),
         )
     desenho.drawOn(c, _pt(x_mm), _y_pdf(y_base_mm, altura_pagina_mm))
 

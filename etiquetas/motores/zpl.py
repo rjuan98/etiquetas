@@ -137,11 +137,17 @@ def _render_codigo(el: CodigoBarras, template: Template, dados: dict, dpi: int) 
         return ["^FO%d,%d^BQN,2,%d^FD%sA,%s^FS"
                 % (x, y, magnificacao, correcao, _escapar(valor))]
 
+    # O `3` do ^BY é a razão barra-larga/barra-fina. Ela só faz diferença nas
+    # simbologias que TÊM barra larga (ITF-14), e nessas o reportlab precisa
+    # receber o mesmo número — senão a mesma etiqueta sai de larguras
+    # diferentes conforme a impressora. Ver `Simbologia.razao_larga`.
     saida = ["^BY%d,3,%d" % (el.modulo_dots, altura)]
-    if simbologia is codigos.CODE128:
-        saida.append("^FO%d,%d%sN,%d,%s,N,N" % (x, y, simbologia.comando_zpl, altura, mostrar))
-    else:
-        saida.append("^FO%d,%d%sN,%d,%s,N" % (x, y, simbologia.comando_zpl, altura, mostrar))
+    # Algumas simbologias aceitam no ^Bx um parâmetro a mais, o "calcular
+    # dígito verificador". A gente já manda o código completo, então ele vai
+    # como N — a impressora não deve acrescentar outro.
+    extra = ",N" if simbologia.verificador_no_zpl else ""
+    saida.append("^FO%d,%d%sN,%d,%s,N%s"
+                 % (x, y, simbologia.comando_zpl, altura, mostrar, extra))
     saida.append("^FD%s^FS" % valor)
     return ["".join(saida)]
 

@@ -435,6 +435,53 @@ SABOTAGENS = [
      "    if \"codigo_barras\" in ligados:",
      "    if True:"),
 
+    # --------------------------------------------------- ITF-14 e o verificador
+    # O reportlab usa razao 2,2 e o ^BY do ZPL usa 3,0. Sem fixar, o MESMO
+    # ITF-14 sai 21% mais largo na Zebra que no PDF e na previa.
+    ("a razao barra-larga igual nos dois motores",
+     "etiquetas/motores/pdf.py",
+     "        extras[\"ratio\"] = simbologia.razao_larga",
+     "        pass"),
+
+    # O reportlab acrescenta digito verificador por padrao. Com o codigo ja
+    # completo isso vira um 15o digito, e o codigo para de bipar.
+    ("o reportlab sendo proibido de acrescentar digito",
+     "etiquetas/motores/pdf.py",
+     "        extras[\"checksum\"] = 0",
+     "        extras[\"checksum\"] = 1"),
+
+    # Idem do lado da impressora: com Y no ^B2 ela calcula outro.
+    ("o ^B2 nao pedindo verificador extra a impressora",
+     "etiquetas/motores/zpl.py",
+     "    extra = \",N\" if simbologia.verificador_no_zpl else \"\"",
+     "    extra = \",Y\" if simbologia.verificador_no_zpl else \"\""),
+
+    # Estava escrito `if simbologia is EAN13`: UPC-A com verificador errado
+    # passava e ia pro papel. Codigo errado bipa o PRODUTO ERRADO no caixa.
+    ("o verificador conferido em TODAS as simbologias numericas",
+     "etiquetas/codigos.py",
+     "        esperado = digito_verificador_gs1(valor[:-1])\n        if valor[-1] != esperado:",
+     "        esperado = digito_verificador_gs1(valor[:-1]) if simbologia is EAN13 else valor[-1]\n        if valor[-1] != esperado:"),
+
+    # A conta do GS1 conta da DIREITA. Contando da esquerda ela acerta no
+    # EAN-13 por sorte do comprimento par e erra no UPC-A e no ITF-14.
+    ("a conta do verificador contando da direita",
+     "etiquetas/codigos.py",
+     "    for i, char in enumerate(reversed(digitos)):",
+     "    for i, char in enumerate(digitos):"),
+
+    # Sumir calado e o defeito que este app existe pra corrigir. O lojista
+    # escolhe ITF-14, o codigo some da previa, e ele acha que o app quebrou.
+    ("o motivo de o codigo ter sumido da previa",
+     "web/rotas_api.py",
+     '        "codigo_invalido": _por_que_o_codigo_sumiu(template, item),',
+     '        "codigo_invalido": "",'),
+
+    ("o plano gratis acompanhando o que o mercado da",
+     "loja/cobranca.py",
+     '"limite_etiquetas_mes": 200,',
+     '"limite_etiquetas_mes": 100,'),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

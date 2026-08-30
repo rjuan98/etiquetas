@@ -920,7 +920,7 @@ check("o gratis so tem PDF, sem termica",
 check("o pro libera a impressora termica", cobranca.pode_usar("pro", "zpl"))
 check("o gratis nao libera", not cobranca.pode_usar("gratis", "zpl"))
 check("o gratis tem limite mensal",
-      not cobranca.dentro_do_limite("gratis", 100) and cobranca.dentro_do_limite("gratis", 99))
+      not cobranca.dentro_do_limite("gratis", 200) and cobranca.dentro_do_limite("gratis", 199))
 check("o pago nao tem limite", cobranca.dentro_do_limite("pro", 999999))
 
 _corpo_cob = cobranca.corpo_para_assinar("pro", "https://app.exemplo/volta",
@@ -1388,7 +1388,7 @@ check("e o motivo e o limite do mes", _r.get_json()["motivo"] == "limite_do_mes"
 # na hora de imprimir — surpresa que vira review de uma estrela.
 _uso = _pega("/api/uso", "loja-a.myshopify.com").get_json()
 check("/api/uso diz o plano e o quanto ja foi", _uso["plano"] == "gratis"
-      and _uso["etiquetas_no_mes"] > 100 and _uso["limite_mes"] == 100)
+      and _uso["etiquetas_no_mes"] > 200 and _uso["limite_mes"] == 200)
 check("/api/uso diz que motores o plano libera", _uso["motores"] == ["pdf"])
 
 # Plano pago libera o resto. O banco aqui e so cache — quem manda e o Shopify.
@@ -3462,6 +3462,150 @@ try:
 except ValueError:
     _recusou = True
 check("mas com o codigo ligado ela continua sendo recusada", _recusou)
+
+
+secao("70. ITF-14: o codigo da caixa, e o verificador que faltava no UPC-A")
+
+# ITF-14 e o codigo da EMBALAGEM COLETIVA — o que vai na caixa de atacado, nao
+# na peca. Entrou porque os dois concorrentes tem e e o unico dos tres simbolos
+# que faltavam que muda a vida de alguem (Code 39 e Data Matrix sao numero pra
+# tabela).
+
+_ITF = "10789123456785"
+
+check("ITF-14 valido passa", codigos.validar(_ITF, codigos.ITF14)[0])
+check("ITF-14 com verificador errado nao passa",
+      codigos.validar("10789123456789", codigos.ITF14)[0] is False)
+check("ITF-14 com 13 digitos nao passa, e a mensagem diz quantos faltam",
+      "14" in codigos.validar("1078912345678", codigos.ITF14)[1])
+check("e a mensagem nao fica dizendo '14 ou 14'",
+      "ou" not in codigos.validar("1078912345678", codigos.ITF14)[1])
+for _apelido in ("ITF14", "ITF-14", "itf", "gtin14", "I2of5"):
+    check("'%s' chega no ITF-14" % _apelido,
+          codigos.obter(_apelido) is codigos.ITF14)
+
+# O BURACO QUE APARECEU FAZENDO ISTO: a conferencia do verificador estava
+# escrita `if simbologia is EAN13`, entao UPC-A com verificador errado passava
+# direto e ia pro papel. Codigo errado imprime bonito, bipa, e traz o PRODUTO
+# ERRADO no caixa — a pior falha possivel aqui, porque ninguem desconfia dela.
+# E a queixa de uma estrela que um concorrente levou.
+check("UPC-A valido passa", codigos.validar("012345678905", codigos.UPCA)[0])
+check("UPC-A com verificador errado NAO passa (antes passava)",
+      codigos.validar("012345678901", codigos.UPCA)[0] is False)
+check("e o EAN-13 continua conferido",
+      codigos.validar("7891234567890", codigos.EAN13)[0] is False)
+
+# A conta do GS1 e a mesma pras tres, contando da DIREITA. A versao anterior
+# contava da esquerda e so acertava por sorte no comprimento par do EAN-13.
+check("a conta do GS1 serve pros tres comprimentos",
+      (codigos.digito_verificador_gs1("789123456789"),
+       codigos.digito_verificador_gs1("01234567890"),
+       codigos.digito_verificador_gs1("1078912345678")) == ("5", "5", "5"))
+check("e a funcao antiga do EAN-13 da o mesmo resultado",
+      codigos.digito_verificador_ean("789123456789")
+      == codigos.digito_verificador_gs1("789123456789"))
+
+
+# A ARMADILHA: o ITF-14 tem barra LARGA, e a razao larga/fina muda a largura
+# toda. O reportlab usa 2,2 por padrao e o ^BY do ZPL usa 3,0 — sem fixar, o
+# MESMO codigo sairia 21% mais largo na Zebra que no PDF. E o mesmo defeito que
+# o QR tinha, e o defeito que este projeto existe pra corrigir.
+_dados_itf = {"variante": {"codigo_barras": _ITF}}
+
+
+def _itf_no_papel(modulo_dots):
+    t = Template(nome="itf", midia=Midia(101.6, 50.8), calibracao=Calibracao(),
+                 elementos=[CodigoBarras(x_mm=3, y_mm=5,
+                                         campo="variante.codigo_barras",
+                                         simbologia="ITF14", altura_mm=12,
+                                         modulo_dots=modulo_dots)])
+    largura_svg = float(_re5.search(
+        r'<svg x="[0-9.]+" y="[0-9.]+" width="([0-9.]+)"',
+        motor_svg.render(t, _dados_itf)).group(1))
+    largura_zpl = unidades.dots_para_mm(
+        codigos.MODULOS_FIXOS["ITF14"] * modulo_dots, unidades.ZEBRA_203)
+    return largura_zpl, largura_svg, zpl.render(t, _dados_itf)
+
+
+for _mod in (2, 3):
+    _z, _s, _saida = _itf_no_papel(_mod)
+    check("ITF-14 com modulo %d: ZPL e previa da MESMA largura" % _mod,
+          abs(_z - _s) < 0.05, (_z, _s))
+
+check("a razao esta fixada, e nao no padrao 2,2 do reportlab",
+      codigos.ITF14.razao_larga == 3.0)
+check("e o ^BY do ZPL manda a mesma razao", "^BY2,3," in _itf_no_papel(2)[2])
+
+# O ^B2 aceita um parametro a mais que o ^BE: o "calcular digito verificador".
+# Vai como N porque a gente ja manda o codigo completo — se fosse Y a
+# impressora acrescentaria um 15o digito e o codigo nao bipa mais.
+check("o ZPL nao pede pra impressora acrescentar outro verificador",
+      "^B2N,96,Y,N,N" in _itf_no_papel(2)[2], _itf_no_papel(2)[2])
+check("e o EAN-13 continua sem esse parametro a mais",
+      codigos.EAN13.verificador_no_zpl is False)
+
+# E o reportlab tambem nao pode acrescentar: o padrao dele e checksum=1.
+from etiquetas.motores.pdf import argumentos_reportlab as _args_rl
+check("o reportlab e mandado NAO acrescentar digito",
+      _args_rl(codigos.ITF14).get("checksum") == 0)
+check("simbologia sem barra larga nao recebe razao nenhuma",
+      _args_rl(codigos.EAN13) == {})
+
+# A conta de largura tem que valer pro ITF-14 tambem, senao ele vaza igual.
+check("ITF-14 nao cabe numa etiqueta de 25mm",
+      codigos.largura_necessaria_mm(codigos.ITF14, _ITF, 2,
+                                    unidades.ZEBRA_203) > 25.4)
+_estreita = receitas.montar("rolo_1x1", receitas.PADRAO, simbologia="ITF14")
+check("e a receita nao poe ele numa etiqueta que ele nao cabe",
+      "codigo_barras" in receitas.nao_couberam(_estreita, receitas.PADRAO))
+
+
+# O CODIGO QUE SOME CALADO. Os motores recusam desenhar codigo que nao bipa, e
+# isso esta certo. Mas sumir sem dizer por que nao: o lojista escolhe ITF-14, o
+# codigo desaparece da previa, e ele conclui que o app quebrou.
+#
+# O buraco e anterior ao ITF-14 — EAN-13 com verificador errado ja sumia calado.
+# So que o ITF-14 recusa TODO codigo de 13 digitos, entao virou rotina.
+def _previa_de(simbologia, codigo_do_produto, formato="zebra_2x1"):
+    return _post("/api/previa", "loja-a.myshopify.com", {
+        "receita": {"formato": formato, "simbologia": simbologia,
+                    "campos": list(receitas.PADRAO)},
+        "item": {"produto": {"titulo": "Caixa"},
+                 "variante": {"sku": "CX-1", "preco": "10.00",
+                              "codigo_barras": codigo_do_produto}},
+    }).get_json()
+
+
+_p = _previa_de("ITF14", "7891234567895")
+check("ITF-14 num produto de 13 digitos explica por que o codigo sumiu",
+      "14" in (_p.get("codigo_invalido") or ""), _p.get("codigo_invalido"))
+_p = _previa_de("EAN13", "7891234567890")
+check("verificador errado tambem explica, em vez de sumir calado",
+      "verificador" in (_p.get("codigo_invalido") or ""), _p.get("codigo_invalido"))
+_p = _previa_de("EAN13", "7891234567895")
+check("codigo bom nao gera recado nenhum",
+      not _p.get("codigo_invalido"), _p.get("codigo_invalido"))
+_p = _previa_de("EAN13", "")
+check("produto SEM codigo nao e erro de configuracao, e nao vira recado",
+      not _p.get("codigo_invalido"), _p.get("codigo_invalido"))
+_p = _previa_de("ITF14", "10789123456785", formato="rolo_1x1")
+check("codigo largo demais pro papel tambem e explicado",
+      bool(_p.get("codigo_invalido") or _p.get("nao_coube")), _p)
+
+
+secao("71. O plano gratis acompanha o mercado")
+
+# 200, e nao 100: e o que Yanet e LabelFast dao de graca (conferido em
+# 30/08/2026). Perder por 2x no primeiro numero que o lojista compara e caro, e
+# etiqueta renderizada nao custa quase nada pra gerar.
+check("o gratis da 200 etiquetas por mes",
+      cobranca.PLANOS["gratis"]["limite_etiquetas_mes"] == 200)
+check("e o resumo mostrado ao lojista diz o mesmo numero",
+      "200" in cobranca.PLANOS["gratis"]["resumo"]
+      and "200" in _txt.t("plano_gratis_resumo", "pt")
+      and "200" in _txt.t("plano_gratis_resumo", "en"))
+check("o Pro continua sem limite",
+      cobranca.PLANOS["pro"]["limite_etiquetas_mes"] == 0)
 
 
 # ---------------------------------------------------------------- fim

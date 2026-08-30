@@ -36,6 +36,7 @@ As reclamações que se repetem, e o que este motor faz sobre cada uma:
 | sumiu o SKU da etiqueta | texto fixo e prefixo em qualquer elemento |
 | etiqueta que às vezes não bipa | zona muda como regra, não como sorte |
 | tamanho de etiqueta não é livre | largura e altura em milímetro |
+| o código sumiu e não sei por quê | a prévia diz o motivo, na tela |
 
 ---
 
@@ -132,6 +133,16 @@ pros dois lados, então `^LH` não serve.
 
 Aplicando no modelo, os três motores calibram igual, com o mesmo número, testado
 uma vez.
+
+### A razão da barra larga tem que ser a mesma nos três motores
+
+O ITF-14 (o código da caixa de atacado) é o único aqui com **barra larga**, e a
+razão entre a larga e a fina define a largura toda. O reportlab usa **2,2** por
+padrão e o `^BY` do ZPL usa **3,0** — sem fixar, o mesmo código sairia **21% mais
+largo na Zebra** que no PDF e na prévia.
+
+É o mesmo defeito que o QR tinha, encontrado do mesmo jeito: medindo os dois e
+comparando, antes de acreditar que estavam iguais.
 
 ### O código também precisa CABER
 
@@ -253,7 +264,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **922 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **954 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -266,7 +277,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 57 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 64 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
@@ -318,7 +329,7 @@ etiqueta pronta. O navegador não sabe o que é milímetro.
 ## Estado
 
 Prontos e testados: motores **ZPL**, **PDF** e **SVG** (EAN-13, UPC-A, Code128,
-QR), 13 formatos de papel mais medida livre, o **lado Shopify** inteiro (OAuth, token de sessão,
+QR, ITF-14), 13 formatos de papel mais medida livre, o **lado Shopify** inteiro (OAuth, token de sessão,
 webhooks, catálogo, cobrança), o **banco** com isolamento entre lojas, as
 **rotas Flask** e a **tela** — escolher produtos, montar a etiqueta, ver a
 prévia, baixar PDF ou ZPL, e a régua de calibração.

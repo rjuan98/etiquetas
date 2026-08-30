@@ -51,10 +51,14 @@ PLANOS = {
     "gratis": {
         "nome": "Grátis",
         "preco_usd": 0.0,
-        "limite_etiquetas_mes": 100,
+        # 200, e não 100, porque é o número que os dois concorrentes dão de
+        # graça (Yanet e LabelFast, conferidos em 30/08/2026). Perder na
+        # comparação por 2× no primeiro número que o lojista lê é caro, e
+        # etiqueta renderizada não custa quase nada pra gerar.
+        "limite_etiquetas_mes": 200,
         "templates": 1,
         "motores": ("pdf",),
-        "resumo": "1 modelo, 100 etiquetas por mês, folha adesiva",
+        "resumo": "1 modelo, 200 etiquetas por mês, folha adesiva",
     },
     "pro": {
         "nome": "Pro",

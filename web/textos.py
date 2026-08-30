@@ -52,6 +52,12 @@ TEXTOS = {
     "col_codigo":          {"en": "Barcode",             "pt": "Código"},
     "col_quantas":         {"en": "How many",            "pt": "Quantas"},
     "sem_codigo":          {"en": "no barcode",          "pt": "sem código"},
+    "codigo_invalido":     {"en": "The barcode is not shown because %s. A code "
+                                  "that doesn't scan is worse than no code.",
+                            "pt": "O código não aparece porque %s. Código que "
+                                  "não bipa é pior que código nenhum."},
+    "codigo_nao_cabe":     {"en": "it is wider than this label",
+                            "pt": "ele é mais largo que esta etiqueta"},
     "nenhum_produto":      {"en": "No products found.",  "pt": "Nenhum produto encontrado."},
     "escolher":            {"en": "Select %s",           "pt": "Escolher %s"},
     "quantas_de":          {"en": "How many labels of %s",
@@ -193,8 +199,8 @@ TEXTOS = {
 
     "plano_gratis_nome":   {"en": "Free",                "pt": "Grátis"},
     "plano_pro_nome":      {"en": "Pro",                 "pt": "Pro"},
-    "plano_gratis_resumo": {"en": "1 template, 100 labels a month, sheet labels",
-                            "pt": "1 modelo, 100 etiquetas por mês, folha adesiva"},
+    "plano_gratis_resumo": {"en": "1 template, 200 labels a month, sheet labels",
+                            "pt": "1 modelo, 200 etiquetas por mês, folha adesiva"},
     "plano_pro_resumo":    {"en": "Unlimited labels and templates. "
                                   "Thermal printing included.",
                             "pt": "Etiquetas e modelos ilimitados. "

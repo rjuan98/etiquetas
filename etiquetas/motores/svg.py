@@ -38,7 +38,7 @@ from reportlab.graphics.barcode import createBarcodeDrawing
 
 from .. import campos, codigos, texto as texto_mod, unidades, valores
 from ..modelo import CodigoBarras, Template, Texto
-from .pdf import NOME_REPORTLAB
+from .pdf import NOME_REPORTLAB, argumentos_reportlab
 
 # Fonte de tela que existe em Windows, Mac e Linux sem precisar carregar arquivo.
 # Não é a Helvetica do PDF nem a fonte da Zebra — nenhuma prévia de tela é
@@ -140,7 +140,8 @@ def _codigo_svg(el: CodigoBarras, template: Template, dados: dict) -> list:
             NOME_REPORTLAB[simbologia.nome], value=valor,
             barWidth=unidades.mm_para_pontos(modulo_mm),
             barHeight=unidades.mm_para_pontos(el.altura_mm),
-            humanReadable=el.mostrar_texto, quiet=False)
+            humanReadable=el.mostrar_texto, quiet=False,
+            **argumentos_reportlab(simbologia))
 
     # O desenho do reportlab sai em pontos; o nosso mundo é milímetro.
     largura_mm = desenho.width * 25.4 / 72

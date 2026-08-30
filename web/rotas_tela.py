@@ -252,6 +252,7 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
               <option value="EAN13">EAN-13</option>
               <option value="UPCA">UPC-A</option>
               <option value="CODE128">Code 128</option>
+              <option value="ITF14">ITF-14</option>
               <option value="QRCODE">QR Code</option>
             </select>
           </div>
@@ -551,14 +552,24 @@ async function atualizarPrevia() {
 
   $("previa").innerHTML = d.svg;
   $("medida").textContent = d.largura_mm + " × " + d.altura_mm + " mm";
+  // Duas coisas diferentes podem sumir da etiqueta, e o lojista precisa saber
+  // qual: um CAMPO que não coube (resolve escolhendo papel maior) e o CÓDIGO
+  // que não bipa (resolve arrumando o cadastro do produto).
+  const recados = [];
   if (d.nao_coube && d.nao_coube.length) {
-    const nomes = d.nao_coube.map(function (c) { return nomeDoCampo(c); }).join(", ");
-    $("recado").innerHTML = '<p class="aviso"></p>';
-    $("recado").firstChild.textContent =
-      T.nao_coube.replace("%s", nomes);
-  } else {
-    $("recado").innerHTML = "";
+    recados.push(T.nao_coube.replace("%s",
+      d.nao_coube.map(function (c) { return nomeDoCampo(c); }).join(", ")));
   }
+  if (d.codigo_invalido) {
+    recados.push(T.codigo_invalido.replace("%s", d.codigo_invalido));
+  }
+  $("recado").innerHTML = "";
+  recados.forEach(function (texto) {
+    const p = document.createElement("p");
+    p.className = "aviso";
+    p.textContent = texto;
+    $("recado").appendChild(p);
+  });
 }
 
 let CAMPOS = [];

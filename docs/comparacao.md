@@ -113,3 +113,26 @@ público — e a única que custa uma promessa. Não fazer é uma resposta legí
 "este app só lê seu catálogo" é uma frase que nenhum concorrente pode dizer.
 
 Os itens 1, 2 e 4 não são código. O 3 é meio dia. O 5 é uma conversa.
+
+---
+
+## Feito em 30/08/2026
+
+**Item 1** — o grátis passou de 100 para **200 etiquetas/mês**, empatando com os
+dois.
+
+**Item 3** — **ITF-14** entrou. Fazer isso encontrou duas coisas:
+
+- **UPC-A com dígito verificador errado passava e ia pro papel.** A conferência
+  estava escrita `if simbologia is EAN13`. Código errado imprime bonito, bipa, e
+  traz o **produto errado** no caixa — a pior falha possível aqui, porque
+  ninguém desconfia dela. É a avaliação de uma estrela que o Yanet levou.
+- **O código sumia da prévia sem dizer por quê.** Os motores recusam desenhar
+  código que não bipa, e isso está certo; sumir calado não está. Agora a prévia
+  explica: *"o código não aparece porque o ITF14 precisa de 14 dígitos, e veio
+  com 13"*. O buraco era anterior ao ITF-14 — um EAN-13 com verificador errado
+  já sumia calado — mas o ITF-14 recusa todo código de 13 dígitos, então virou
+  rotina.
+
+Faltam os itens **2** (escrever na ficha o que já existe), **4** (dizer que
+funciona com leitor) e **5** (decidir sobre escrever no catálogo).

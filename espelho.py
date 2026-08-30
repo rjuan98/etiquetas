@@ -129,6 +129,18 @@ def casos():
                          simbologia="QR", altura_mm=18, modulo_dots=4),
         ]), PRODUTO),
 
+        # ITF-14: o código da caixa de atacado. Está aqui porque ele é o único
+        # com BARRA LARGA, e a razão larga/fina é o número que faz o mesmo
+        # código sair de larguras diferentes em impressoras diferentes. Se
+        # alguém mexer nela, este arquivo grita.
+        ("itf14_da_caixa", _t("caixa", Midia(101.6, 50.8), [
+            Texto(x_mm=3, y_mm=3, campo="produto.titulo", largura_mm=95,
+                  tamanho_pt=10, linhas_max=1),
+            CodigoBarras(x_mm=3, y_mm=10, campo="variante.codigo_barras",
+                         simbologia="ITF14", altura_mm=14, modulo_dots=2),
+        ]), {"produto": {"titulo": "Caixa com 12 canudos"},
+             "variante": {"codigo_barras": "10789123456785"}}),
+
         # Etiqueta de joia, minúscula: é onde o texto encolhe em vez de cortar.
         ("joia_encolhe", _t("joia", Midia(25, 12), [
             Texto(x_mm=1, y_mm=1, campo="produto.titulo", largura_mm=23,

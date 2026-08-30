@@ -20,7 +20,9 @@ from flask import Blueprint, request, jsonify, send_file, current_app, g
 from loja import catalogo, cobranca, rede
 from dados import modelos as tabela_modelos, impressoes
 from dados import lojas as tabela_lojas
-from etiquetas import esquema, formatos, receitas
+from etiquetas.modelo import CodigoBarras
+from etiquetas import (campos as campos_do_motor, codigos, esquema,
+                       formatos, receitas, unidades)
 from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf, svg as motor_svg
 from .sessao import exige_loja
 from . import config, textos
@@ -198,6 +200,30 @@ def lista_de_formatos(loja):
     })
 
 
+def _por_que_o_codigo_sumiu(template, item) -> str:
+    """O motivo de o código de barras não ter sido desenhado, ou "" se foi.
+
+    Repete a mesma pergunta que os motores fazem, na mesma ordem — e de
+    propósito chama as MESMAS funções, pra não existir uma segunda opinião sobre
+    o que é código válido.
+    """
+    for el in template.elementos:
+        if not isinstance(el, CodigoBarras):
+            continue
+        valor = (campos_do_motor.resolver(el.campo, item) or "").strip()
+        if not valor:
+            return ""          # produto sem código não é erro de configuração
+        simbologia = codigos.obter(el.simbologia)
+        ok, motivo = codigos.validar(valor, simbologia)
+        if not ok:
+            return motivo
+        if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots,
+                                       unidades.ZEBRA_203, el.x_mm,
+                                       template.midia.largura_mm, el.altura_mm):
+            return _t("codigo_nao_cabe")
+    return ""
+
+
 @rotas.post("/previa")
 @exige_loja
 def previa(loja):
@@ -224,6 +250,13 @@ def previa(loja):
     campos = r.get("campos")
     return jsonify({
         "svg": desenho,
+        # Por que o código sumiu da prévia. Os motores recusam desenhar código
+        # que não bipa — dígito verificador errado, tamanho errado pra
+        # simbologia escolhida, ou largo demais pro papel. Isso está certo, mas
+        # sumir CALADO não: o lojista escolhe ITF-14, o código some, e ele
+        # conclui que o app quebrou. A frase vem do `codigos.validar`, que já é
+        # escrita pra ele ler.
+        "codigo_invalido": _por_que_o_codigo_sumiu(template, item),
         # O que o lojista pediu e não coube. Sem isto ele liga "fornecedor", não
         # vê diferença nenhuma e conclui que o app está quebrado.
         # Sai do template que ACABOU de ser desenhado, não de um remontado
