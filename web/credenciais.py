@@ -35,6 +35,8 @@ fazer nada — o Shopify permite. A alternativa seria pedir pra reinstalar, e
 lojista que precisa reinstalar pra o app voltar a funcionar desinstala e não
 volta.
 """
+import threading
+
 from flask import current_app
 
 from dados import lojas
@@ -49,6 +51,21 @@ MARGEM_EM_SEGUNDOS = 300
 
 class PrecisaReinstalar(Exception):
     """O refresh morreu (ou o Shopify recusou). Só o lojista resolve agora."""
+
+
+# Uma trava por loja. Existe por causa de uma corrida MEDIDA, não imaginada: a
+# tela dispara três chamadas em paralelo ao abrir (a contagem, a prévia e o uso).
+# Com o token vencido, as três renovavam ao mesmo tempo com o MESMO refresh — e
+# o Shopify invalida o refresh no primeiro uso. Resultado medido: **duas das três
+# mandavam o lojista reinstalar**, toda vez que ele abrisse o app depois de uma
+# hora parado.
+_TRAVAS = {}
+_TRAVA_DO_MAPA = threading.Lock()
+
+
+def _trava_da_loja(loja_id) -> threading.Lock:
+    with _TRAVA_DO_MAPA:
+        return _TRAVAS.setdefault(int(loja_id), threading.Lock())
 
 
 def _guardar(registro: dict, resposta: dict) -> dict:
@@ -81,25 +98,23 @@ def _pedir(url: str, corpo: dict, oque: str) -> dict:
         raise PrecisaReinstalar("%s falhou" % oque)
 
 
-def garantir(registro: dict) -> dict:
-    """O registro da loja com um token que o Shopify vai aceitar.
-
-    Devolve o mesmo registro quando não há nada a fazer — que é o caso comum, e
-    por isso não custa rede nenhuma.
-    """
-    if not registro or not registro.get("token"):
-        return registro
-
-    # Loja da era anterior: token sem prazo e sem refresh. Troca por um par novo.
+def _o_que_falta(registro: dict) -> str:
+    """"trocar", "renovar" ou "" quando o token ainda serve."""
+    # Loja da era anterior: token sem prazo e sem refresh.
     if not registro.get("refresh") and not registro.get("token_expira_em"):
+        return "trocar"
+    if lojas.venceu(registro.get("token_expira_em"), MARGEM_EM_SEGUNDOS):
+        return "renovar"
+    return ""
+
+
+def _renovar(registro: dict, falta: str) -> dict:
+    if falta == "trocar":
         url, corpo = oauth.troca_do_token_antigo(
             registro["dominio"], config.CHAVE_API, config.SEGREDO,
             registro["token"])
         current_app.logger.info("trocando token antigo por um que expira")
         return _guardar(registro, _pedir(url, corpo, "a troca do token antigo"))
-
-    if not lojas.venceu(registro.get("token_expira_em"), MARGEM_EM_SEGUNDOS):
-        return registro
 
     # O token venceu. Se o refresh também venceu, não há o que fazer daqui: o
     # lojista precisa autorizar de novo. Dizer isso é melhor que tentar, tomar
@@ -113,3 +128,39 @@ def garantir(registro: dict) -> dict:
         registro["dominio"], config.CHAVE_API, config.SEGREDO,
         registro["refresh"])
     return _guardar(registro, _pedir(url, corpo, "a renovação do token"))
+
+
+def garantir(registro: dict) -> dict:
+    """O registro da loja com um token que o Shopify vai aceitar.
+
+    Devolve o mesmo registro quando não há nada a fazer — que é o caso comum, e
+    por isso não custa trava nem rede.
+    """
+    if not registro or not registro.get("token"):
+        return registro
+    if not _o_que_falta(registro):
+        return registro
+
+    with _trava_da_loja(registro["id"]):
+        # Reler DENTRO da trava é o que faz a espera valer: quem chegou depois
+        # aproveita a renovação de quem chegou antes, em vez de queimar o
+        # refresh recém-invalidado.
+        atual = lojas.por_id(registro["id"]) or registro
+        falta = _o_que_falta(atual)
+        if not falta:
+            return atual
+        try:
+            return _renovar(atual, falta)
+        except PrecisaReinstalar:
+            # A trava resolve fios do mesmo processo. Se o servidor rodar com
+            # vários processos, dois ainda podem renovar ao mesmo tempo — e aí
+            # o perdedor toma "invalid_grant" por ter usado um refresh que o
+            # vencedor já gastou. Isso NÃO é motivo pra mandar reinstalar:
+            # basta olhar se já existe credencial boa guardada.
+            salvo = lojas.por_id(registro["id"])
+            if salvo and salvo.get("token") and not _o_que_falta(salvo):
+                current_app.logger.info(
+                    "renovação perdeu a corrida; usando a credencial que "
+                    "outro processo guardou")
+                return salvo
+            raise

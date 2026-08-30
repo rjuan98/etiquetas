@@ -288,8 +288,8 @@ SABOTAGENS = [
     # saia serrado pela borda — o defeito que este app existe pra corrigir.
     ("a receita conferindo se o codigo cabe na largura",
      "etiquetas/receitas.py",
-     "    codigo_cabe_na_largura = margem_x + largura_do_codigo <= largura + 0.01",
-     "    codigo_cabe_na_largura = True"),
+     "        codigo_cabe_na_largura = margem_x + codigos.largura_minima_mm(",
+     "        codigo_cabe_na_largura = True or codigos.largura_minima_mm("),
 
     # O motor e a segunda rede: um Code128 comprido cabe no template e nao cabe
     # no papel, e isso so da pra saber com o dado do produto na mao.
@@ -398,6 +398,42 @@ SABOTAGENS = [
      "web/credenciais.py",
      "MARGEM_EM_SEGUNDOS = 300",
      "MARGEM_EM_SEGUNDOS = 0"),
+
+    # -------------------------------------------------- a corrida da renovacao
+    # A tela dispara tres chamadas em paralelo ao abrir. Com o token vencido,
+    # sem trava, as tres renovam com o MESMO refresh — e o Shopify invalida o
+    # refresh no primeiro uso. Medido: duas das tres mandavam reinstalar.
+    ("a trava que impede duas renovacoes ao mesmo tempo",
+     "web/credenciais.py",
+     "    with _trava_da_loja(registro[\"id\"]):",
+     "    if True:"),
+
+    # Reler DENTRO da trava e o que faz a espera valer. Sem isso, quem esperou
+    # renova de novo com o refresh que o primeiro ja gastou.
+    ("a releitura dentro da trava",
+     "web/credenciais.py",
+     "        atual = lojas.por_id(registro[\"id\"]) or registro\n        falta = _o_que_falta(atual)",
+     "        atual = registro\n        falta = _o_que_falta(atual)"),
+
+    # Com varios processos a trava nao alcanca. Perder a corrida pra outro
+    # processo nao pode virar "reinstale" — basta olhar o que ficou guardado.
+    ("a checagem de quem ganhou a corrida entre processos",
+     "web/credenciais.py",
+     "            if salvo and salvo.get(\"token\") and not _o_que_falta(salvo):",
+     "            if False:"),
+
+    # Contar os modulos de um QR custa 10ms; um EAN-13 custa 0,01ms. Cada
+    # etiqueta pergunta duas vezes. Sem cache, 300 etiquetas = 6,4s de CPU.
+    ("o cache da contagem de modulos do QR",
+     "etiquetas/codigos.py",
+     "@functools.lru_cache(maxsize=512)\ndef modulos_do_qr(",
+     "def modulos_do_qr("),
+
+    # Perguntar a simbologia sempre quebrava etiqueta que nem tem codigo.
+    ("a simbologia so sendo exigida quando o codigo esta ligado",
+     "etiquetas/receitas.py",
+     "    if \"codigo_barras\" in ligados:",
+     "    if True:"),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",

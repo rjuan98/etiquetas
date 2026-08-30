@@ -182,10 +182,14 @@ def montar(formato: str = "zebra_2x1",
     # Sem esta conta, medida livre deixaria qualquer um digitar 20mm de largura e
     # receber um código serrado pela borda. Que é exatamente o defeito que este
     # app existe pra corrigir.
-    largura_do_codigo = codigos.largura_minima_mm(
-        codigos.obter(simbologia), MODULO_PADRAO_DOTS, unidades.ZEBRA_203,
-        BARRA_MINIMA_MM)
-    codigo_cabe_na_largura = margem_x + largura_do_codigo <= largura + 0.01
+    # Só pergunta quando o código de barras está ligado. Perguntar sempre fazia
+    # `montar` estourar por causa de uma simbologia inválida numa etiqueta que
+    # nem tem código — quebrar por um campo que o lojista desligou é errado.
+    codigo_cabe_na_largura = True
+    if "codigo_barras" in ligados:
+        codigo_cabe_na_largura = margem_x + codigos.largura_minima_mm(
+            codigos.obter(simbologia), MODULO_PADRAO_DOTS, unidades.ZEBRA_203,
+            BARRA_MINIMA_MM) <= largura + 0.01
 
     entram = []
     for chave in PRIORIDADE:

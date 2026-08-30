@@ -12,6 +12,8 @@ Isso apareceu na primeira etiqueta que a gente renderizou: o EAN-13 imprime o
 primeiro dígito FORA das barras, à esquerda, e a 2mm da borda ele ficava
 raspando o papel. Aqui vira regra, não sorte.
 """
+import functools
+
 from dataclasses import dataclass
 
 
@@ -136,12 +138,23 @@ MODULOS_POR_CARACTERE = 11
 MODULOS_DE_ENQUADRAMENTO = 35
 
 
+@functools.lru_cache(maxsize=512)
 def modulos_do_qr(valor: str, correcao: str = "M") -> int:
     """Quantos módulos tem o lado da matriz do QR, pro dado que ele vai levar.
 
     Depende do tamanho do dado e do nível de correção: uma URL de 47 caracteres
     dá 33×33; uma de 120 dá 57×57. É por isso que QR não tem largura fixa como o
     EAN-13 tem.
+
+    **Custa caro**: 10ms medidos, porque o reportlab só entrega a contagem depois
+    de montar a matriz inteira. Um EAN-13 custa 0,01ms. Por isso o cache — cada
+    etiqueta pergunta duas vezes (uma pra ver se cabe na largura, outra pra
+    desenhar), e sem ele um lote de 300 etiquetas gastava 6,4 segundos de CPU.
+
+    Tentei atalhar chamando o codificador direto, sem montar o desenho. Não
+    serve: ele força modo byte e devolve 69 módulos onde o caminho certo dá 57
+    pra dado alfanumérico. Superestimar a largura faria o app recusar código que
+    cabia.
     """
     from reportlab.graphics.barcode import qr
 

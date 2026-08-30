@@ -218,6 +218,12 @@ direto; espalhar a renovação entre elas garantiria que a sexta esquecesse — 
 sintoma de esquecer é o app funcionar por uma hora depois de cada instalação e
 falhar depois. Some no teste, aparece no lojista.
 
+**A renovação é uma por vez, com trava.** A tela dispara três chamadas em
+paralelo ao abrir. Com o token vencido, as três renovavam com o MESMO refresh —
+e o Shopify invalida o refresh no primeiro uso. Medido antes do conserto: **duas
+das três mandavam o lojista reinstalar**, toda vez que ele abrisse o app depois
+de uma hora parado.
+
 **Quem instalou antes da mudança não precisa reinstalar.** O token antigo é
 trocado por um par novo na primeira vez que a loja abre o app. A alternativa
 seria pedir pra reinstalar, e lojista que precisa reinstalar pra o app voltar a
@@ -241,7 +247,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **911 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **922 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -254,7 +260,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 52 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 57 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

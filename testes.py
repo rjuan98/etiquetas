@@ -3291,6 +3291,179 @@ check("prazo corrompido conta como vencido, nao como eterno",
       t_lojas.venceu("nao-e-data"))
 
 
+secao("68. Tres chamadas ao mesmo tempo nao podem queimar o refresh")
+
+# Esta secao existe por causa de uma corrida MEDIDA. A tela dispara tres
+# chamadas em paralelo ao abrir — a contagem, a previa e o uso. Com o token
+# vencido, as tres renovavam ao mesmo tempo com o MESMO refresh, e o Shopify
+# invalida o refresh no primeiro uso.
+#
+# O resultado medido antes do conserto: **duas das tres mandavam o lojista
+# reinstalar**, toda vez que ele abrisse o app depois de uma hora parado. Teria
+# pego o primeiro cliente.
+import threading as _th
+
+_ID_R = t_lojas.salvar("corrida.myshopify.com", "shpat_vencido",
+                       "read_products,read_inventory",
+                       refresh="shprt_original", expira_em=_passado(),
+                       refresh_expira_em=t_lojas.daqui_a(90 * 24 * 3600))
+t_lojas.marcar_plano(_ID_R, "pro")
+
+_FIOS = 5
+_gastos, _trava_do_teste = [], _th.Lock()
+_tentativas = {"n": 0}
+_largada = _th.Barrier(_FIOS)
+
+
+def _shopify_que_rotaciona(url, corpo):
+    """O Shopify de verdade: refresh usado uma vez nao vale mais.
+
+    A pausa e de proposito: ela ALARGA a janela da corrida. Sem ela os fios
+    serializam sozinhos e o teste passa mesmo sem trava nenhuma — que foi
+    exatamente o que a sabotagem denunciou na primeira versao desta secao.
+    """
+    with _trava_do_teste:
+        _tentativas["n"] += 1
+    _tm.sleep(0.05)
+    usado = corpo.get("refresh_token")
+    with _trava_do_teste:
+        if usado in _gastos:
+            raise _rede3.ErroDeRede("400: invalid_grant (refresh ja gasto)")
+        _gastos.append(usado)
+    return {"access_token": "shpat_do_vencedor", "refresh_token": "shprt_novo",
+            "expires_in": 3600, "refresh_token_expires_in": 7776000}
+
+
+_resultados = []
+
+
+def _uma_chamada():
+    with _app.app_context():
+        registro = t_lojas.buscar("corrida.myshopify.com")
+        _largada.wait()          # os cinco saem juntos, de verdade
+        try:
+            _resultados.append(bool(_cred_mod.garantir(registro)))
+        except _cred_mod.PrecisaReinstalar:
+            _resultados.append(False)
+
+
+_original_troca = _rede3.trocar_token
+_rede3.trocar_token = _shopify_que_rotaciona
+try:
+    _fios = [_th.Thread(target=_uma_chamada) for _ in range(_FIOS)]
+    for _f in _fios:
+        _f.start()
+    for _f in _fios:
+        _f.join()
+finally:
+    _rede3.trocar_token = _original_troca
+
+check("as cinco chamadas paralelas passam, nenhuma manda reinstalar",
+      _resultados == [True] * _FIOS, _resultados)
+# Esta e a checagem que importa. "Todas passaram" NAO prova a trava: a rede de
+# seguranca entre processos faz o perdedor achar a credencial do vencedor e
+# responder 200 do mesmo jeito. O que so acontece com a trava e o Shopify ser
+# chamado UMA vez em vez de cinco.
+check("e o Shopify foi chamado UMA vez, nao cinco",
+      _tentativas["n"] == 1, _tentativas["n"])
+check("com uma unica renovacao gasta", len(_gastos) == 1, _gastos)
+
+_r_final = t_lojas.buscar("corrida.myshopify.com")
+check("todas acabam com a MESMA credencial guardada",
+      _r_final["token"] == "shpat_do_vencedor", _r_final["token"])
+
+# A trava resolve fios do mesmo processo. Com varios processos, dois ainda
+# podem renovar ao mesmo tempo — e o perdedor toma invalid_grant por usar um
+# refresh que o vencedor ja gastou. Isso NAO e motivo pra mandar reinstalar:
+# basta olhar se ja existe credencial boa guardada.
+t_lojas.guardar_credenciais(_ID_R, "shpat_vencido", "shprt_ja_gasto",
+                            _passado(), t_lojas.daqui_a(7776000))
+
+
+def _outro_processo_ganhou(url, corpo):
+    # Simula o vencedor: guarda credencial nova e recusa a nossa renovacao.
+    t_lojas.guardar_credenciais(_ID_R, "shpat_do_outro", "shprt_do_outro",
+                                t_lojas.daqui_a(3600),
+                                t_lojas.daqui_a(7776000))
+    raise _rede3.ErroDeRede("400: invalid_grant")
+
+
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "corrida.myshopify.com"),
+                       resposta=_outro_processo_ganhou)
+check("perder a corrida pra outro PROCESSO nao vira 'reinstale'",
+      _r.status_code == 200, _r.status_code)
+
+# E quando nao ha credencial boa guardada, continua sendo reinstalar.
+t_lojas.guardar_credenciais(_ID_R, "shpat_vencido", "shprt_morto",
+                            _passado(), _passado())
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "corrida.myshopify.com"),
+                       resposta=_troca_que_falha)
+check("mas falha de verdade continua pedindo pra reconectar",
+      _r.status_code == 403, _r.status_code)
+
+
+secao("69. O QR custa caro, e nao pode ser perguntado duas vezes")
+
+# Medido: contar os modulos de um QR custa ~10ms, porque o reportlab so entrega
+# a contagem depois de montar a matriz inteira. Um EAN-13 custa 0,01ms — duas
+# mil vezes menos.
+#
+# Cada etiqueta pergunta DUAS vezes: uma pra ver se cabe na largura, outra pra
+# desenhar. Sem cache, um lote de 300 etiquetas gastava 6,4 segundos de CPU.
+_chamadas_qr = {"n": 0}
+_original_modulos = codigos.modulos_do_qr.__wrapped__
+
+
+def _contando(valor, correcao="M"):
+    _chamadas_qr["n"] += 1
+    return _original_modulos(valor, correcao)
+
+
+codigos.modulos_do_qr.cache_clear()
+_guardado_qr = codigos.modulos_do_qr
+codigos.modulos_do_qr = _contando
+try:
+    _t_qr = Template(nome="q", midia=Midia(50.8, 25.4), calibracao=Calibracao(),
+                     elementos=[CodigoBarras(x_mm=2, y_mm=4, campo="produto.url",
+                                             simbologia="QR", altura_mm=18,
+                                             modulo_dots=4)])
+    zpl.render(_t_qr, {"produto": {"url": "https://exemplo.com/p/1"}})
+finally:
+    codigos.modulos_do_qr = _guardado_qr
+
+# Sem cache sao 2 por etiqueta. O teste mede o CAMINHO, nao o cache: por isso a
+# funcao contadora nao e cacheada.
+check("uma etiqueta de QR pergunta a matriz no maximo duas vezes",
+      _chamadas_qr["n"] <= 2, _chamadas_qr["n"])
+
+_u = "https://exemplo.com/produto/teste-do-cache"
+codigos.modulos_do_qr.cache_clear()
+codigos.modulos_do_qr(_u)
+codigos.modulos_do_qr(_u)
+check("e a segunda pergunta pelo mesmo dado sai do cache",
+      codigos.modulos_do_qr.cache_info().hits >= 1,
+      codigos.modulos_do_qr.cache_info())
+check("o cache tem teto, senao vira vazamento de memoria em lote grande",
+      codigos.modulos_do_qr.cache_info().maxsize is not None)
+
+# Perguntar a simbologia SEMPRE fazia `montar` estourar numa etiqueta que nem
+# tem codigo de barras — quebrar por causa de um campo que o lojista desligou.
+_ok = True
+try:
+    receitas.montar("zebra_2x1", ("titulo", "preco"), simbologia="NAO_EXISTE")
+except ValueError:
+    _ok = False
+check("simbologia invalida nao quebra etiqueta SEM codigo de barras", _ok)
+
+_recusou = False
+try:
+    receitas.montar("zebra_2x1", ("titulo", "codigo_barras"),
+                    simbologia="NAO_EXISTE")
+except ValueError:
+    _recusou = True
+check("mas com o codigo ligado ela continua sendo recusada", _recusou)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

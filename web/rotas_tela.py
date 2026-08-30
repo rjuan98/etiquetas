@@ -310,7 +310,27 @@ async function api(caminho, opcoes) {
   const token = await shopify.idToken();
   const cab = Object.assign({}, opcoes.headers, {Authorization: "Bearer " + token});
   if (opcoes.body && !cab["Content-Type"]) cab["Content-Type"] = "application/json";
-  return fetch(caminho, Object.assign({}, opcoes, {headers: cab}));
+  const r = await fetch(caminho, Object.assign({}, opcoes, {headers: cab}));
+  // A autorização do app com o Shopify vence sozinha depois de 90 dias parada.
+  // Quando isso acontece o servidor manda a frase certa e o que fazer — e sem
+  // isto aqui cada painel mostraria só "erro do servidor", que não diz ao
+  // lojista que existe saída. Recusar sem mostrar o caminho é onde ele fecha a
+  // aba. O `clone` existe pra quem chamou ainda poder ler o corpo.
+  if (r.status === 403) avisarSeForReconectar(r.clone());
+  return r;
+}
+
+let jaAvisouReconectar = false;
+
+async function avisarSeForReconectar(resposta) {
+  if (jaAvisouReconectar) return;      // três chamadas em paralelo, um aviso só
+  try {
+    const d = await resposta.json();
+    if (d.motivo !== "precisa_reinstalar") return;
+    jaAvisouReconectar = true;
+    avisar(d.erro, "aviso");
+    $("plano").textContent = "";
+  } catch (e) { /* corpo que não é JSON não muda nada */ }
 }
 
 const $ = function (id) { return document.getElementById(id); };
