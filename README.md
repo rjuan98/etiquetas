@@ -11,8 +11,14 @@ Shopify**. Ele recebe um template e um dicionário de dados, e devolve bytes.
 ## Por que existe
 
 O app oficial do Shopify pra isso, o *Retail Barcode Labels*, é **o app pior
-avaliado da loja inteira**: nota 2,3 com 565 avaliações, 44% delas de uma
+avaliado da loja inteira**: nota 2,3 com 466 avaliações, 44% delas de uma
 estrela, contra uma média de 4,70 no ecossistema.
+
+> **Isto não é uma vaga aberta, e conferir custou dois minutos que só foram
+> gastos em 30/08/2026.** O *Yanet Retail Barcode Labels* tem **4,9 com 448
+> avaliações** e já atende a maior parte de quem largou o oficial, e o
+> *LabelFast* nasceu em 06/07/2026 anunciando a mesma lista de diferenciais que
+> este README. Ver [`docs/quem-mais-esta-aqui.md`](docs/quem-mais-esta-aqui.md).
 
 E em julho de 2026 uma atualização deles **piorou**: tirou o SKU das etiquetas
 Avery, mudou a fonte e a largura do código de barras sozinha. Nas palavras de um
