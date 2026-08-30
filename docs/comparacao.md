@@ -12,6 +12,10 @@ Só tem um item nesta lista, e é o mais importante do documento.
 
 ### Gerar SKU e código de barras que faltam
 
+> **DECIDIDO em 30/08/2026: não construir agora, esperar o primeiro lojista
+> pedir.** O gatilho, as razões e o que fazer quando ele vier estão em
+> [`decisao-gerar-codigo.md`](decisao-gerar-codigo.md).
+
 Os dois concorrentes fazem. A gente não.
 
 Um lojista que tem 300 produtos sem código de barras cadastrado **não consegue
@@ -104,7 +108,8 @@ número para a tabela.
 
 **4. Dizer que funciona com leitor.** Já funciona. Ninguém sabe.
 
-**5. Decidir sobre `write_products`.** É a única coisa aqui que muda o tamanho do
+**5. Decidir sobre `write_products`.** — **decidido**, ver
+[`decisao-gerar-codigo.md`](decisao-gerar-codigo.md). É a única coisa aqui que muda o tamanho do
 público — e a única que custa uma promessa. Não fazer é uma resposta legítima:
 "este app só lê seu catálogo" é uma frase que nenhum concorrente pode dizer.
 
@@ -153,4 +158,11 @@ etiqueta(s)"* e PDF com **um** produto. Silencioso, e no momento exato de
 imprimir. Atingia qualquer pessoa que buscasse duas vezes — que é como se usa
 uma caixa de busca. O leitor teria multiplicado isso, porque bipar é buscar.
 
-Falta o item **5** (decidir sobre escrever no catálogo).
+**Item 5** — decidido: **não construir agora**. Não existe caminho do meio (o
+PDV do Shopify bipa só o campo de código de barras, nunca o SKU — verificado), o
+custo é assimétrico com zero usuários, e "read-only" vale hoje e é de graça hoje.
+O gatilho é um lojista real dizendo que não consegue usar o app por causa disso.
+Ver [`decisao-gerar-codigo.md`](decisao-gerar-codigo.md).
+
+**O plano de `comparacao.md` está fechado.** O que falta não é código: é a
+primeira mensagem.
