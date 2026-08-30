@@ -3656,6 +3656,53 @@ check("o endereco na ficha e o mesmo dos documentos de instalacao",
       "etikbarcode.pythonanywhere.com" in _FICHA)
 
 
+secao("73. A fila de impressao nao pode perder o que foi escolhido antes")
+
+# ISTO E TESTE DE FONTE, e vale dizer o que ele prova e o que nao prova. A tela
+# e JavaScript e roda no navegador; a bateria e Python. Entao aqui se conferem
+# INVARIANTES DO CODIGO, e o comportamento foi medido no navegador, com numero:
+#
+#   Antes: escolher um produto, buscar outra coisa, escolher o segundo →
+#          contador dizendo "2 produto(s), 52 etiqueta(s)" e fila com 1.
+#          O primeiro sumia do PDF em silencio, no momento de imprimir.
+#   Depois: tres bipes seguidos → 3 na fila, quantidades vindas do estoque.
+#
+# A causa era `fila()` percorrer `itens`, que e zerado a cada busca nova. Quem
+# busca duas vezes — que e como todo mundo usa uma caixa de busca — perdia a
+# primeira escolha.
+_tela = _io.open("web/rotas_tela.py", encoding="utf-8").read()
+
+check("a fila e montada a partir do que foi ESCOLHIDO, nao da busca atual",
+      "escolhidos.forEach(function (e) {" in _tela
+      and "itens.forEach" not in _tela.split("function fila()")[1].split("}")[0])
+check("e o que se guarda e o item inteiro, nao so a quantidade",
+      "{item: it, quantidade:" in _tela)
+
+# Um lugar so pra escolher. Se a caixinha e o leitor guardassem cada um do seu
+# jeito, um dos dois esqueceria o item e o produto sumiria do PDF de novo.
+check("existe um unico lugar que poe alguem na fila",
+      _tela.count("escolhidos.set(") == 1, _tela.count("escolhidos.set("))
+check("e a caixinha passa por ele", "escolher(it, parseInt(q.value" in _tela)
+check("e o leitor tambem", "escolher(it, it.quantidade || 1)" in _tela)
+
+# O LEITOR. Um leitor de codigo de barras e um teclado: digita e manda Enter,
+# entao cai na busca. A regra e o casamento EXATO com codigo ou SKU — e nao "a
+# busca devolveu um so". Quem digita "caneca" e recebe um resultado nao pediu
+# pra escolher; codigo identico ao cadastrado so chega de leitor ou de colagem.
+check("o leitor casa pelo codigo de barras exato",
+      '(it.variante.codigo_barras || "").trim() === lido' in _tela)
+check("ou pelo SKU exato",
+      '(it.variante.sku || "").trim().toLowerCase() === lido.toLowerCase()' in _tela)
+check("e NAO por 'a busca devolveu um resultado so'",
+      "achados.length !== 1" in _tela and "itens.length === 1" not in _tela)
+check("bipar o mesmo codigo duas vezes nao duplica",
+      "if (escolhidos.has(it.variante.id)) return;" in _tela)
+check("o texto da busca fica selecionado pro proximo bipe substituir",
+      "b.select();" in _tela)
+check("e o leitor so age em busca nova, nao ao carregar mais resultados",
+      "if (!continuar) escolherOEscaneado();" in _tela)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

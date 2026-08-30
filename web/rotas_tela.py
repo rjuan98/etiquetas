@@ -336,7 +336,15 @@ async function avisarSeForReconectar(resposta) {
 
 const $ = function (id) { return document.getElementById(id); };
 const itens = [];                       // o catálogo carregado
-const escolhidos = new Map();           // id da variante → quantidade
+// id da variante → {item, quantidade}. Guarda o ITEM INTEIRO, e não só a
+// quantidade, por causa de um defeito medido: a fila de impressão era montada
+// percorrendo `itens`, que é zerado a cada busca nova. Escolher um produto,
+// buscar outra coisa e escolher o segundo dava **contador dizendo 2 e PDF com
+// 1** — perda silenciosa, no exato momento de imprimir.
+//
+// Guardando o item, a escolha sobrevive à busca seguinte. E a ordem do Map é a
+// ordem em que a pessoa escolheu, que é a ordem certa de sair no papel.
+const escolhidos = new Map();
 
 // A receita é só ESCOLHA. Nenhuma coordenada, nenhum milímetro: quem traduz
 // isso em etiqueta é o servidor, pelo mesmo caminho que imprime.
@@ -528,9 +536,7 @@ function mudou() {
 }
 
 function primeiroEscolhido() {
-  for (const it of itens) {
-    if (escolhidos.has(it.variante.id)) return it;
-  }
+  for (const escolha of escolhidos.values()) return escolha.item;
   return null;
 }
 
@@ -578,9 +584,17 @@ function nomeDoCampo(chave) {
   return c ? c.nome.toLowerCase() : chave;
 }
 
+// O único lugar que põe alguém na fila. A caixinha, o leitor de código e
+// qualquer coisa futura passam por aqui — senão um deles esquece de guardar o
+// item e o produto some do PDF de novo.
+function escolher(it, quantidade) {
+  escolhidos.set(it.variante.id,
+                 {item: it, quantidade: Math.max(1, quantidade || 1)});
+}
+
 function contar() {
   let total = 0;
-  escolhidos.forEach(function (q) { total += q; });
+  escolhidos.forEach(function (e) { total += e.quantidade; });
   $("conta").textContent = escolhidos.size === 0
     ? T.nenhum_escolhido
     : T.conta_escolhidos.replace("%d", escolhidos.size).replace("%d", total);
@@ -625,17 +639,19 @@ function desenharLista() {
 
     const tdQ = document.createElement("td"); tdQ.className = "q";
     const q = document.createElement("input");
-    q.type = "number"; q.min = "1"; q.value = escolhidos.get(id) || it.quantidade || 1;
+    const jaEscolhido = escolhidos.get(id);
+    q.type = "number"; q.min = "1";
+    q.value = (jaEscolhido && jaEscolhido.quantidade) || it.quantidade || 1;
     q.setAttribute("aria-label", T.quantas_de.replace("%s", it.produto.titulo));
     tdQ.appendChild(q);
 
     marca.addEventListener("change", function () {
-      if (marca.checked) escolhidos.set(id, parseInt(q.value, 10) || 1);
+      if (marca.checked) escolher(it, parseInt(q.value, 10) || 1);
       else escolhidos.delete(id);
       contar(); pedirPrevia();
     });
     q.addEventListener("change", function () {
-      if (escolhidos.has(id)) escolhidos.set(id, Math.max(1, parseInt(q.value, 10) || 1));
+      if (escolhidos.has(id)) escolher(it, Math.max(1, parseInt(q.value, 10) || 1));
       contar();
     });
 
@@ -695,15 +711,50 @@ async function carregarProdutos(busca, continuar) {
     $("aviso_catalogo").firstChild.textContent =
       T.variantes_cortadas.replace("%s", d.variantes_cortadas.join(", "));
   }
+  if (!continuar) escolherOEscaneado();
   desenharLista();
 }
 
+// Um leitor de código de barras é um TECLADO: ele digita o código e manda
+// Enter. Ou seja, ele cai na busca — e a busca já devolve exatamente aquele
+// produto. Só faltava marcar.
+//
+// A regra é o casamento EXATO com o código de barras ou o SKU, e não "a busca
+// devolveu um só". Alguém digitando "caneca" e recebendo um resultado não pediu
+// pra escolher; um código idêntico ao cadastrado só chega de leitor ou de
+// cópia-e-cola, e nos dois casos a intenção é aquele produto.
+function escolherOEscaneado() {
+  const lido = (buscaAtual || "").trim();
+  if (!lido) return;
+
+  const achados = itens.filter(function (it) {
+    return (it.variante.codigo_barras || "").trim() === lido
+        || (it.variante.sku || "").trim().toLowerCase() === lido.toLowerCase();
+  });
+  // Dois produtos com o mesmo código é cadastro duplicado. Escolher um dos dois
+  // por conta própria seria adivinhar qual — a lista fica aí pra pessoa decidir.
+  if (achados.length !== 1) return;
+
+  const it = achados[0];
+  if (escolhidos.has(it.variante.id)) return;   // bipou duas vezes: não duplica
+  escolher(it, it.quantidade || 1);
+  contar();
+  pedirPrevia();
+
+  // Deixa o texto selecionado e o foco na busca: o próximo bipe substitui este
+  // em vez de emendar nele. É o que transforma "bipar" em bipar, bipar, bipar.
+  const b = $("busca");
+  b.focus();
+  b.select();
+}
+
 function fila() {
+  // Sai do `escolhidos`, não do `itens`: `itens` só tem o resultado da busca
+  // ATUAL, e montar a fila a partir dele apagava do PDF tudo que foi escolhido
+  // em buscas anteriores — com o contador continuando a dizer que estava lá.
   const saida = [];
-  itens.forEach(function (it) {
-    if (escolhidos.has(it.variante.id)) {
-      saida.push(Object.assign({}, it, {quantidade: escolhidos.get(it.variante.id)}));
-    }
+  escolhidos.forEach(function (e) {
+    saida.push(Object.assign({}, e.item, {quantidade: e.quantidade}));
   });
   return saida;
 }

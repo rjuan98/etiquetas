@@ -41,7 +41,7 @@ terceiro passo.
 | | Yanet | LabelFast | Etik |
 |---|---|---|---|
 | imprimir a partir de **recebimento de estoque** | — | **sim** | não |
-| imprimir a partir de **leitura de scanner** | sim | **sim** | parcial¹ |
+| imprimir a partir de **leitura de scanner** | sim | sim | **sim** |
 | **CSV** para impressão em massa | sim | — | não |
 | **logo / imagem** na etiqueta | sim | sim (US$ 29,99) | não |
 | símbolos de código | 4 | **8**² | 4 |
@@ -49,10 +49,6 @@ terceiro passo.
 | vários **locais de estoque** | sim | sim (US$ 29,99) | não |
 | **POS / Flow / Stocky** | sim | — | não |
 | campos personalizados (metafields) | — | sim (US$ 29,99) | não |
-
-¹ a busca aceita nome, SKU ou código, então um leitor que digita e dá Enter já
-funciona — mas isso não está dito em lugar nenhum, e não existe fluxo de "bipar
-e ir enfileirando".
 
 ² eles somam ITF-14, Code 39 e Data Matrix. ITF-14 é o de caixa de atacado, e é
 o único dos três que muda a vida de alguém.
@@ -145,5 +141,16 @@ app, lista de simbologias e "read-only" — tudo isso agora é conferido contra 
 código, e a sabotagem prova que a conferência funciona. Foi o erro de hoje que
 motivou: o documento de prospectos prometia *"a altura do código é sua"*, e o
 lojista não escolhe a altura do código.
+
+**O leitor virou fluxo de verdade.** Bipar um código escolhe o produto com a
+quantidade do estoque e deixa a busca pronta pro bipe seguinte — bipar, bipar,
+bipar, imprimir. Deixou de ser "parcial" na tabela acima.
+
+E construir isso encontrou um defeito antigo e sério: **a fila de impressão
+perdia o que tinha sido escolhido em buscas anteriores.** Escolher um produto,
+buscar outra coisa e escolher o segundo dava contador dizendo *"2 produto(s), 52
+etiqueta(s)"* e PDF com **um** produto. Silencioso, e no momento exato de
+imprimir. Atingia qualquer pessoa que buscasse duas vezes — que é como se usa
+uma caixa de busca. O leitor teria multiplicado isso, porque bipar é buscar.
 
 Falta o item **5** (decidir sobre escrever no catálogo).

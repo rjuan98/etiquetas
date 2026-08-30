@@ -71,8 +71,9 @@ Barcode labels that match the paper, and always scan.
 Print barcode and price labels for your products, on sheet labels or a thermal
 printer, without fighting the layout.
 
-Pick your products — or scan a barcode and the product comes straight up —
-choose what goes on the label, and see exactly what will come out. The preview
+Pick your products — or scan them: each barcode you scan queues that product
+with the quantity you have in stock — then choose what goes on the label and see
+exactly what will come out. The preview
 is drawn by the same code that writes the printer file, so what you see is what
 the paper gets. Quantities come from your inventory, so receiving 40 units means
 40 labels, not typing "1" forty times.
@@ -107,7 +108,7 @@ The preview is drawn by the same code that writes the printer file
 A barcode that wouldn't scan is never printed — and the app says why
 Millimetre calibration for printers that drift, on both axes
 Quantities pulled from inventory, so no typing "1" two thousand times
-Scan a barcode and the product comes straight up, ready to print
+Scan a barcode and the product is queued, with the quantity from stock
 Any label size in millimetres, plus Avery, DYMO, Zebra and Pimaco stocks
 EAN-13, UPC-A, Code 128, QR and ITF-14 for cartons
 Choose every field: title, SKU, price, vendor, barcode — turn off what you don't want
@@ -122,11 +123,14 @@ Templates saved and reopened exactly as you left them
 > label") dizia menos que a nova: "exact" é adjetivo; "o mesmo código que
 > escreve o arquivo da impressora" é afirmação que se confere.
 >
-> **"Scan a barcode and the product comes straight up"** — medido antes de
-> escrever, não suposto: um leitor se comporta como teclado, digita e manda
-> Enter, e a busca devolve exatamente aquele produto. O que ele **não** faz é já
-> marcar e enfileirar — por isso a frase para em "ready to print" e não promete
-> o clique que ainda existe.
+> **"Scan a barcode and the product is queued"** — a frase começou menor. Na
+> primeira versão desta ficha ela parava em "ready to print", porque medindo se
+> viu que o leitor achava o produto e **não** marcava; prometer o clique que
+> ainda existia seria mentira.
+>
+> Aí o clique deixou de existir: bipar o código escolhe o produto com a
+> quantidade do estoque, e o campo de busca fica selecionado pro bipe seguinte.
+> Bipar, bipar, bipar, imprimir. Medido de novo antes de a frase crescer.
 >
 > **"Read-only"** é a única linha aqui que nenhum concorrente pode escrever: os
 > dois pedem permissão de escrita porque geram código de barras. Custa o

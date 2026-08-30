@@ -498,6 +498,32 @@ SABOTAGENS = [
      '"limite_etiquetas_mes": 200,',
      '"limite_etiquetas_mes": 100,'),
 
+    # ---------------------------------------------------- a fila e o leitor
+    # Medido no navegador: escolher um produto, buscar outra coisa e escolher o
+    # segundo dava contador "2 produto(s), 52 etiqueta(s)" e fila com 1. O
+    # primeiro sumia do PDF em silencio, no momento de imprimir.
+    ("a fila saindo do que foi escolhido, nao da busca atual",
+     "web/rotas_tela.py",
+     "  escolhidos.forEach(function (e) {\n    saida.push(Object.assign({}, e.item, {quantidade: e.quantidade}));\n  });",
+     "  itens.forEach(function (it) {\n    if (escolhidos.has(it.variante.id)) saida.push(it);\n  });"),
+
+    ("o item inteiro sendo guardado, e nao so a quantidade",
+     "web/rotas_tela.py",
+     "  escolhidos.set(it.variante.id,\n                 {item: it, quantidade: Math.max(1, quantidade || 1)});",
+     "  escolhidos.set(it.variante.id, Math.max(1, quantidade || 1));"),
+
+    # A regra do leitor e o casamento EXATO. Trocar por "a busca devolveu um so"
+    # faz quem digita "caneca" ter o produto escolhido sem ter pedido.
+    ("o leitor casando por codigo exato, e nao por 'so deu um resultado'",
+     "web/rotas_tela.py",
+     '    return (it.variante.codigo_barras || "").trim() === lido',
+     '    return true'),
+
+    ("o leitor nao duplicando quando bipam duas vezes",
+     "web/rotas_tela.py",
+     "  if (escolhidos.has(it.variante.id)) return;   // bipou duas vezes: não duplica",
+     "  if (false) return;"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",
