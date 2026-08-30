@@ -102,15 +102,22 @@ def volta():
     # faltou justamente a informação que decidia a questão.
     current_app.logger.info("troca de token: campos = %s",
                             sorted(k for k in resposta if k != "access_token"))
-    if rede.token_expira(resposta):
+    # Token AMARRADO A UM USUÁRIO continua sendo bomba-relógio: ele morre junto
+    # com a sessão da pessoa, e o webhook precisa funcionar com ninguém logado.
+    # `expires_in` deixou de servir como sinal — hoje o token offline expira
+    # também, e isso é o esperado. O sinal é `associated_user`.
+    if rede.token_de_usuario(resposta):
         current_app.logger.error(
-            "ATENCAO: o Shopify devolveu um token que EXPIRA (expires_in=%s). "
-            "Este app precisa de token offline, senão para de funcionar em ~24h. "
-            "Confira a configuracao do app no painel.",
-            resposta.get("expires_in"))
+            "ATENCAO: o Shopify devolveu um token de USUARIO (associated_user). "
+            "Este app precisa de token offline, senao para de funcionar quando "
+            "o lojista sai. Confira a configuracao do app no painel.")
 
-    token = resposta["access_token"]
-    lojas.salvar(loja, token, ",".join(oauth.ESCOPOS))
+    credenciais = rede.credenciais_da_resposta(resposta)
+    token = credenciais["token"]
+    lojas.salvar(loja, token, ",".join(oauth.ESCOPOS),
+                 refresh=credenciais["refresh"],
+                 expira_em=credenciais["expira_em"],
+                 refresh_expira_em=credenciais["refresh_expira_em"])
 
     # Assinar os webhooks é o passo que mais some do roteiro — e sem ele o app é
     # reprovado na revisão, porque os três de privacidade são obrigatórios.

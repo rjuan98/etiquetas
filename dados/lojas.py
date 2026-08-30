@@ -13,7 +13,7 @@ que perdeu tudo.
 Por isso o `dominio` é UNIQUE e `salvar()` é um upsert: reinstalar atualiza o
 token e reativa a mesma linha, com os modelos todos lá.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import banco
 from loja import dominio as dom
@@ -24,7 +24,66 @@ def agora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def salvar(dominio_bruto: str, token: str, escopos="") -> int:
+def daqui_a(segundos) -> str:
+    """Um instante no futuro, em UTC ISO. Vazio quando não há prazo.
+
+    O Shopify manda prazo RELATIVO (`expires_in: 3600`). Guardar o relativo não
+    serve pra nada depois — o que a gente precisa saber, na próxima requisição,
+    é se JÁ VENCEU. Então converte na hora de guardar, uma vez.
+    """
+    try:
+        segundos = int(segundos)
+    except (TypeError, ValueError):
+        return ""
+    if segundos <= 0:
+        return ""
+    return (datetime.now(timezone.utc)
+            + timedelta(seconds=segundos)).isoformat(timespec="seconds")
+
+
+def venceu(quando: str, margem_segundos: int = 0) -> bool:
+    """Esse prazo já passou (ou passa dentro da margem)?
+
+    Sem prazo devolve False: token antigo, sem `token_expira_em`, não é um token
+    vencido — é um token de outro tipo, e quem cuida disso é a migração.
+    """
+    if not quando:
+        return False
+    try:
+        limite = datetime.fromisoformat(quando)
+    except (TypeError, ValueError):
+        return True
+    if limite.tzinfo is None:
+        limite = limite.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc)
+            + timedelta(seconds=max(0, margem_segundos))) >= limite
+
+
+def guardar_credenciais(loja_id: int, token: str, refresh: str = "",
+                        expira_em: str = "", refresh_expira_em: str = ""):
+    """Troca o par token+refresh de uma loja já instalada.
+
+    Usado pela renovação: o Shopify devolve um par NOVO a cada renovação e
+    invalida o anterior, então guardar é obrigatório, não otimização. Perder o
+    refresh novo deixa a loja órfã — sem acesso e sem como renovar — e a única
+    saída vira reinstalar.
+    """
+    if not token:
+        raise ValueError("não dá pra guardar credencial sem token de acesso")
+    with banco.conectar() as con:
+        con.execute(
+            """UPDATE lojas
+                  SET token_cifrado     = ?,
+                      refresh_cifrado   = ?,
+                      token_expira_em   = ?,
+                      refresh_expira_em = ?
+                WHERE id = ?""",
+            (banco.cifrar(token), banco.cifrar(refresh) if refresh else "",
+             expira_em or None, refresh_expira_em or None, int(loja_id)))
+
+
+def salvar(dominio_bruto: str, token: str, escopos="", refresh: str = "",
+           expira_em: str = "", refresh_expira_em: str = "") -> int:
     """Grava (ou atualiza) a loja e devolve o `id`. Idempotente.
 
     O domínio passa pelo `normalizar` aqui também, mesmo já tendo passado no
@@ -38,17 +97,34 @@ def salvar(dominio_bruto: str, token: str, escopos="") -> int:
     cifrado = banco.cifrar(token)
     with banco.conectar() as con:
         con.execute(
-            """INSERT INTO lojas (dominio, token_cifrado, escopos, instalada_em)
-               VALUES (?, ?, ?, ?)
+            """INSERT INTO lojas (dominio, token_cifrado, escopos, instalada_em,
+                                  refresh_cifrado, token_expira_em,
+                                  refresh_expira_em)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(dominio) DO UPDATE SET
-                   token_cifrado   = excluded.token_cifrado,
-                   escopos         = excluded.escopos,
-                   ativa           = 1,
-                   desinstalada_em = NULL""",
-            (limpo, cifrado, escopos, agora()))
+                   token_cifrado     = excluded.token_cifrado,
+                   escopos           = excluded.escopos,
+                   refresh_cifrado   = excluded.refresh_cifrado,
+                   token_expira_em   = excluded.token_expira_em,
+                   refresh_expira_em = excluded.refresh_expira_em,
+                   ativa             = 1,
+                   desinstalada_em   = NULL""",
+            (limpo, cifrado, escopos, agora(),
+             banco.cifrar(refresh) if refresh else "",
+             expira_em or None, refresh_expira_em or None))
         linha = con.execute("SELECT id FROM lojas WHERE dominio = ?",
                             (limpo,)).fetchone()
     return int(linha["id"])
+
+
+def _registro(linha) -> dict:
+    """Uma linha do banco virando registro de loja, com os segredos decifrados."""
+    registro = dict(linha)
+    registro["token"] = banco.decifrar(registro.pop("token_cifrado"))
+    guardado = registro.pop("refresh_cifrado", "") or ""
+    registro["refresh"] = banco.decifrar(guardado) if guardado else ""
+    registro["ativa"] = bool(registro["ativa"])
+    return registro
 
 
 def buscar(dominio_bruto: str):
@@ -68,10 +144,7 @@ def buscar(dominio_bruto: str):
     if not linha:
         return None
 
-    registro = dict(linha)
-    registro["token"] = banco.decifrar(registro.pop("token_cifrado"))
-    registro["ativa"] = bool(registro["ativa"])
-    return registro
+    return _registro(linha)
 
 
 def por_id(loja_id: int):
@@ -80,10 +153,7 @@ def por_id(loja_id: int):
                             (int(loja_id),)).fetchone()
     if not linha:
         return None
-    registro = dict(linha)
-    registro["token"] = banco.decifrar(registro.pop("token_cifrado"))
-    registro["ativa"] = bool(registro["ativa"])
-    return registro
+    return _registro(linha)
 
 
 # Quanto tempo o plano guardado vale sem reconferir com o Shopify. O webhook
@@ -150,7 +220,9 @@ def desativar(dominio_bruto: str):
         return
     with banco.conectar() as con:
         con.execute("""UPDATE lojas
-                       SET ativa = 0, token_cifrado = '', desinstalada_em = ?
+                       SET ativa = 0, token_cifrado = '', refresh_cifrado = '',
+                           token_expira_em = NULL, refresh_expira_em = NULL,
+                           desinstalada_em = ?
                        WHERE dominio = ?""", (agora(), limpo))
 
 

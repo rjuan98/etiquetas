@@ -97,8 +97,11 @@ checkout, or payments.</p>
 <h2>What is stored on our server</h2>
 <ul>
 <li>Your store's <code>.myshopify.com</code> domain</li>
-<li>The Shopify access token, <strong>encrypted</strong>, so the app can read
-your catalog when you ask it to print</li>
+<li>The Shopify access token and its renewal token, both
+<strong>encrypted</strong>, so the app can read your catalog when you ask it to
+print. Shopify access tokens expire after an hour, so the app has to be able to
+renew its own access; it cannot do anything with them that you did not
+authorize at install</li>
 <li>Which plan your store is on</li>
 <li>The label templates you design: their layout, which fields you turned on,
 your currency and calibration settings, and any fixed text you typed</li>
@@ -125,8 +128,8 @@ admin discloses this for every app, which is why you may see it listed there.</p
 
 <h2>How long it is kept</h2>
 <ul>
-<li><strong>When you uninstall</strong>, the access token is deleted immediately
-and the app can no longer reach your store. Your templates are kept, so that
+<li><strong>When you uninstall</strong>, both the access token and the renewal
+token are deleted immediately, and the app can no longer reach your store. Your templates are kept, so that
 reinstalling doesn't lose your work.</li>
 <li><strong>48 hours after uninstalling</strong>, Shopify asks the app to erase
 the store. Everything above — templates, counts, the store record itself — is
@@ -204,8 +207,11 @@ pagamentos.</p>
 <h2>O que fica guardado no nosso servidor</h2>
 <ul>
 <li>O domínio <code>.myshopify.com</code> da sua loja</li>
-<li>O token de acesso do Shopify, <strong>cifrado</strong>, pra que o app consiga
-ler seu catálogo quando você mandar imprimir</li>
+<li>O token de acesso do Shopify e o token de renovação dele, os dois
+<strong>cifrados</strong>, pra que o app consiga ler seu catálogo quando você
+mandar imprimir. Token de acesso do Shopify vence em uma hora, então o app
+precisa conseguir renovar o próprio acesso; ele não faz com eles nada além do
+que você autorizou na instalação</li>
 <li>Em que plano sua loja está</li>
 <li>Os modelos de etiqueta que você desenha: o desenho, quais campos você ligou,
 suas escolhas de moeda e calibração, e qualquer texto fixo que você digitou</li>
@@ -232,8 +238,8 @@ essa menção lá.</p>
 
 <h2>Por quanto tempo</h2>
 <ul>
-<li><strong>Quando você desinstala</strong>, o token de acesso é apagado na hora
-e o app deixa de alcançar sua loja. Seus modelos ficam guardados, pra que
+<li><strong>Quando você desinstala</strong>, o token de acesso e o de renovação
+são apagados na hora, e o app deixa de alcançar sua loja. Seus modelos ficam guardados, pra que
 reinstalar não perca seu trabalho.</li>
 <li><strong>48 horas após desinstalar</strong>, o Shopify manda o app apagar a
 loja. Tudo acima — modelos, contagens e o próprio registro da loja — é apagado

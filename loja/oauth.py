@@ -74,15 +74,69 @@ def estado_confere(recebido: str, guardado: str) -> bool:
     return hmac.compare_digest(str(recebido), str(guardado))
 
 
+# O Shopify parou de aceitar token de acesso que não expira. Pedir `expiring=1`
+# devolve um token de 1 hora mais um `refresh_token` de 90 dias.
+#
+# Sem isto a Admin API responde **403 com a mensagem dizendo exatamente isso** —
+# foi como o defeito apareceu: o app instalado, a tela abrindo, e nenhum produto
+# carregando.
+EXPIRANDO = "1"
+
+# O prazo é do protocolo, não nosso: a conta de quanto falta é feita sobre o
+# `expires_in` que vem na resposta. Estes nomes existem porque o corpo do pedido
+# tem que sair exato — errar uma letra aqui dá 400 sem explicação útil.
+TROCA_DE_TOKEN = "urn:ietf:params:oauth:grant-type:token-exchange"
+TIPO_TOKEN_OFFLINE = "urn:shopify:params:oauth:token-type:offline-access-token"
+
+
+def _endereco(loja: str) -> str:
+    from . import dominio
+    return "https://%s/admin/oauth/access_token" % dominio.normalizar(loja)
+
+
 def troca_de_token(loja: str, chave_api: str, segredo: str, codigo: str) -> tuple:
-    """(url, corpo) pra trocar o `code` pelo token permanente.
+    """(url, corpo) pra trocar o `code` da instalação pelo token de acesso.
 
     Devolve em vez de executar pra manter este arquivo sem rede — e assim ele é
     testável hoje, sem conta de desenvolvedor.
     """
-    from . import dominio
-    url = "https://%s/admin/oauth/access_token" % dominio.normalizar(loja)
-    return url, {"client_id": chave_api, "client_secret": segredo, "code": codigo}
+    return _endereco(loja), {"client_id": chave_api, "client_secret": segredo,
+                             "code": codigo, "expiring": EXPIRANDO}
+
+
+def renovacao_de_token(loja: str, chave_api: str, segredo: str,
+                       refresh_token: str) -> tuple:
+    """(url, corpo) pra trocar o `refresh_token` por um par novo.
+
+    O Shopify devolve token E refresh novos, e **invalida os anteriores**. Quem
+    chama é obrigado a guardar o par novo: perder o refresh deixa a loja órfã —
+    sem acesso e sem como renovar — e aí a única saída é o lojista reinstalar.
+    """
+    if not refresh_token:
+        raise ValueError("não dá pra renovar sem refresh_token")
+    return _endereco(loja), {"client_id": chave_api, "client_secret": segredo,
+                             "grant_type": "refresh_token",
+                             "refresh_token": refresh_token}
+
+
+def troca_do_token_antigo(loja: str, chave_api: str, segredo: str,
+                          token_antigo: str) -> tuple:
+    """(url, corpo) pra trocar um token que não expira por um que expira.
+
+    É a migração das lojas que instalaram ANTES da mudança. Sem isto elas teriam
+    que desinstalar e instalar de novo — e lojista que precisa reinstalar pra o
+    app voltar a funcionar normalmente desinstala e não volta.
+    """
+    if not token_antigo:
+        raise ValueError("não dá pra trocar sem o token antigo")
+    return _endereco(loja), {
+        "client_id": chave_api, "client_secret": segredo,
+        "grant_type": TROCA_DE_TOKEN,
+        "subject_token": token_antigo,
+        "subject_token_type": TIPO_TOKEN_OFFLINE,
+        "requested_token_type": TIPO_TOKEN_OFFLINE,
+        "expiring": EXPIRANDO,
+    }
 
 
 def volta_valida(parametros: dict, estado_guardado: str, segredo: str) -> str:

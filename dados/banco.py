@@ -176,6 +176,15 @@ ACRESCENTAR = [
     # Ver `lojas.marcar_plano_vencido` pra o porquê de ser uma data e não um
     # valor mágico dentro da coluna `plano`.
     ("lojas", "plano_conferido_em", "TEXT"),
+    # O Shopify parou de aceitar token de acesso que não expira: desde
+    # 01/01/2027 (e já hoje em várias lojas) a Admin API responde 403. O token
+    # agora vale 1 hora e vem com um `refresh_token` que vale 90 dias.
+    #
+    # O refresh é tão sensível quanto o token — quem tem ele gera acesso novo
+    # sozinho — então é cifrado do mesmo jeito.
+    ("lojas", "refresh_cifrado", "TEXT NOT NULL DEFAULT ''"),
+    ("lojas", "token_expira_em", "TEXT"),
+    ("lojas", "refresh_expira_em", "TEXT"),
 ]
 
 

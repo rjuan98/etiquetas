@@ -26,7 +26,7 @@ from flask import request, jsonify, g
 
 from loja import assinatura
 from dados import lojas
-from . import config, textos
+from . import config, credenciais, textos
 
 
 def _token_do_cabecalho() -> str:
@@ -62,6 +62,21 @@ def loja_atual():
         return None, "nao_instalada"
     if not registro["ativa"]:
         return None, "desinstalada"
+
+    # O token do Shopify passou a durar 1 hora. Renovar aqui, e não em cada
+    # rota, é o que garante que a sexta rota escrita amanhã não esqueça — e o
+    # sintoma de esquecer é o app funcionar por uma hora depois de instalar e
+    # falhar depois. Ver `credenciais.py`.
+    try:
+        # A loja de mentira do MODO_DEV nao tem credencial de verdade pra
+        # renovar — e tentar renovar sairia daqui pra internet, no unico modo
+        # do app que existe pra rodar sem Shopify nenhum.
+        from .dev import loja_de_mentira
+        if not loja_de_mentira(registro):
+            registro = credenciais.garantir(registro)
+    except credenciais.PrecisaReinstalar as erro:
+        g.motivo_do_token = str(erro)
+        return None, "precisa_reinstalar"
     return registro, ""
 
 
@@ -71,6 +86,9 @@ MENSAGENS = {
     "token_invalido": ("sessao_expirada", 401),
     "nao_instalada":  ("nao_instalado", 403),
     "desinstalada":   ("desinstalado", 403),
+    # A autorização morreu de velha (90 dias sem ninguém abrir o app) ou o
+    # Shopify recusou renovar. Só o lojista resolve, autorizando de novo.
+    "precisa_reinstalar": ("precisa_reinstalar", 403),
 }
 
 

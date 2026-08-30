@@ -169,20 +169,41 @@ def trocar_token(url: str, corpo: dict) -> dict:
     return resposta
 
 
-def token_expira(resposta: dict) -> bool:
-    """A resposta da troca descreve um token que expira?
+def credenciais_da_resposta(resposta: dict) -> dict:
+    """A resposta da troca virando o que o banco guarda.
 
-    Vale só o que o **protocolo** diz: token por usuário vem com `expires_in` e
-    `associated_user`; token permanente vem sem os dois.
+    Converte os prazos RELATIVOS que o Shopify manda (`expires_in: 3600`) em
+    instante absoluto. Guardar o relativo não serve pra nada depois: o que a
+    próxima requisição precisa saber é se já venceu.
+    """
+    from dados import lojas
 
-    A primeira versão disto também tratava o prefixo `shpua_` como prova, e
-    **deu alarme falso na primeira instalação de verdade**: o Shopify entregou
-    um token `shpua_` sem `expires_in` nenhum. Prefixo é convenção da plataforma,
-    muda sem aviso e não é contrato; `expires_in` é.
+    resposta = resposta or {}
+    return {
+        "token": resposta.get("access_token") or "",
+        "refresh": resposta.get("refresh_token") or "",
+        "expira_em": lojas.daqui_a(resposta.get("expires_in")),
+        "refresh_expira_em": lojas.daqui_a(resposta.get("refresh_token_expires_in")),
+    }
 
-    A lição é a mesma que já apareceu neste projeto: medir com o sinal certo, não
-    com o que parece.
+
+def token_de_usuario(resposta: dict) -> bool:
+    """A resposta descreve um token AMARRADO A UM USUÁRIO (token "online")?
+
+    Isso continua sendo bomba-relógio pra este app: ele lê o catálogo quando o
+    lojista manda imprimir e responde webhook a qualquer hora, inclusive com
+    ninguém logado. Token de usuário morre junto com a sessão da pessoa.
+
+    O sinal é `associated_user`, e **só ele**. `expires_in` deixou de servir: o
+    Shopify passou a expirar os tokens offline também, então hoje ele aparece
+    nos dois casos.
+
+    Esta função já custou um alarme falso: a primeira versão tratava o prefixo
+    `shpua_` como prova, e a primeira instalação de verdade veio com `shpua_` e
+    sem `expires_in` nenhum. Prefixo é convenção, muda sem aviso, e não é
+    contrato. A lição se repetiu agora, ao contrário: `expires_in` também não
+    era o sinal que eu pensei.
     """
     if not isinstance(resposta, dict):
         return False
-    return bool(resposta.get("expires_in") or resposta.get("associated_user"))
+    return bool(resposta.get("associated_user"))

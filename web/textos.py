@@ -158,6 +158,10 @@ TEXTOS = {
                             "pt": "Sessão expirada. Recarregue a página."},
     "nao_instalado":       {"en": "This app isn't installed on this store.",
                             "pt": "Este app não está instalado nesta loja."},
+    "precisa_reinstalar":  {"en": "Your authorization expired. Please open the "
+                                  "app from your Shopify admin to reconnect.",
+                            "pt": "Sua autorização venceu. Abra o app pelo "
+                                  "painel da Shopify para reconectar."},
     "desinstalado":        {"en": "The app was uninstalled from this store. "
                                   "Install it again.",
                             "pt": "O app foi desinstalado desta loja. Instale de novo."},

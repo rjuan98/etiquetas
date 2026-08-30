@@ -1012,7 +1012,21 @@ _os.environ["CHAVE_SEGREDO"] = _guardada
 secao("37. Lojas: instalar, reinstalar, desinstalar, apagar")
 banco.iniciar()
 
-_ID_A = t_lojas.salvar("LOJA-A.myshopify.com/", "token-da-A", "read_products")
+def _instalar(dominio, token, escopos=""):
+    """Uma loja instalada hoje: token de 1h e refresh de 90 dias.
+
+    Sem isto toda loja de teste ficaria com credencial da era anterior — e aí
+    cada rota tentaria migrar o token CONTRA A REDE DE VERDADE, que e o que a
+    bateria inteira existe pra nao fazer. A migracao tem secao propria, com a
+    rede fingida.
+    """
+    return t_lojas.salvar(dominio, token, escopos,
+                          refresh="shprt-de-teste",
+                          expira_em=t_lojas.daqui_a(3600),
+                          refresh_expira_em=t_lojas.daqui_a(90 * 24 * 3600))
+
+
+_ID_A = _instalar("LOJA-A.myshopify.com/", "token-da-A", "read_products")
 check("o dominio e normalizado ao salvar",
       t_lojas.por_id(_ID_A)["dominio"] == "loja-a.myshopify.com")
 check("o token volta decifrado", t_lojas.buscar("loja-a.myshopify.com")["token"] == "token-da-A")
@@ -1020,7 +1034,7 @@ check("o token volta decifrado", t_lojas.buscar("loja-a.myshopify.com")["token"]
 # Reinstalar e comum: troca de plano, testa outro app, volta. Se cada instalacao
 # criasse linha nova, os modelos ficariam presos na linha velha e a pessoa
 # abriria o app numa tela em branco achando que perdeu tudo.
-_ID_A2 = t_lojas.salvar("loja-a.myshopify.com", "token-novo-da-A")
+_ID_A2 = _instalar("loja-a.myshopify.com", "token-novo-da-A")
 check("reinstalar nao cria loja nova", _ID_A2 == _ID_A)
 check("reinstalar troca o token", t_lojas.buscar("loja-a.myshopify.com")["token"] == "token-novo-da-A")
 
@@ -1048,7 +1062,7 @@ _desativada = t_lojas.buscar("loja-a.myshopify.com")
 check("desinstalar marca a loja como inativa", _desativada["ativa"] is False)
 check("desinstalar apaga o token guardado", _desativada["token"] == "")
 check("desinstalar guarda a data", bool(_desativada["desinstalada_em"]))
-t_lojas.salvar("loja-a.myshopify.com", "token-da-volta")
+_instalar("loja-a.myshopify.com", "token-da-volta")
 check("reinstalar reativa a mesma loja", t_lojas.buscar("loja-a.myshopify.com")["ativa"] is True)
 check("reinstalar limpa a data de saida",
       t_lojas.buscar("loja-a.myshopify.com")["desinstalada_em"] is None)
@@ -1058,7 +1072,7 @@ secao("38. Isolamento: a loja B nao alcanca nada da loja A")
 # Esta e a secao mais importante do arquivo. Num app multi-inquilino a falha mais
 # comum e buscar por `id` sozinho porque "o id e unico no banco" — e ai o lojista
 # troca o numero na URL e le (ou sobrescreve) o modelo de outro. Tem nome: IDOR.
-_ID_B = t_lojas.salvar("loja-b.myshopify.com", "token-da-B")
+_ID_B = _instalar("loja-b.myshopify.com", "token-da-B")
 check("duas lojas, dois ids diferentes", _ID_A != _ID_B)
 
 _MODELO_A = t_modelos.criar(_ID_A, "Etiqueta da A", etiqueta_padrao())
@@ -1125,7 +1139,7 @@ check("a tabela de impressoes nao tem coluna de conteudo",
 
 # SUM de zero linhas devolve NULL, e int(None) estoura. Loja recem-instalada cai
 # exatamente nesse caso — ou seja, seria o primeiro uso do app que quebraria.
-_ID_C = t_lojas.salvar("loja-c.myshopify.com", "token-da-C")
+_ID_C = _instalar("loja-c.myshopify.com", "token-da-C")
 check("loja sem nenhuma impressao nao estoura o COALESCE", t_impressoes.no_mes(_ID_C) == 0)
 
 
@@ -1270,7 +1284,7 @@ check("e a mensagem manda reinstalar",
       _r.get_json()["erro"] == _txt.t("desinstalado", "en"), _r.get_json()["erro"])
 check("e ela existe nos dois idiomas",
       _txt.t("desinstalado", "pt") != _txt.t("desinstalado", "en"))
-t_lojas.salvar("loja-b.myshopify.com", "token-da-B")
+_instalar("loja-b.myshopify.com", "token-da-B")
 
 # Loja que nunca instalou mas tem token forjado com o nosso segredo — so
 # aconteceria se o segredo vazasse, e ainda assim nao acha loja.
@@ -1383,7 +1397,7 @@ t_lojas.marcar_plano(_ID_A, "pro")
 # Uma loja nova pros testes de isolamento: a loja B foi APAGADA na secao 45, pelo
 # shop/redact. Reusar ela aqui daria 403 e eu estaria medindo "loja desinstalada"
 # achando que media isolamento.
-_ID_D = t_lojas.salvar("loja-d.myshopify.com", "token-da-D")
+_ID_D = _instalar("loja-d.myshopify.com", "token-da-D")
 t_lojas.marcar_plano(_ID_D, "pro")
 _r = _imprimir("loja-a.myshopify.com", {"motor": "zpl", "modelo_id": _MODELO_A,
                                         "itens": _ITENS})
@@ -1998,33 +2012,55 @@ check("e o primeiro da lista e o ATUAL, que e o usado pra assinar",
 _cfg2.SEGREDO_ANTIGO = _guardado
 
 
-secao("54. Token que expira nao pode ser guardado como se fosse permanente")
+secao("54. Que tipo de token o Shopify devolveu")
 # O app le o catalogo quando o lojista manda imprimir, e responde webhook a
-# qualquer hora — inclusive com ninguem logado. Um token por usuario expira em
-# ~24h: funciona no dia da instalacao e quebra no dia seguinte, sem nada ter
-# mudado. E o tipo de defeito que o lojista descobre antes de voce.
+# qualquer hora — inclusive com ninguem logado. Token AMARRADO A UM USUARIO
+# morre junto com a sessao da pessoa, e isso continua sendo bomba-relogio.
+#
+# Esta secao ja errou DUAS vezes, e vale guardar as duas:
+#
+# 1. A primeira versao tratava o prefixo `shpua_` como prova de que o token
+#    expirava. Na primeira instalacao de verdade veio um `shpua_` SEM
+#    expires_in. Prefixo e convencao da plataforma, muda sem aviso, nao e
+#    contrato.
+#
+# 2. A correcao daquilo elegeu `expires_in` como o sinal — e envelheceu mal. O
+#    Shopify passou a EXPIRAR os tokens offline tambem, entao hoje `expires_in`
+#    aparece nos dois casos e nao distingue nada. Quem distingue e
+#    `associated_user`.
+#
+# A licao e a mesma nas duas: teste que congela um palpite e pior que teste
+# nenhum, porque impede o conserto.
 from loja import rede as _rede2
 
-check("expires_in denuncia token que expira",
-      _rede2.token_expira({"access_token": "shpat_x", "expires_in": 86399}))
-check("associated_user tambem denuncia",
-      _rede2.token_expira({"access_token": "shpat_x",
-                           "associated_user": {"id": 1}}))
-# O prefixo NAO serve de prova, e este teste ja garantiu o contrario. Na
-# primeira instalacao de verdade o Shopify entregou um token "shpua_" SEM
-# expires_in — ou seja, permanente. Prefixo e convencao da plataforma e muda sem
-# aviso; expires_in e contrato. Teste que garante o palpite errado e pior que
-# teste nenhum, porque impede o conserto.
-check("prefixo shpua_ SEM expires_in nao e tratado como expiravel",
-      _rede2.token_expira({"access_token": "shpua_abc"}) is False)
-check("mas shpua_ COM expires_in e",
-      _rede2.token_expira({"access_token": "shpua_abc", "expires_in": 86399}))
-check("token offline (shpat_) nao dispara alarme falso",
-      _rede2.token_expira({"access_token": "shpat_abc", "scope": "read_products"})
+check("associated_user denuncia token de usuario",
+      _rede2.token_de_usuario({"access_token": "shpat_x",
+                               "associated_user": {"id": 1}}))
+check("expires_in sozinho NAO denuncia — token offline expira, e isso e o normal",
+      _rede2.token_de_usuario({"access_token": "shpat_x", "expires_in": 3600})
       is False)
-check("resposta vazia nao quebra", _rede2.token_expira({}) is False)
+check("prefixo shpua_ nao e prova de nada",
+      _rede2.token_de_usuario({"access_token": "shpua_abc"}) is False)
+check("token offline comum nao dispara alarme falso",
+      _rede2.token_de_usuario({"access_token": "shpat_abc",
+                               "scope": "read_products"}) is False)
+check("resposta vazia nao quebra", _rede2.token_de_usuario({}) is False)
 check("resposta que nem e dicionario nao quebra",
-      _rede2.token_expira(None) is False)
+      _rede2.token_de_usuario(None) is False)
+
+# A resposta da troca vira o que o banco guarda: prazo RELATIVO virando instante
+# ABSOLUTO. Guardar o relativo nao serve pra nada depois — o que a proxima
+# requisicao precisa saber e se JA VENCEU.
+_cred = _rede2.credenciais_da_resposta({
+    "access_token": "shpat_novo", "refresh_token": "shprt_novo",
+    "expires_in": 3600, "refresh_token_expires_in": 7776000})
+check("o token e o refresh sao guardados separados",
+      (_cred["token"], _cred["refresh"]) == ("shpat_novo", "shprt_novo"))
+check("e os dois prazos viram data, nao segundos",
+      _cred["expira_em"] > "2026" and _cred["refresh_expira_em"] > _cred["expira_em"],
+      _cred)
+check("resposta sem prazo nenhum nao inventa prazo",
+      _rede2.credenciais_da_resposta({"access_token": "x"})["expira_em"] == "")
 
 # trocar_token devolve a resposta INTEIRA, nao so o token: e o resto dela que
 # conta que tipo de token e. Devolver so a string apagaria essa informacao.
@@ -2051,7 +2087,11 @@ _chamadas = {"graphql": 0}
 
 def _falso_trocar_token(url, corpo):
     _chamadas["url"] = url
-    return {"access_token": "shpat_token_de_teste", "scope": "read_products,read_inventory"}
+    _chamadas["corpo"] = corpo
+    return {"access_token": "shpat_token_de_teste",
+            "refresh_token": "shprt_da_instalacao",
+            "expires_in": 3600, "refresh_token_expires_in": 7776000,
+            "scope": "read_products,read_inventory"}
 
 
 def _falso_graphql(loja, token, corpo, **kw):
@@ -2083,6 +2123,17 @@ def _volta(loja_dominio, segredo=None, estado="estado-combinado", com_estado=Tru
 
 _r = _volta(_LOJA_NOVA)
 check("a instalacao completa e redireciona pro admin", _r.status_code == 302, _r.status_code)
+
+# Sem `expiring=1` o Shopify devolve um token que nao expira — e a Admin API
+# passou a RECUSAR esses com 403. O app instalava bonito e nao lia produto
+# nenhum, que foi exatamente como o defeito apareceu na loja de verdade.
+check("a instalacao pede token que EXPIRA",
+      _chamadas["corpo"].get("expiring") == "1", _chamadas["corpo"])
+_nova = t_lojas.buscar(_LOJA_NOVA)
+check("e guarda o refresh que veio junto",
+      _nova["refresh"] == "shprt_da_instalacao", _nova["refresh"])
+check("com o prazo, senao a renovacao nunca acontece",
+      bool(_nova["token_expira_em"]))
 check("e vai pro painel de apps da loja certa",
       "recem-instalada/apps" in _r.headers.get("Location", ""),
       _r.headers.get("Location"))
@@ -2146,7 +2197,7 @@ secao("56. O plano do lojista que paga nao pode sumir")
 from web import rotas_api as _api
 from loja import rede as _rede4
 
-_ID_P = t_lojas.salvar("paga-o-pro.myshopify.com", "token-da-pagante")
+_ID_P = _instalar("paga-o-pro.myshopify.com", "token-da-pagante")
 t_lojas.marcar_plano(_ID_P, "pro")
 
 
@@ -2254,7 +2305,7 @@ secao("57. Cobranca ligada de ponta a ponta")
 # aprovar, e receber ele de volta.
 from web import config as _cfg3
 
-_ID_C = t_lojas.salvar("quer-assinar.myshopify.com", "token-de-quem-vai-assinar")
+_ID_C = _instalar("quer-assinar.myshopify.com", "token-de-quem-vai-assinar")
 _pedidos = []
 
 
@@ -2733,6 +2784,10 @@ _ESPERADAS = {
     "lojas.id", "lojas.dominio", "lojas.token_cifrado", "lojas.escopos",
     "lojas.plano", "lojas.ativa", "lojas.instalada_em", "lojas.desinstalada_em",
     "lojas.plano_conferido_em",
+    # O Shopify passou a expirar o token de acesso. Guardar o token de
+    # renovacao cifrado, e os dois prazos, e o que evita o lojista ter que
+    # reinstalar toda hora — e entrou na politica junto com esta linha.
+    "lojas.refresh_cifrado", "lojas.token_expira_em", "lojas.refresh_expira_em",
     "modelos.id", "modelos.loja_id", "modelos.nome", "modelos.json",
     "modelos.receita", "modelos.criado_em", "modelos.alterado_em",
     "impressoes.id", "impressoes.loja_id", "impressoes.modelo_id",
@@ -3087,6 +3142,153 @@ check("e o motivo diz os limites", "300" in (_r.get_json().get("erro") or ""),
 _r = _pega("/api/formatos", "loja-a.myshopify.com")
 check("a tela recebe os limites pra montar o campo",
       _r.get_json()["livre"]["menor_mm"] == _fmt.MENOR_MEDIDA_MM)
+
+
+secao("67. O token do Shopify agora vence, e o app renova sozinho")
+
+# O Shopify parou de aceitar token de acesso que nao expira: a Admin API
+# responde 403 com a mensagem dizendo isso. Foi assim que apareceu — o app
+# instalado, a tela abrindo, e nenhum produto carregando.
+#
+# Agora o token vale 1 hora e vem com um refresh de 90 dias. O ciclo inteiro
+# mora em `web/credenciais.py`, e a renovacao acontece no PORTAO, nao nas rotas:
+# eram cinco rotas lendo `loja["token"]`, e espalhar isso garantiria que a sexta
+# esquecesse. O sintoma de esquecer seria o app funcionar por uma hora depois de
+# cada instalacao.
+from web import credenciais as _cred_mod
+
+_TROCAS = []
+
+
+def _passado(segundos=10):
+    """Um instante que JA passou.
+
+    `lojas.daqui_a` recusa segundos negativos de proposito — vazio ali quer
+    dizer "sem prazo", que e coisa diferente de "vencido". Pra testar vencido
+    precisa de uma data de verdade no passado.
+    """
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc)
+            - timedelta(seconds=segundos)).isoformat(timespec="seconds")
+
+
+def _falsa_troca(url, corpo):
+    """A rede fingida. Guarda o que foi pedido, pra os testes conferirem."""
+    _TROCAS.append(corpo)
+    return {"access_token": "shpat_renovado", "refresh_token": "shprt_renovado",
+            "expires_in": 3600, "refresh_token_expires_in": 7776000}
+
+
+def _com_rede_fingida(fn, resposta=None):
+    original = _rede3.trocar_token
+    _rede3.trocar_token = resposta or _falsa_troca
+    try:
+        return fn()
+    finally:
+        _rede3.trocar_token = original
+
+
+# --- 1. a loja da era anterior migra sozinha, sem reinstalar -----------------
+# Reinstalar seria a alternativa, e lojista que precisa reinstalar pra o app
+# voltar a funcionar desinstala e nao volta.
+_ID_V = t_lojas.salvar("veterana.myshopify.com", "shpat_que_nunca_expirava",
+                       "read_products,read_inventory")
+t_lojas.marcar_plano(_ID_V, "pro")
+_TROCAS.clear()
+_r = _com_rede_fingida(
+    lambda: _pega("/api/formatos", "veterana.myshopify.com"))
+check("loja da era anterior continua entrando", _r.status_code == 200, _r.status_code)
+check("e foi porque o token velho foi TROCADO, nao porque passou batido",
+      len(_TROCAS) == 1 and _TROCAS[0].get("expiring") == "1", _TROCAS)
+check("a troca mandou o token antigo como assunto",
+      _TROCAS[0].get("subject_token") == "shpat_que_nunca_expirava")
+
+_v = t_lojas.por_id(_ID_V)
+check("o par novo foi GUARDADO — perder ele deixaria a loja orfa",
+      (_v["token"], _v["refresh"]) == ("shpat_renovado", "shprt_renovado"),
+      (_v["token"], _v["refresh"]))
+check("e o prazo do token novo foi guardado junto", bool(_v["token_expira_em"]))
+
+# --- 2. token ainda bom nao gasta chamada -----------------------------------
+_TROCAS.clear()
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "veterana.myshopify.com"))
+check("token dentro da validade nao pede nada ao Shopify",
+      _r.status_code == 200 and _TROCAS == [], _TROCAS)
+
+# --- 3. token vencido e renovado com o refresh ------------------------------
+t_lojas.guardar_credenciais(_ID_V, "shpat_vencido", "shprt_bom",
+                            _passado(),
+                            t_lojas.daqui_a(90 * 24 * 3600))
+_TROCAS.clear()
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "veterana.myshopify.com"))
+check("token vencido nao barra o lojista", _r.status_code == 200, _r.status_code)
+check("foi renovado com o refresh, nao com o code",
+      len(_TROCAS) == 1 and _TROCAS[0].get("grant_type") == "refresh_token",
+      _TROCAS)
+check("e mandou o refresh guardado",
+      _TROCAS[0].get("refresh_token") == "shprt_bom")
+
+# A margem existe pra o token nao vencer ENTRE a conferencia e a chamada ao
+# Shopify — corrida rara e impossivel de reproduzir depois.
+t_lojas.guardar_credenciais(_ID_V, "shpat_quase", "shprt_bom",
+                            t_lojas.daqui_a(60),
+                            t_lojas.daqui_a(90 * 24 * 3600))
+_TROCAS.clear()
+_com_rede_fingida(lambda: _pega("/api/formatos", "veterana.myshopify.com"))
+check("token que vence em 1 minuto ja e renovado antes da hora",
+      len(_TROCAS) == 1, _TROCAS)
+
+# --- 4. refresh morto: so o lojista resolve ---------------------------------
+# 90 dias sem ninguem abrir o app. Tentar renovar aqui tomaria 400 do Shopify e
+# viraria "erro interno" na tela — dizer o que aconteceu e melhor.
+t_lojas.guardar_credenciais(_ID_V, "shpat_vencido", "shprt_morto",
+                            _passado(), _passado())
+_TROCAS.clear()
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "veterana.myshopify.com"))
+check("refresh vencido nao tenta renovar a toa", _TROCAS == [], _TROCAS)
+check("e devolve 403 pedindo pra reconectar", _r.status_code == 403, _r.status_code)
+check("com motivo que a tela sabe tratar",
+      _r.get_json().get("motivo") == "precisa_reinstalar", _r.get_json())
+check("e a mensagem manda abrir pelo painel do Shopify",
+      "admin" in (_r.get_json().get("erro") or "").lower(), _r.get_json())
+
+# Shopify recusando a renovacao cai no mesmo lugar, em vez de virar 500.
+t_lojas.guardar_credenciais(_ID_V, "shpat_vencido", "shprt_bom",
+                            _passado(),
+                            t_lojas.daqui_a(90 * 24 * 3600))
+
+
+def _troca_que_falha(url, corpo):
+    raise _rede3.ErroDeRede("o Shopify respondeu 400: invalid_grant")
+
+
+_r = _com_rede_fingida(lambda: _pega("/api/formatos", "veterana.myshopify.com"),
+                       resposta=_troca_que_falha)
+check("Shopify recusando a renovacao vira 403 legivel, nao 500",
+      _r.status_code == 403, _r.status_code)
+
+# --- 5. desinstalar mata as DUAS credenciais --------------------------------
+# O refresh vale 90 dias e gera acesso novo sozinho: deixar ele no banco depois
+# da desinstalacao seria guardar a chave da casa de quem ja se mudou.
+t_lojas.guardar_credenciais(_ID_V, "shpat_vivo", "shprt_vivo",
+                            t_lojas.daqui_a(3600), t_lojas.daqui_a(7776000))
+t_lojas.desativar("veterana.myshopify.com")
+_v = t_lojas.por_id(_ID_V)
+check("desinstalar apaga o token", _v["token"] == "", _v["token"])
+check("e apaga o refresh junto", _v["refresh"] == "", _v["refresh"])
+check("e apaga os prazos, pra nao sobrar credencial com aparencia de viva",
+      not _v["token_expira_em"] and not _v["refresh_expira_em"],
+      (_v["token_expira_em"], _v["refresh_expira_em"]))
+
+# --- 6. a conta de vencimento -----------------------------------------------
+check("sem prazo nenhum nao e 'vencido' — e token de outro tipo",
+      t_lojas.venceu("") is False)
+check("prazo no passado venceu", t_lojas.venceu(_passado()))
+check("prazo no futuro nao venceu", t_lojas.venceu(t_lojas.daqui_a(600)) is False)
+check("mas vence dentro da margem se a margem alcanca",
+      t_lojas.venceu(t_lojas.daqui_a(60), 300))
+check("prazo corrompido conta como vencido, nao como eterno",
+      t_lojas.venceu("nao-e-data"))
 
 
 # ---------------------------------------------------------------- fim

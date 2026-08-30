@@ -27,6 +27,14 @@ import sys
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 
+# O console do Windows e cp1252, e o nome dos testes tem travessao e acento.
+# Sem isto a ferramenta MORRE no meio da rodada ao reimprimir o nome de um teste
+# que falhou — e morrer no meio e pior que nao rodar: parece que passou.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
+
 SABOTAGENS = [
     # ---------------------------------------------------- isolamento de loja
     ("modelos.buscar sem o filtro de loja (IDOR de leitura)",
@@ -194,7 +202,7 @@ SABOTAGENS = [
     # caminho e testado.
     ("a gravacao da loja no fim da instalacao",
      "web/rotas_instalacao.py",
-     '    lojas.salvar(loja, token, ",".join(oauth.ESCOPOS))',
+     '    lojas.salvar(loja, token, ",".join(oauth.ESCOPOS),\n                 refresh=credenciais["refresh"],\n                 expira_em=credenciais["expira_em"],\n                 refresh_expira_em=credenciais["refresh_expira_em"])',
      "    pass  # sabotado"),
 
     ("a assinatura dos webhooks na instalacao",
@@ -346,6 +354,50 @@ SABOTAGENS = [
      "etiquetas/formatos.py",
      "        try:\n            valor = float(valor)\n        except (TypeError, ValueError):\n            raise ValueError(\"%s tem que ser um número\" % nome)",
      "        pass"),
+
+    # ------------------------------------------- o token que agora vence
+    # O Shopify parou de aceitar token de acesso que nao expira: a Admin API
+    # responde 403. O app instalava bonito e nao lia produto nenhum.
+    ("a instalacao pedindo token que expira",
+     "loja/oauth.py",
+     '"code": codigo, "expiring": EXPIRANDO}',
+     '"code": codigo}'),
+
+    # Sem isto, quem instalou ANTES da mudanca tomaria 403 pra sempre. A
+    # alternativa seria pedir pra reinstalar — e lojista que precisa reinstalar
+    # pra o app voltar a funcionar desinstala e nao volta.
+    ("a troca automatica do token da era anterior",
+     "web/credenciais.py",
+     "    if not registro.get(\"refresh\") and not registro.get(\"token_expira_em\"):",
+     "    if False:"),
+
+    # Cada renovacao INVALIDA o par anterior. Nao guardar o novo deixa a loja
+    # orfa: sem acesso e sem como renovar.
+    ("o par novo sendo guardado depois de renovar",
+     "web/credenciais.py",
+     "    lojas.guardar_credenciais(registro[\"id\"], novo[\"token\"], novo[\"refresh\"],\n                              novo[\"expira_em\"], novo[\"refresh_expira_em\"])",
+     "    pass"),
+
+    # A renovacao mora no PORTAO. Tirar dali significa cada rota se virar
+    # sozinha — e o sintoma e o app funcionar por uma hora depois de instalar.
+    ("a renovacao acontecendo no portao de toda rota",
+     "web/sessao.py",
+     "        if not loja_de_mentira(registro):\n            registro = credenciais.garantir(registro)",
+     "        pass"),
+
+    # Refresh vale 90 dias e gera acesso novo sozinho. Deixar no banco depois da
+    # desinstalacao e guardar a chave da casa de quem ja se mudou.
+    ("o refresh morrendo junto com a desinstalacao",
+     "dados/lojas.py",
+     "                       SET ativa = 0, token_cifrado = '', refresh_cifrado = '',",
+     "                       SET ativa = 0, token_cifrado = '',"),
+
+    # Sem margem, o token pode vencer ENTRE a conferencia e a chamada ao
+    # Shopify. Corrida rara, e impossivel de reproduzir depois.
+    ("a margem que renova antes da hora",
+     "web/credenciais.py",
+     "MARGEM_EM_SEGUNDOS = 300",
+     "MARGEM_EM_SEGUNDOS = 0"),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",

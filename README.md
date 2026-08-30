@@ -83,6 +83,7 @@ web/               O FLASK
   config.py        variáveis de ambiente, conferidas no boot
   textos.py        todo texto do lojista, em inglês e português
   sessao.py        @exige_loja — o portão de toda rota de dados
+  credenciais.py   o token do Shopify, sempre válido ← o ÚNICO lugar
   rotas_instalacao.py   OAuth, com o escape do iframe
   rotas_webhooks.py     recebe, confere HMAC, responde 200 rápido
   rotas_api.py          catálogo, receita, prévia, impressão, assinatura
@@ -195,10 +196,41 @@ não mudar.
 O Shopify informa o idioma do lojista em `?locale=`; sem ele vale o
 `Accept-Language`; desconhecido cai no inglês.
 
+### O token do Shopify vence, e o app renova sozinho
+
+O Shopify **parou de aceitar token de acesso que não expira**. A Admin API
+responde `403` com a mensagem dizendo exatamente isso, e foi assim que apareceu:
+o app instalado, a tela abrindo bonita, e nenhum produto carregando.
+
+O token agora vale **1 hora** e vem com um `refresh_token` de **90 dias**. Ou
+seja, o app deixou de ter uma credencial e passou a ter um ciclo de vida:
+
+```
+instala  →  token (1h) + refresh (90d)
+                ↓ vence
+            renova com o refresh  →  par NOVO, o anterior morre
+                ↓ 90 dias sem ninguém abrir o app
+            reinstalar é a única saída
+```
+
+**A renovação mora no portão, não nas rotas.** Cinco rotas liam `loja["token"]`
+direto; espalhar a renovação entre elas garantiria que a sexta esquecesse — e o
+sintoma de esquecer é o app funcionar por uma hora depois de cada instalação e
+falhar depois. Some no teste, aparece no lojista.
+
+**Quem instalou antes da mudança não precisa reinstalar.** O token antigo é
+trocado por um par novo na primeira vez que a loja abre o app. A alternativa
+seria pedir pra reinstalar, e lojista que precisa reinstalar pra o app voltar a
+funcionar desinstala e não volta.
+
+E cada renovação **invalida o par anterior**: guardar o novo é obrigatório, não
+otimização. Perder o refresh deixa a loja órfã — sem acesso e sem como renovar.
+
 ### O token de acesso é cifrado no banco
 
-O token que o Shopify devolve **não expira** e dá acesso ao catálogo inteiro da
-loja. Backup mal guardado, disco de servidor descartado, cópia num pendrive — em
+O token que o Shopify devolve dá acesso ao catálogo inteiro da loja, e o
+`refresh_token` que vem com ele gera tokens novos por 90 dias — ou seja, é a
+credencial mais valiosa das duas. Backup mal guardado, disco de servidor descartado, cópia num pendrive — em
 qualquer um desses o arquivo do banco vaza inteiro.
 
 Cifrar com uma chave que mora no ambiente separa as duas coisas. Não protege de
@@ -209,7 +241,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **883 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **911 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -222,7 +254,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 46 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 52 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
