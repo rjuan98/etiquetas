@@ -264,7 +264,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **954 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **963 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -277,7 +277,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 64 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 66 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

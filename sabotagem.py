@@ -477,6 +477,22 @@ SABOTAGENS = [
      '        "codigo_invalido": _por_que_o_codigo_sumiu(template, item),',
      '        "codigo_invalido": "",'),
 
+    # A ficha e um contrato publico. Prometer 200 etiquetas quando o codigo da
+    # 100 e reclamacao no primeiro dia — e o tipo de divergencia que ninguem ve
+    # porque ficha e codigo moram em arquivos diferentes.
+    ("a ficha da loja prometendo o mesmo que o codigo entrega",
+     "docs/ficha-loja-de-apps.md",
+     "| Free | US$ 0 | 1 template, 200 labels/month, sheet labels (PDF) |",
+     "| Free | US$ 0 | 1 template, 500 labels/month, sheet labels (PDF) |"),
+
+    # "Read-only" e a unica frase da ficha que nenhum concorrente pode escrever.
+    # Se um dia entrar escopo de escrita, a ficha tem que perder essa linha no
+    # MESMO commit — senao ela vira mentira.
+    ("a promessa de so-leitura batendo com os escopos pedidos",
+     "loja/oauth.py",
+     'ESCOPOS = ("read_products", "read_inventory")',
+     'ESCOPOS = ("read_products", "read_inventory", "write_products")'),
+
     ("o plano gratis acompanhando o que o mercado da",
      "loja/cobranca.py",
      '"limite_etiquetas_mes": 200,',

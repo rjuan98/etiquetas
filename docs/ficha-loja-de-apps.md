@@ -1,8 +1,20 @@
 # Ficha da loja de apps — texto pronto pra colar
 
-Escrito em inglês porque é onde está o mercado que a gente mediu: as 565
+Escrito em inglês porque é onde está o mercado que a gente mediu: as 466
 avaliações do app oficial, as reclamações sobre etiqueta Avery, o volume de
 lojas. Ver `loja/cobranca.py` pra o raciocínio completo.
+
+> **Revisado em 30/08/2026, e o motivo importa.** A categoria não está vazia:
+> tem um app com 4,9 e 448 avaliações. Ver
+> [`quem-mais-esta-aqui.md`](quem-mais-esta-aqui.md).
+>
+> Isso muda o que esta ficha precisa fazer. Ela não pode mais dizer só "imprime
+> etiqueta bonito" — isso o concorrente também faz, e há mais tempo. Ela precisa
+> dizer as três coisas que **só este app** faz: a régua de calibração, a prévia
+> que sai do mesmo código da impressora, e a recusa de imprimir código que não
+> bipa.
+>
+> As três já existiam no produto e **nenhuma estava escrita aqui**.
 
 O nome e os preços estão **decididos**. O que ainda depende de você está na
 lista do fim.
@@ -35,11 +47,20 @@ e nunca reconhecida, e o lojista pagaria continuando no grátis.
 *(máx. 100 caracteres — é o que aparece embaixo do nome na busca)*
 
 ```
-Barcode and price labels that print straight, every time.
+Barcode labels that match the paper, and always scan.
 ```
 
-> 57 caracteres. Ataca a reclamação nº 1 sem citar o concorrente — citar dá
-> munição pra reprovação e parece briga pequena.
+> 52 caracteres. Duas promessas verificáveis, não adjetivo: **bate com o papel**
+> (calibração + prévia fiel) e **sempre bipa** (dígito verificador conferido,
+> zona muda garantida, código largo demais recusado).
+>
+> A versão anterior era *"print straight, every time"*. Continua verdade, mas
+> "sai reto" é o que todo mundo promete. "Sempre bipa" é o que quase ninguém
+> confere — e é a queixa de uma estrela que o melhor concorrente da categoria
+> levou.
+>
+> Continua sem citar o concorrente: citar dá munição pra reprovação e parece
+> briga pequena.
 
 ---
 
@@ -50,18 +71,31 @@ Barcode and price labels that print straight, every time.
 Print barcode and price labels for your products, on sheet labels or a thermal
 printer, without fighting the layout.
 
-Pick your products, choose what goes on the label, and see exactly what will
-come out before you print. Quantities come from your inventory, so receiving 40
-units means 40 labels — not typing "1" forty times.
+Pick your products — or scan a barcode and the product comes straight up —
+choose what goes on the label, and see exactly what will come out. The preview
+is drawn by the same code that writes the printer file, so what you see is what
+the paper gets. Quantities come from your inventory, so receiving 40 units means
+40 labels, not typing "1" forty times.
 
-If your printer drifts, print the calibration ruler, measure it, and type the
-difference in millimetres. Your template stays exactly as you left it: it never
-changes on its own between one print run and the next.
+A barcode that wouldn't scan is never printed. Wrong check digit, wrong length
+for the symbology, or simply wider than the label you picked — the app tells you
+which, on screen, instead of letting you find out at the register with a queue.
+
+If your printer drifts, print the calibration ruler, measure it with a real
+ruler, and type the difference in millimetres. Your template then stays exactly
+as you left it: it never changes on its own between one print run and the next.
 ```
 
-> Três parágrafos, três reclamações: layout que briga, digitar 1 duas mil vezes,
-> etiqueta torta. A última frase é uma resposta direta ao *"todas as minhas
-> etiquetas não combinam mais"* de julho.
+> Quatro parágrafos, e o segundo e o terceiro são novos. O terceiro é o que
+> nenhum concorrente escreve, porque quase nenhum confere: **código inválido não
+> vira papel**.
+>
+> "the same code that writes the printer file" é uma afirmação forte de
+> propósito, e ela se sustenta — tem teste comparando linha por linha o texto do
+> SVG com o do ZPL. Todo mundo escreve "live preview"; isto é outra coisa.
+>
+> A última frase continua sendo resposta direta ao *"todas as minhas etiquetas
+> não combinam mais"* de julho.
 
 ---
 
@@ -69,15 +103,35 @@ changes on its own between one print run and the next.
 *(as marcações da página — curtas, uma promessa cada)*
 
 ```
-Preview the exact label before printing — no surprises on the paper
-Quantities pulled from inventory, so no typing "1" two thousand times
+The preview is drawn by the same code that writes the printer file
+A barcode that wouldn't scan is never printed — and the app says why
 Millimetre calibration for printers that drift, on both axes
+Quantities pulled from inventory, so no typing "1" two thousand times
+Scan a barcode and the product comes straight up, ready to print
+Any label size in millimetres, plus Avery, DYMO, Zebra and Pimaco stocks
+EAN-13, UPC-A, Code 128, QR and ITF-14 for cartons
 Choose every field: title, SKU, price, vendor, barcode — turn off what you don't want
 Currency symbol, position and separators you control (R$ 24,90 or 24,90 €)
-Avery, DYMO, Zebra and Pimaco stocks ready to pick
+Read-only: the app never writes to your catalog
 Templates saved and reopened exactly as you left them
 ```
 
+> **A ordem mudou, e é o item 2 de [`comparacao.md`](comparacao.md).** As três
+> primeiras são as únicas que o concorrente não copia da noite pro dia, e antes
+> estavam enterradas ou ausentes. A antiga primeira linha ("preview the exact
+> label") dizia menos que a nova: "exact" é adjetivo; "o mesmo código que
+> escreve o arquivo da impressora" é afirmação que se confere.
+>
+> **"Scan a barcode and the product comes straight up"** — medido antes de
+> escrever, não suposto: um leitor se comporta como teclado, digita e manda
+> Enter, e a busca devolve exatamente aquele produto. O que ele **não** faz é já
+> marcar e enfileirar — por isso a frase para em "ready to print" e não promete
+> o clique que ainda existe.
+>
+> **"Read-only"** é a única linha aqui que nenhum concorrente pode escrever: os
+> dois pedem permissão de escrita porque geram código de barras. Custa o
+> recurso; paga em confiança.
+>
 > A do € existe porque um lojista europeu reclamou disso especificamente. Item
 > de lista que nasceu de uma frase real converte melhor que adjetivo.
 
@@ -87,8 +141,12 @@ Templates saved and reopened exactly as you left them
 *(máx. 62 caracteres — aparece nas listagens)*
 
 ```
-Barcode labels for shelves, with real calibration
+Labels that match the paper and always scan
 ```
+
+> 43 caracteres. As mesmas duas promessas da manchete, porque é esse par que
+> diferencia. A anterior era *"Barcode labels for shelves, with real
+> calibration"* — "for shelves" gastava 11 caracteres dizendo o óbvio.
 
 ---
 
@@ -101,7 +159,8 @@ oficial está, e é onde o lojista com essa dor procura.)*
 **Termos de busca:**
 ```
 barcode labels, product labels, price labels, shelf labels, label printing,
-avery labels, zebra printer, zpl, dymo, barcode generator, sku labels
+avery labels, zebra printer, zpl, dymo, sku labels, itf-14, carton labels,
+custom label size, barcode scanner
 ```
 
 ---
@@ -111,10 +170,17 @@ avery labels, zebra printer, zpl, dymo, barcode generator, sku labels
 
 | plano | preço | o que declarar |
 |---|---|---|
-| Free | US$ 0 | 1 template, 100 labels/month, sheet labels (PDF) |
+| Free | US$ 0 | 1 template, 200 labels/month, sheet labels (PDF) |
 | Pro | US$ 9.99/mês | Unlimited labels and templates, thermal printing (ZPL) |
 
 **7 dias de teste grátis** no Pro.
+
+> **O "Unlimited" do Pro é pra estar escrito com essa palavra.** É onde a nossa
+> tabela é mais simples que a da categoria, e simplicidade de preço é argumento
+> por si — não precisa (nem pode) citar ninguém pra isso aparecer.
+>
+> E o grátis é **200**, não 100: é o número que a categoria dá, e perder por 2×
+> no primeiro número que o lojista compara é caro.
 
 > **Não há terceiro plano, e isso é escolha.** Havia um "Business" prometendo
 > múltiplos locais e histórico de modelos, e nenhum dos dois estava construído.
@@ -143,7 +209,8 @@ vista.
 - [x] **Ícone** — `docs/icone.png`, 1200×1200, sem texto. Regerar: `python docs/icone.py`
 - [x] **Capturas de tela** — `docs/capturas/`, quatro em 1600×900.
       Regerar: subir o servidor e `python docs/capturas.py`
-- [ ] **Hospedagem fixa** — o endereço do túnel muda e a revisão não sobrevive a isso
+- [x] **Hospedagem fixa** — `https://etikbarcode.pythonanywhere.com`, no ar
+      desde 30/08/2026
 - [ ] **Preencher `CONTATO_EMAIL`, `CONTATO_NOME` e `HOSPEDAGEM`** no `.env`,
       senão a política de privacidade vai ao ar dizendo "(preencha …)"
 - [ ] **`MODO_DEV=0`** em produção, senão o traceback do Flask fica exposto e a

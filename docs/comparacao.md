@@ -134,5 +134,16 @@ dois.
   já sumia calado — mas o ITF-14 recusa todo código de 13 dígitos, então virou
   rotina.
 
-Faltam os itens **2** (escrever na ficha o que já existe), **4** (dizer que
-funciona com leitor) e **5** (decidir sobre escrever no catálogo).
+**Itens 2 e 4** — a ficha foi reescrita. As três coisas que só este app faz
+subiram para o topo da lista de recursos e entraram no parágrafo de descrição;
+antes estavam enterradas ou ausentes. O leitor de código foi **medido antes de
+ser escrito**: ele acha o produto certo, mas não marca sozinho — a frase para em
+"ready to print" e não promete o clique que ainda existe.
+
+E a ficha ganhou teste. Ela promete número (200 etiquetas, US$ 9,99), nome de
+app, lista de simbologias e "read-only" — tudo isso agora é conferido contra o
+código, e a sabotagem prova que a conferência funciona. Foi o erro de hoje que
+motivou: o documento de prospectos prometia *"a altura do código é sua"*, e o
+lojista não escolhe a altura do código.
+
+Falta o item **5** (decidir sobre escrever no catálogo).

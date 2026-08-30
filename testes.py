@@ -3608,6 +3608,54 @@ check("o Pro continua sem limite",
       cobranca.PLANOS["pro"]["limite_etiquetas_mes"] == 0)
 
 
+secao("72. A ficha da loja de apps nao pode prometer o que o codigo nao faz")
+
+# Isto existe por causa de um erro cometido HOJE: o documento de prospectos
+# prometia "a altura do codigo e sua" pra uma lojista, e o lojista NAO escolhe a
+# altura do codigo — ela sai da etiqueta. So apareceu porque fui conferir antes
+# de mandar a mensagem.
+#
+# A ficha e pior que aquele documento: ela e um contrato publico. Prometer 100
+# etiquetas quando o app da 200 e feio; prometer 200 quando o app da 100 e
+# reclamacao no primeiro dia. E "read-only" e a unica frase da lista que nenhum
+# concorrente pode escrever — perder ela sem perceber seria jogar fora a coisa
+# mais dificil de copiar que este app tem.
+_FICHA = _io.open("docs/ficha-loja-de-apps.md", encoding="utf-8").read()
+
+check("a ficha promete o mesmo numero de etiquetas gratis que o codigo da",
+      "%d labels/month" % cobranca.PLANOS["gratis"]["limite_etiquetas_mes"] in _FICHA,
+      cobranca.PLANOS["gratis"]["limite_etiquetas_mes"])
+check("e o mesmo preco do Pro",
+      "US$ %.2f" % cobranca.PLANOS["pro"]["preco_usd"] in _FICHA,
+      cobranca.PLANOS["pro"]["preco_usd"])
+check("e o mesmo nome que vai na fatura do lojista",
+      cobranca.NOME_DO_APP in _FICHA, cobranca.NOME_DO_APP)
+
+# "Read-only: the app never writes to your catalog" e verificavel: basta olhar
+# os escopos que a instalacao pede.
+if "Read-only" in _FICHA:
+    check("a ficha diz 'read-only' e o app REALMENTE nao pede escrita",
+          not [e for e in oauth.ESCOPOS if e.startswith("write")], oauth.ESCOPOS)
+
+# Toda simbologia citada na ficha tem que existir. Prometer Data Matrix numa
+# lista e a forma mais barata de virar reclamacao de uma estrela.
+_CITADAS = {"EAN-13": "EAN13", "UPC-A": "UPCA", "Code 128": "CODE128",
+            "ITF-14": "ITF14", "Data Matrix": "DATAMATRIX", "Code 39": "CODE39"}
+for _nome, _chave in _CITADAS.items():
+    if _nome not in _FICHA:
+        continue
+    _existe = True
+    try:
+        codigos.obter(_chave)
+    except ValueError:
+        _existe = False
+    check("a ficha cita %s, e o motor desenha %s" % (_nome, _nome), _existe)
+
+# A hospedagem citada na ficha e a mesma que o app usa pro link de instalacao.
+check("o endereco na ficha e o mesmo dos documentos de instalacao",
+      "etikbarcode.pythonanywhere.com" in _FICHA)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))
