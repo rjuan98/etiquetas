@@ -210,6 +210,10 @@ vista.
 
 ## O que ainda falta pra submeter
 
+> **A lista completa e conferida na fonte está em
+> [`antes-de-submeter.md`](antes-de-submeter.md)** — inclusive o que REPROVA o
+> app, o que já está certo, e a ordem que evita gastar antes da hora.
+
 - [x] **Ícone** — `docs/icone.png`, 1200×1200, sem texto. Regerar: `python docs/icone.py`
 - [x] **Capturas de tela** — `docs/capturas/`, quatro em 1600×900.
       Regerar: subir o servidor e `python docs/capturas.py`
@@ -217,8 +221,15 @@ vista.
       desde 30/08/2026
 - [ ] **Preencher `CONTATO_EMAIL`, `CONTATO_NOME` e `HOSPEDAGEM`** no `.env`,
       senão a política de privacidade vai ao ar dizendo "(preencha …)"
-- [ ] **`MODO_DEV=0`** em produção, senão o traceback do Flask fica exposto e a
-      rota `/dev/` existe
+- [x] **`MODO_DEV=0`** em produção — conferido em 30/08/2026: `/dev/` responde
+      404 no ar
+- [x] **`CONTATO_EMAIL`, `CONTATO_NOME` e `HOSPEDAGEM`** — conferidos na página
+      `/privacy` publicada, sem espaço por preencher
+- [ ] **Webhooks de privacidade declarados no painel** — os três apontando pra
+      `https://etikbarcode.pythonanywhere.com/webhooks`. **Sem isto o app é
+      reprovado**, e é o item mais fácil de esquecer
+- [ ] **Screencast** da instalação e dos recursos — exigido na submissão
+- [ ] **Instruções de teste** com como o revisor alcança o plano Pro
 
 ---
 

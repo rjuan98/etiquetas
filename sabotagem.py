@@ -480,6 +480,14 @@ SABOTAGENS = [
     # A ficha e um contrato publico. Prometer 200 etiquetas quando o codigo da
     # 100 e reclamacao no primeiro dia — e o tipo de divergencia que ninguem ve
     # porque ficha e codigo moram em arquivos diferentes.
+    # `webhookSubscriptionCreate` nao aceita topico de conformidade. Mandar os
+    # tres pela API gerava erro engolido pelo `except` e a falsa impressao de
+    # que estavam ligados — e sem a declaracao estatica a revisao REPROVA.
+    ("a instalacao nao tentando assinar os webhooks de privacidade",
+     "web/rotas_instalacao.py",
+     "    for topico in webhooks.ASSINADOS_NA_INSTALACAO:",
+     "    for topico in webhooks.TODOS:"),
+
     ("a ficha da loja prometendo o mesmo que o codigo entrega",
      "docs/ficha-loja-de-apps.md",
      "| Free | US$ 0 | 1 template, 200 labels/month, sheet labels (PDF) |",

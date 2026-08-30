@@ -2143,8 +2143,25 @@ check("a loja foi gravada", _gravada is not None)
 check("com o token que veio da troca", _gravada["token"] == "shpat_token_de_teste")
 check("e os escopos que a gente pede", _gravada["escopos"] == "read_products,read_inventory")
 check("ativa", _gravada["ativa"] is True)
-check("os webhooks foram assinados", _chamadas["graphql"] == len(webhooks.TODOS),
+# A versao anterior deste teste exigia que a instalacao assinasse TODOS os
+# webhooks, inclusive os tres de privacidade — e assim ELE GARANTIA O BUG.
+#
+# `webhookSubscriptionCreate` nao aceita topico de conformidade. As tres
+# chamadas falhavam, o erro era engolido pelo `except rede.ErroDeRede: pass` da
+# instalacao, e ficava a impressao de que estavam configurados. Nao estavam: os
+# tres se declaram UMA vez na configuracao do app, e sem essa declaracao a
+# revisao do Shopify REPROVA o app.
+#
+# E nem faria sentido assinar por loja: `shop/redact` chega 48 horas DEPOIS da
+# desinstalacao, quando o token daquela loja ja foi apagado.
+check("a instalacao assina so os webhooks NOSSOS",
+      _chamadas["graphql"] == len(webhooks.ASSINADOS_NA_INSTALACAO),
       _chamadas["graphql"])
+check("e os de privacidade ficam de fora, porque a API os recusa",
+      set(webhooks.ASSINADOS_NA_INSTALACAO).isdisjoint(webhooks.OBRIGATORIOS))
+check("mas a ROTA continua aceitando os cinco topicos",
+      set(webhooks.OBRIGATORIOS) <= set(webhooks.TODOS)
+      and set(webhooks.NOSSOS) <= set(webhooks.TODOS))
 check("a troca de token foi pro dominio da loja",
       _chamadas["url"] == "https://%s/admin/oauth/access_token" % _LOJA_NOVA,
       _chamadas.get("url"))

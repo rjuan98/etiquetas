@@ -34,9 +34,27 @@ EXPLICACAO_SEM_DADOS = (
 EXPLICACAO_NADA_A_APAGAR = (
     "There was nothing to erase: this app stores no customer data.")
 
+# Os três de privacidade. O app RESPONDE a eles, mas **não os assina pela API**:
+# a mutação `webhookSubscriptionCreate` não aceita tópico de conformidade, e
+# faria sentido nenhum mesmo se aceitasse — o `shop/redact` chega 48 horas DEPOIS
+# da desinstalação, quando o token daquela loja já foi apagado.
+#
+# Eles são declarados uma vez, na configuração do app (painel de Partner ou
+# `shopify.app.toml`), e valem pra todas as lojas. Sem essa declaração o app é
+# REPROVADO na revisão: "If you don't provide URLs for the mandatory compliance
+# webhooks […] then your app will be rejected".
 OBRIGATORIOS = ("customers/data_request", "customers/redact", "shop/redact")
+
+# Estes sim são assinados por loja, na instalação, pela API.
 NOSSOS = ("app/uninstalled", "app_subscriptions/update")
+
+# Todos os que a rota aceita receber — os assinados mais os declarados.
 TODOS = OBRIGATORIOS + NOSSOS
+
+# Os que a instalação assina. Mandar os de conformidade aqui era um erro: o
+# Shopify recusa, o erro era engolido pelo `except`, e ficava a impressão de que
+# estavam configurados quando não estavam.
+ASSINADOS_NA_INSTALACAO = NOSSOS
 
 
 class Recusado(Exception):

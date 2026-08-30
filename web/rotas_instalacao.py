@@ -152,7 +152,10 @@ def _assinar_webhooks(loja: str, token: str):
     """
     from loja import webhooks
     destino = "%s/webhooks" % config.URL_DO_APP
-    for topico in webhooks.TODOS:
+    # Só os NOSSOS. Os três de privacidade não se assinam por aqui — ver o
+    # comentário em `loja/webhooks.py`. Mandá-los gerava três erros engolidos
+    # pelo `except` lá embaixo, e a falsa impressão de que estavam ligados.
+    for topico in webhooks.ASSINADOS_NA_INSTALACAO:
         rede.graphql(loja, token, {
             "query": MUTACAO_WEBHOOK,
             "variables": {"topico": topico.upper().replace("/", "_"),
