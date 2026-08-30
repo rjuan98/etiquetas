@@ -101,6 +101,7 @@ web/               O FLASK
   dev.py                a tela rodando sem Shopify nenhum
 
 docs/              ficha da loja de apps, ícone e capturas — todos gerados por script
+docs/onde-estamos.md  ← COMECE AQUI: estado atual e próxima ação
 docs/decisao-*.md  decisões tomadas, com o gatilho pra reabrir escrito
 deploy/            subir no PythonAnywhere, ou montar um servidor do zero
 sabotagem.py       quebra cada defesa e confere que um teste grita
