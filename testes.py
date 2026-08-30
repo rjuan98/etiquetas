@@ -2896,6 +2896,199 @@ check("a descida considerada e a de fonte de verdade",
       0.15 <= receitas.DESCIDA_DA_LETRA <= 0.3, receitas.DESCIDA_DA_LETRA)
 
 
+import re as _re5
+
+secao("63. O codigo tem que caber na LARGURA, nao so na altura")
+
+# Até aqui só a altura era conferida. A etiqueta de 1"x1" mostrou o buraco: um
+# EAN-13 legível precisa de ~28,3mm e o papel tem 25,4mm. Nenhum formato do
+# catálogo esbarrava nisso — e medida livre deixaria qualquer largura entrar.
+
+check("EAN-13 precisa de mais de 28mm, e isso e a norma, nao escolha nossa",
+      27.5 <= codigos.largura_necessaria_mm(
+          codigos.EAN13, "7891234567895", 2, unidades.ZEBRA_203) <= 29.0,
+      codigos.largura_necessaria_mm(codigos.EAN13, "7891234567895", 2,
+                                    unidades.ZEBRA_203))
+
+check("Code128 fica mais largo com dado mais longo",
+      codigos.largura_necessaria_mm(codigos.CODE128, "A" * 20, 2, unidades.ZEBRA_203)
+      > codigos.largura_necessaria_mm(codigos.CODE128, "A", 2, unidades.ZEBRA_203) * 2)
+
+# A receita nao POSICIONA o que nao cabe, e o lojista le o motivo na tela.
+_um_por_um = receitas.montar("rolo_1x1", receitas.PADRAO)
+check("na etiqueta de 1x1 polegada o codigo nao entra",
+      not any(isinstance(e, CodigoBarras) for e in _um_por_um.elementos))
+check("e a tela diz QUAL campo nao coube, em vez de sumir calado",
+      receitas.nao_couberam(_um_por_um, receitas.PADRAO) == ["codigo_barras"],
+      receitas.nao_couberam(_um_por_um, receitas.PADRAO))
+check("numa etiqueta larga o mesmo codigo entra normalmente",
+      any(isinstance(e, CodigoBarras)
+          for e in receitas.montar("zebra_2x1", receitas.PADRAO).elementos))
+
+# E os motores sao a segunda rede: um Code128 comprido cabe no template e nao
+# cabe no papel, e isso so da pra saber com o dado do produto na mao.
+_estreita = receitas.montar("avery_5167", ("sku", "codigo_barras"),
+                            simbologia="CODE128")
+_comprido = {"produto": {"titulo": "Trufa"},
+             "variante": {"sku": "X", "preco": "1.00",
+                          "codigo_barras": "CAM-PRETA-TAM-M-2026-LOTE-99"}}
+_curto = {"produto": {"titulo": "Trufa"},
+          "variante": {"sku": "X", "preco": "1.00", "codigo_barras": "ABC123"}}
+check("codigo que vaza pela borda nao e impresso pelo ZPL",
+      "^BC" not in zpl.render(_estreita, _comprido))
+check("e o que cabe continua sendo impresso",
+      "^BC" in zpl.render(_estreita, _curto))
+check("a previa concorda com o ZPL: o que nao imprime, nao aparece",
+      ("<svg x=" in motor_svg.render(_estreita, _curto))
+      and ("<svg x=" not in motor_svg.render(_estreita, _comprido)))
+
+
+secao("64. O QR sai do MESMO tamanho nos tres motores")
+
+# Medido: o mesmo modelo com o mesmo dado saia 18,0mm no PDF e no SVG e 16,5mm
+# no ZPL. A causa e que o ^BQ do ZPL recebe uma MAGNIFICACAO inteira, e o motor
+# usava o `modulo_dots` — que e a largura da barra fina de um codigo linear e
+# nao diz nada sobre o tamanho de um QR.
+#
+# O perigo real nao e a diferenca de 1,5mm: e que no ZPL o tamanho dependia do
+# DADO. Uma URL longa (matriz 57) na magnificacao 4 da 28,5mm num campo de 18mm,
+# e o QR sai andando pra fora da etiqueta.
+
+_URLS = ("https://x.co/a",
+         "https://ecocasa.com.br/p/canudo-vidro-reto-20cm",
+         "https://loja.com.br/produtos/kit-canudos-de-vidro-reto-20cm-com-escova")
+
+
+def _lado_no_zpl(url, altura_mm=18.0):
+    t = Template(nome="qr", midia=Midia(50.8, 25.4), calibracao=Calibracao(),
+                 elementos=[CodigoBarras(x_mm=2, y_mm=4, campo="produto.url",
+                                         simbologia="QR", altura_mm=altura_mm,
+                                         modulo_dots=4)])
+    saida = zpl.render(t, {"produto": {"url": url}})
+    mag = int(_re5.search(r"\^BQN,2,(\d+)", saida).group(1))
+    return unidades.dots_para_mm(codigos.modulos_do_qr(url) * mag,
+                                 unidades.ZEBRA_203)
+
+
+def _lado_no_svg(url, altura_mm=18.0):
+    t = Template(nome="qr", midia=Midia(50.8, 25.4), calibracao=Calibracao(),
+                 elementos=[CodigoBarras(x_mm=2, y_mm=4, campo="produto.url",
+                                         simbologia="QR", altura_mm=altura_mm,
+                                         modulo_dots=4)])
+    saida = motor_svg.render(t, {"produto": {"url": url}})
+    return float(_re5.search(
+        r'<svg x="[0-9.]+" y="[0-9.]+" width="([0-9.]+)"', saida).group(1))
+
+
+for _url in _URLS:
+    check("QR de %d caracteres: ZPL e previa do mesmo tamanho" % len(_url),
+          abs(_lado_no_zpl(_url) - _lado_no_svg(_url)) < 0.05,
+          (_lado_no_zpl(_url), _lado_no_svg(_url)))
+    check("QR de %d caracteres: e perto do tamanho pedido" % len(_url),
+          abs(_lado_no_zpl(_url) - 18.0) <= 3.0, _lado_no_zpl(_url))
+
+# A magnificacao tem que sair da ALTURA. Se saisse do modulo_dots, ela seria a
+# mesma pros tres dados — que era exatamente o bug.
+_mags = {codigos.lado_do_qr_mm(u, 18.0, unidades.ZEBRA_203)[1] for u in _URLS}
+check("a magnificacao muda com o dado, porque a matriz muda", len(_mags) > 1, _mags)
+
+check("QR maior pedido vira QR maior desenhado",
+      _lado_no_zpl(_URLS[1], 24.0) > _lado_no_zpl(_URLS[1], 12.0),
+      (_lado_no_zpl(_URLS[1], 12.0), _lado_no_zpl(_URLS[1], 24.0)))
+
+
+secao("65. Os digitos sob o codigo sao escolha do lojista")
+
+# Numa Avery 5167 (44,45 x 12,7mm) a conta dava 0,07mm de FALTA pro SKU. Os
+# digitos sob as barras custam 2,6mm e repetem o que o codigo ja carrega; o SKU
+# nao esta em nenhum outro lugar da etiqueta. Quem escolhe e o lojista — e a
+# Saratoga Chocolate reclamou publicamente de SKU sumindo justamente nessa
+# etiqueta.
+_5167 = ("titulo", "sku", "preco", "codigo_barras")
+_com = receitas.montar("avery_5167", _5167, digitos_do_codigo=True)
+_sem = receitas.montar("avery_5167", _5167, digitos_do_codigo=False)
+
+check("com os digitos ligados, so o codigo cabe na 5167",
+      receitas.nao_couberam(_com, _5167) == ["titulo", "sku", "preco"],
+      receitas.nao_couberam(_com, _5167))
+check("desligando os digitos, os quatro campos cabem",
+      receitas.nao_couberam(_sem, _5167) == [],
+      receitas.nao_couberam(_sem, _5167))
+check("e o padrao continua sendo imprimir os digitos",
+      [e.mostrar_texto for e in receitas.montar("zebra_2x1").elementos
+       if isinstance(e, CodigoBarras)] == [True])
+check("desligado, o ZPL para de pedir o texto legivel",
+      ",N,N" in zpl.render(
+          receitas.montar("zebra_2x1", receitas.PADRAO, digitos_do_codigo=False),
+          _PRODUTO_EXEMPLO))
+
+# O aviso tem que sair do template DESENHADO. A versao anterior remontava com os
+# padroes, e ai quem escolhesse Code128 numa etiqueta estreita via o codigo
+# sumir da previa sem aviso nenhum — porque o aviso fora calculado com EAN-13.
+check("o aviso e calculado sobre o template que foi desenhado",
+      receitas.nao_couberam(_sem, _5167)
+      != receitas.nao_couberam(_com, _5167))
+
+
+secao("66. Medida livre: o lojista digita a etiqueta que ele tem")
+
+# THATS-RALLY e Rill reclamaram publicamente de nao poder digitar a medida da
+# etiqueta que ja compraram. So deu pra fazer depois da conferencia de largura:
+# sem ela, digitar 20mm devolveria um codigo de barras serrado pela borda.
+
+_liv = receitas.montar("livre", receitas.PADRAO, largura_mm=40, altura_mm=20)
+check("a etiqueta sai com a medida digitada",
+      (_liv.midia.largura_mm, _liv.midia.altura_mm) == (40.0, 20.0),
+      (_liv.midia.largura_mm, _liv.midia.altura_mm))
+check("e o catalogo nao ganhou um formato fantasma",
+      "livre" not in [f.codigo for f in _fmt.CATALOGO])
+check("40x20mm comporta os quatro campos",
+      receitas.nao_couberam(_liv, receitas.PADRAO) == [],
+      receitas.nao_couberam(_liv, receitas.PADRAO))
+
+# O caso que so existe por causa da medida livre: uma largura que nenhum
+# formato do catalogo tem, e onde o codigo de barras nao cabe.
+_quadrada = receitas.montar("livre", receitas.PADRAO, largura_mm=25.4, altura_mm=25.4)
+check("largura estreita: o codigo nao entra, e a tela diz qual campo foi",
+      receitas.nao_couberam(_quadrada, receitas.PADRAO) == ["codigo_barras"],
+      receitas.nao_couberam(_quadrada, receitas.PADRAO))
+check("e nao sobra codigo nenhum vazando pela borda",
+      not any(isinstance(e, CodigoBarras) for e in _quadrada.elementos))
+
+for _L, _A, _porque in ((5, 20, "largura menor que o minimo"),
+                        (400, 20, "largura maior que o maximo"),
+                        (40, 2, "altura menor que o minimo"),
+                        ("dois", 20, "largura que nao e numero")):
+    try:
+        receitas.montar("livre", receitas.PADRAO, largura_mm=_L, altura_mm=_A)
+        check("medida recusada: %s" % _porque, False, "aceitou %rx%r" % (_L, _A))
+    except ValueError:
+        check("medida recusada: %s" % _porque, True)
+
+# Pela rota, porque erro de medida tem que virar 400 e nao 500 — o lojista
+# precisa LER o motivo, nao ver "erro interno".
+_r = _post("/api/previa", "loja-a.myshopify.com",
+           {"receita": {"formato": "livre", "largura_mm": 40, "altura_mm": 20},
+            "produto": {"titulo": "Camiseta"},
+            "variante": {"sku": "A", "preco": "10.00",
+                         "codigo_barras": "7891234567895"}})
+check("a previa desenha a medida livre", _r.status_code == 200, _r.status_code)
+check("e devolve a medida que foi pedida",
+      (_r.get_json().get("largura_mm"), _r.get_json().get("altura_mm")) == (40.0, 20.0),
+      _r.get_json().get("largura_mm"))
+
+_r = _post("/api/previa", "loja-a.myshopify.com",
+           {"receita": {"formato": "livre", "largura_mm": 4000, "altura_mm": 20},
+            "produto": {}, "variante": {}})
+check("medida absurda da 400 com motivo, nao 500", _r.status_code == 400, _r.status_code)
+check("e o motivo diz os limites", "300" in (_r.get_json().get("erro") or ""),
+      _r.get_json().get("erro"))
+
+_r = _pega("/api/formatos", "loja-a.myshopify.com")
+check("a tela recebe os limites pra montar o campo",
+      _r.get_json()["livre"]["menor_mm"] == _fmt.MENOR_MEDIDA_MM)
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

@@ -125,3 +125,136 @@ def margem_esquerda_mm(simbologia: Simbologia, modulo_dots: int, dpi: int) -> fl
 def margem_direita_mm(simbologia: Simbologia, modulo_dots: int, dpi: int) -> float:
     from . import unidades
     return unidades.dots_para_mm(simbologia.zona_muda_dir * modulo_dots, dpi)
+
+
+# Quantos módulos cada símbolo ocupa. É estrutura da norma, não escolha nossa.
+#
+#   EAN-13 e UPC-A têm largura FIXA: 95 módulos, sempre, não importa o número.
+#   Code 128 é variável: 11 por caractere, mais 35 de início, verificador e fim.
+MODULOS_FIXOS = {"EAN13": 95, "UPCA": 95}
+MODULOS_POR_CARACTERE = 11
+MODULOS_DE_ENQUADRAMENTO = 35
+
+
+def modulos_do_qr(valor: str, correcao: str = "M") -> int:
+    """Quantos módulos tem o lado da matriz do QR, pro dado que ele vai levar.
+
+    Depende do tamanho do dado e do nível de correção: uma URL de 47 caracteres
+    dá 33×33; uma de 120 dá 57×57. É por isso que QR não tem largura fixa como o
+    EAN-13 tem.
+    """
+    from reportlab.graphics.barcode import qr
+
+    nivel = (correcao or "M").upper()[:1]
+    if nivel not in "LMQH":
+        nivel = "M"
+    widget = qr.QrCodeWidget(valor or " ", barLevel=nivel)
+    widget.draw()
+    return len(widget.qr.modules)
+
+
+def lado_do_qr_mm(valor: str, altura_mm: float, dpi: int,
+                  correcao: str = "M") -> tuple:
+    """O lado FÍSICO do QR e a magnificação que produz esse lado.
+
+    Existe por causa de uma divergência medida entre os motores: o mesmo modelo,
+    com o mesmo dado, saía **18,0mm no PDF e no SVG e 16,5mm no ZPL**.
+
+    A causa é que o ZPL não aceita "desenhe com 18mm". O `^BQ` recebe uma
+    MAGNIFICAÇÃO inteira, e o lado é `módulos × magnificação` — então o tamanho
+    físico depende do tamanho do dado. O motor usava `modulo_dots` como
+    magnificação, que não tem relação nenhuma com o tamanho pedido: uma URL
+    longa (matriz 57) na magnificação 4 dá 28,5mm num campo de 18mm, e o QR sai
+    andando pra fora da etiqueta.
+
+    A saída é escolher a magnificação que chega mais perto da altura pedida, e
+    fazer os TRÊS motores desenharem esse lado. O QR fica quantizado — 16,5mm em
+    vez de 18mm — mas os três concordam, que é a promessa do projeto. Etiqueta
+    que muda de tamanho conforme a impressora é o defeito que a gente corrige.
+    """
+    from . import unidades
+
+    modulos = modulos_do_qr(valor, correcao)
+    alvo_dots = unidades.mm_para_dots(max(0.0, altura_mm), dpi)
+    magnificacao = max(1, min(10, round(alvo_dots / modulos)))
+    return unidades.dots_para_mm(modulos * magnificacao, dpi), magnificacao
+
+
+def largura_necessaria_mm(simbologia: Simbologia, valor: str, modulo_dots: int,
+                          dpi: int, altura_mm: float = 0.0) -> float:
+    """Quanto de largura o código precisa, com zona muda, pra caber de verdade.
+
+    Existe porque um código que não cabe **não encolhe: ele vaza pela borda**, e
+    o lojista só descobre no papel. É o mesmo tipo de defeito que este app existe
+    pra corrigir, então deixá-lo passar aqui seria contradição.
+
+    Apareceu ao acrescentar a etiqueta de 1x1 polegada: um EAN-13 legível precisa
+    de ~28mm e o papel tem 25,4mm. Não é limitação nossa — é a norma contra a
+    régua. Nenhum formato do catálogo esbarrava nisso, mas medida livre deixaria
+    qualquer largura ser digitada.
+    """
+    from . import unidades
+
+    if simbologia.bidimensional:
+        # QR é quadrado: a largura é o lado — e o lado é o que os motores VÃO
+        # desenhar, não o que o modelo pediu. Ver `lado_do_qr_mm`.
+        lado, mag = lado_do_qr_mm(valor, altura_mm, dpi)
+        return lado + (margem_esquerda_mm(simbologia, mag, dpi)
+                       + margem_direita_mm(simbologia, mag, dpi))
+
+    modulos = MODULOS_FIXOS.get(simbologia.nome)
+    if modulos is None:
+        modulos = (MODULOS_POR_CARACTERE * len(valor or "")
+                   + MODULOS_DE_ENQUADRAMENTO)
+
+    barras = unidades.dots_para_mm(modulos * max(1, modulo_dots), dpi)
+    return (barras
+            + margem_esquerda_mm(simbologia, modulo_dots, dpi)
+            + margem_direita_mm(simbologia, modulo_dots, dpi))
+
+
+# O código mais curto que cada simbologia produz na prática. Serve pra responder
+# uma pergunta diferente da do `cabe_na_largura`: não "este código cabe", mas
+# "ALGUM código desta simbologia caberia neste papel?".
+#
+# EAN-13 e UPC-A têm largura fixa, então aqui o valor é exato. Code128 varia com
+# o dado, e 6 caracteres é o SKU curto de verdade — mais curto que isso ninguém
+# usa, e usar 1 caractere daria uma resposta otimista e inútil.
+VALOR_MAIS_CURTO = {
+    "EAN13": "7891234567895",
+    "UPCA": "012345678905",
+    "CODE128": "ABC123",
+    "QRCODE": "ABC123",
+}
+
+
+def largura_minima_mm(simbologia: Simbologia, modulo_dots: int, dpi: int,
+                      altura_mm: float = 0.0) -> float:
+    """O menor espaço horizontal em que esta simbologia ainda produz código.
+
+    É o que o montador de layout usa pra decidir se o código de barras entra:
+    se nem o mais curto cabe na largura do papel, o campo não entra e o lojista
+    lê o motivo na tela — em vez de ligar o código, não ver nada, e concluir que
+    o app está quebrado.
+    """
+    return largura_necessaria_mm(
+        simbologia, VALOR_MAIS_CURTO.get(simbologia.nome, "ABC123"),
+        modulo_dots, dpi, altura_mm)
+
+
+def cabe_na_largura(simbologia: Simbologia, valor: str, modulo_dots: int, dpi: int,
+                    x_mm: float, largura_da_etiqueta_mm: float,
+                    altura_mm: float = 0.0) -> bool:
+    """O código cabe no papel a partir de onde ele foi posicionado?
+
+    Os três motores chamam isto logo depois do `validar`, e pelo mesmo motivo:
+    código que vaza pela borda não bipa, exatamente como código com verificador
+    errado não bipa. A diferença é que este o lojista **só descobre no papel**.
+
+    Etiqueta sem medida (largura zero ou negativa) devolve True: quem valida
+    medida é o `esquema`, e não cabe a esta função ter opinião sobre isso.
+    """
+    if largura_da_etiqueta_mm <= 0:
+        return True
+    precisa = largura_necessaria_mm(simbologia, valor, modulo_dots, dpi, altura_mm)
+    return x_mm + precisa <= largura_da_etiqueta_mm + 0.01

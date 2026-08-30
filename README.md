@@ -29,6 +29,7 @@ As reclamações que se repetem, e o que este motor faz sobre cada uma:
 | "digitar 1 pra cada código", com 2.000 | quantidade é parâmetro, não digitação |
 | sumiu o SKU da etiqueta | texto fixo e prefixo em qualquer elemento |
 | etiqueta que às vezes não bipa | zona muda como regra, não como sorte |
+| tamanho de etiqueta não é livre | largura e altura em milímetro |
 
 ---
 
@@ -55,7 +56,7 @@ etiquetas/         O MOTOR — não sabe o que é Shopify
   texto.py         quebra, corte, encolhimento
   modelo.py        Template, Mídia, Calibração, Texto, Preço, CódigoBarras
   esquema.py       JSON, versão e validação
-  formatos.py      catálogo de papel pronto (Avery, DYMO, Zebra, Pimaco)
+  formatos.py      catálogo de papel pronto + medida livre
   valores.py       o valor final de um elemento ← a ÚNICA regra
   receitas.py      escolhas do lojista → Template montado
   motores/
@@ -125,6 +126,36 @@ pros dois lados, então `^LH` não serve.
 Aplicando no modelo, os três motores calibram igual, com o mesmo número, testado
 uma vez.
 
+### O código também precisa CABER
+
+Zona muda resolve o espaço em branco; falta o óbvio, que passou despercebido até
+a etiqueta de 1"×1" entrar no catálogo: **um código que não cabe não encolhe —
+ele vaza pela borda.** Um EAN-13 legível precisa de 28,3mm de largura, e aquele
+papel tem 25,4mm. Não é limitação do app; é a norma contra a régua.
+
+Nenhum dos formatos prontos esbarrava nisso, então o defeito estava invisível. A
+medida livre teria tornado ele rotina.
+
+A conta é feita em dois lugares, e de propósito. A **receita** confere se algum
+código daquela simbologia caberia, e quando não cabe o campo não entra e o
+lojista lê o motivo na tela. Os **motores** conferem de novo com o dado do
+produto na mão — porque um Code128 fica mais largo conforme o SKU, e isso só dá
+pra saber na hora de imprimir aquele produto.
+
+### O QR sai do mesmo tamanho nos três motores
+
+Achado medindo o item acima: o mesmo modelo com o mesmo dado saía **18,0mm no
+PDF e na prévia e 16,5mm no ZPL**.
+
+A causa é que o `^BQ` do ZPL não aceita "desenhe com 18mm" — ele recebe uma
+magnificação inteira, e o lado é `módulos × magnificação`. O motor passava o
+`modulo_dots`, que é a largura da barra fina de um código linear e não diz nada
+sobre QR. O perigo real não era 1,5mm de diferença: era o tamanho depender do
+DADO. Uma URL longa (matriz 57) na magnificação 4 dá 28,5mm num campo de 18mm, e
+o QR sai andando pra fora da etiqueta.
+
+Agora o lado sai de um lugar só, e os três motores desenham o mesmo.
+
 ### Zona muda é regra, não sorte
 
 Todo código de barras exige papel em branco antes e depois das barras. Sem isso o
@@ -178,7 +209,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **829 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **883 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -191,7 +222,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 37 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 46 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
@@ -243,7 +274,7 @@ etiqueta pronta. O navegador não sabe o que é milímetro.
 ## Estado
 
 Prontos e testados: motores **ZPL**, **PDF** e **SVG** (EAN-13, UPC-A, Code128,
-QR), 11 formatos de papel, o **lado Shopify** inteiro (OAuth, token de sessão,
+QR), 13 formatos de papel mais medida livre, o **lado Shopify** inteiro (OAuth, token de sessão,
 webhooks, catálogo, cobrança), o **banco** com isolamento entre lojas, as
 **rotas Flask** e a **tela** — escolher produtos, montar a etiqueta, ver a
 prévia, baixar PDF ou ZPL, e a régua de calibração.

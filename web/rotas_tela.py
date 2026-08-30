@@ -208,6 +208,20 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
       <label for="formato">{{ T.formato_do_papel }}</label>
       <select id="formato"></select>
 
+      <div id="medida_livre" hidden style="margin:9px 0 0">
+        <div class="par">
+          <div>
+            <label for="largura_mm">{{ T.largura_mm }}</label>
+            <input type="number" id="largura_mm" step="0.1" value="50.8">
+          </div>
+          <div>
+            <label for="altura_mm">{{ T.altura_mm }}</label>
+            <input type="number" id="altura_mm" step="0.1" value="25.4">
+          </div>
+        </div>
+        <p class="ajuda">{{ T.medida_ajuda }}</p>
+      </div>
+
       <details>
         <summary>{{ T.preco_e_codigo }}</summary>
         <div class="par" style="margin:10px 0 0">
@@ -245,6 +259,11 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
         <label style="display:flex;align-items:center;gap:8px;margin:11px 0 0;
                       font-size:13px;color:var(--tinta);cursor:pointer">
           <input type="checkbox" id="rotulo_sku" checked> {{ T.rotulo_sku }}
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin:7px 0 0;
+                      font-size:13px;color:var(--tinta);cursor:pointer">
+          <input type="checkbox" id="digitos_do_codigo" checked>
+          {{ T.digitos_do_codigo }}
         </label>
       </details>
 
@@ -303,6 +322,8 @@ const escolhidos = new Map();           // id da variante → quantidade
 function receita() {
   return {
     formato: $("formato").value,
+    largura_mm: parseFloat($("largura_mm").value) || 0,
+    altura_mm: parseFloat($("altura_mm").value) || 0,
     campos: Array.from(document.querySelectorAll(".campo:checked"))
                  .map(function (c) { return c.value; }),
     simbolo: $("simbolo").value,
@@ -310,6 +331,7 @@ function receita() {
     separador_decimal: $("decimal").value,
     separador_milhar: $("decimal").value === "," ? "." : ",",
     rotulo_sku: $("rotulo_sku").checked,
+    digitos_do_codigo: $("digitos_do_codigo").checked,
     simbologia: $("simbologia").value,
     desvio_x_mm: parseFloat($("dx").value) || 0,
     desvio_y_mm: parseFloat($("dy").value) || 0
@@ -325,9 +347,18 @@ let salvo = null;            // JSON da receita como está no banco
 let limiteModelos = 0;       // 0 = sem limite
 let quantosModelos = 0;
 
+let LIVRE = null;            // o codigo e os limites da medida livre
+
+function mostrarMedidaLivre() {
+  $("medida_livre").hidden = !LIVRE || $("formato").value !== LIVRE.codigo;
+}
+
 function aplicarReceita(r) {
   const set = function (id, v) { if (v !== undefined) $(id).value = v; };
   set("formato", r.formato);
+  if (r.largura_mm) { $("largura_mm").value = r.largura_mm; }
+  if (r.altura_mm) { $("altura_mm").value = r.altura_mm; }
+  mostrarMedidaLivre();
   set("simbolo", r.simbolo);
   set("posicao", r.simbolo_depois ? "depois" : "antes");
   set("decimal", r.separador_decimal);
@@ -335,6 +366,7 @@ function aplicarReceita(r) {
   set("dx", r.desvio_x_mm);
   set("dy", r.desvio_y_mm);
   $("rotulo_sku").checked = r.rotulo_sku !== false;
+  $("digitos_do_codigo").checked = r.digitos_do_codigo !== false;
   const ligados = r.campos || [];
   document.querySelectorAll(".campo").forEach(function (c) {
     c.checked = ligados.indexOf(c.value) >= 0;
@@ -757,6 +789,19 @@ async function comecar() {
     o.textContent = f.nome + " — " + f.largura_mm + "×" + f.altura_mm + "mm";
     $("formato").appendChild(o);
   });
+  // Medida livre entra por último, depois do catálogo: quem tem uma etiqueta
+  // conhecida escolhe pelo nome, e só quem não achou a dele desce até aqui.
+  if (d.livre) {
+    LIVRE = d.livre;
+    const o = document.createElement("option");
+    o.value = d.livre.codigo;
+    o.textContent = d.livre.nome;
+    $("formato").appendChild(o);
+    $("largura_mm").min = $("altura_mm").min = d.livre.menor_mm;
+    $("largura_mm").max = $("altura_mm").max = d.livre.maior_mm;
+  }
+  $("formato").addEventListener("change", mostrarMedidaLivre);
+  mostrarMedidaLivre();
 
   const marcados = d.padrao || [];
   $("campos").innerHTML = "";
@@ -771,7 +816,8 @@ async function comecar() {
     $("campos").appendChild(l);
   });
 
-  ["formato", "simbolo", "posicao", "decimal", "simbologia", "rotulo_sku", "dx", "dy"]
+  ["formato", "simbolo", "posicao", "decimal", "simbologia", "rotulo_sku",
+   "digitos_do_codigo", "largura_mm", "altura_mm", "dx", "dy"]
     .forEach(function (id) { $(id).addEventListener("change", mudou); });
 
   $("modelo").addEventListener("change", function () {

@@ -67,13 +67,24 @@ resolve queima o contato e é desonesto.
 Todas a mesma frase: nada vem marcado, e a quantidade sai do estoque. Recebeu 40
 unidades, são 40 etiquetas.
 
-### Nível 3 — resolve em parte, e vale ser honesto sobre o resto
+### Nível 3 — eram "resolve em parte", e deixaram de ser
 
-| loja | país | a queixa | a ressalva |
+As três ressalvas foram construídas em **30/08/2026**, justamente porque cada
+uma tinha nome e sobrenome.
+
+| loja | país | a queixa | o que dizer |
 |---|---|---|---|
-| **Saratoga Chocolate Co.** | EUA | SKU sumiu das etiquetas Avery 5167 | O SKU volta, mas **a 5167 não está no nosso catálogo** ainda |
-| **THATS-RALLY** | Alemanha | tamanhos de etiqueta não são livres | Temos 11 formatos prontos, mas **não medida livre** |
-| **Rill** | EUA | 1"x1" e etiqueta de joia não imprimem | Temos a de joia; **1"x1" não está no catálogo** |
+| **Saratoga Chocolate Co.** | EUA | SKU sumiu das etiquetas Avery 5167 | A 5167 está no catálogo, e os quatro campos cabem nela — título, SKU, preço e código. |
+| **THATS-RALLY** | Alemanha | tamanhos de etiqueta não são livres | Dá pra digitar largura e altura da etiqueta que você já comprou. |
+| **Rill** | EUA | 1"x1" e etiqueta de joia não imprimem | As duas estão no catálogo. **Com a ressalva abaixo.** |
+
+> **A ressalva honesta do 1"×1".** Nessa etiqueta cabe **QR**, e não cabe código
+> de barras linear: um EAN-13 legível precisa de 28,3mm de largura e o papel tem
+> 25,4mm. Isso é a norma contra a régua, não limitação do app — e nenhum
+> concorrente resolve, porque não tem como. O app **diz isso na tela** em vez de
+> imprimir um código serrado pela borda.
+>
+> Escrever pra Rill sem essa frase seria vender o que a gente não entrega.
 
 ### Não escrever
 
@@ -117,18 +128,19 @@ Etik.
 
 ## O que a lista ensinou sobre o produto
 
-Duas coisas que **gente com nome** está pedindo e a gente não tem:
+Duas coisas que **gente com nome** estava pedindo, feitas em 30/08/2026:
 
-- **Medida livre de etiqueta.** THATS-RALLY e Rill esbarram nisso. Hoje há 11
-  formatos prontos e nenhum jeito de digitar uma medida.
-- **Avery 5167 e 1"x1".** Duas medidas ausentes do catálogo, cada uma ligada a
-  um prospecto direto.
+- **Medida livre de etiqueta** — THATS-RALLY e Rill. São 13 formatos prontos e,
+  no fim da lista, "medida livre" com dois campos em milímetro.
+- **Avery 5167 e 1"×1"** — Saratoga e Rill. As duas entraram no catálogo.
 
-As duas são baratas: a segunda é acrescentar linhas ao `formatos.py`, e a
-primeira é um formulário de largura e altura que o motor já sabe usar.
+E a lista pagou um dividendo que ninguém pediu: **acrescentar o 1"×1" revelou
+que o app não conferia se o código de barras cabia na LARGURA da etiqueta.**
+Nenhum formato do catálogo esbarrava nisso, então o defeito estava invisível — e
+a medida livre teria deixado qualquer lojista digitar 20mm e receber um código
+serrado pela borda. Exatamente o defeito que o app existe pra corrigir.
 
-Vale fazer **antes** de escrever para o Nível 3 — assim a mensagem deixa de ter
-ressalva.
+Foi consertado antes da medida livre existir.
 
 ---
 

@@ -115,12 +115,24 @@ def _codigo_svg(el: CodigoBarras, template: Template, dados: dict) -> list:
         # assim que ele descobre o cadastro errado antes de gastar etiqueta.
         return []
 
+    # Idem pro que vaza pela borda: some da prévia, então o lojista descobre
+    # ANTES de imprimir, em vez de descobrir no papel.
+    if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots,
+                                   unidades.ZEBRA_203, el.x_mm,
+                                   template.midia.largura_mm, el.altura_mm):
+        return []
+
     modulo_mm = unidades.dots_para_mm(el.modulo_dots, unidades.ZEBRA_203)
     x_mm, y_mm = template.com_calibracao(el)
     x_mm += codigos.margem_esquerda_mm(simbologia, el.modulo_dots, unidades.ZEBRA_203)
 
     if simbologia.bidimensional:
-        lado = unidades.mm_para_pontos(el.altura_mm)
+        # O lado sai de `codigos`, não do `altura_mm` cru: é lá que mora a
+        # quantização que faz o ZPL, o PDF e a prévia desenharem o MESMO
+        # tamanho. Ver `lado_do_qr_mm`.
+        lado_mm, _mag = codigos.lado_do_qr_mm(
+            valor, el.altura_mm, unidades.ZEBRA_203, el.correcao_qr)
+        lado = unidades.mm_para_pontos(lado_mm)
         desenho = createBarcodeDrawing(NOME_REPORTLAB[simbologia.nome],
                                        value=valor, barWidth=lado, barHeight=lado)
     else:

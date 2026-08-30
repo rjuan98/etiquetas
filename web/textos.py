@@ -67,6 +67,15 @@ TEXTOS = {
     "posicao":             {"en": "Position",            "pt": "Posição"},
     "decimal":             {"en": "Decimal",             "pt": "Decimal"},
     "tipo_de_codigo":      {"en": "Barcode type",        "pt": "Tipo de código"},
+    "formato_livre":       {"en": "Custom size",  "pt": "Medida livre"},
+    "largura_mm":          {"en": "Width (mm)",   "pt": "Largura (mm)"},
+    "altura_mm":           {"en": "Height (mm)",  "pt": "Altura (mm)"},
+    "medida_ajuda":        {"en": "Measure one label with a ruler — the paper, "
+                                  "not the backing sheet.",
+                            "pt": "Meça uma etiqueta com régua — o papel dela, "
+                                  "não a folha inteira."},
+    "digitos_do_codigo":   {"en": "Print the digits under the barcode",
+                            "pt": "Imprimir os dígitos sob o código"},
     "rotulo_sku":          {"en": 'Write "SKU:" before the code',
                             "pt": 'Escrever "SKU:" antes do código'},
 

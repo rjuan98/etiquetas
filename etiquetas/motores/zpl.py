@@ -101,6 +101,13 @@ def _render_codigo(el: CodigoBarras, template: Template, dados: dict, dpi: int) 
         # é pior que não imprimir: o lojista só descobre no caixa, com fila.
         return []
 
+    # Código que vaza pela borda também não bipa — e esse o lojista só descobre
+    # no papel. Mesma regra, mesmo lugar.
+    if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots, dpi,
+                                   el.x_mm, template.midia.largura_mm,
+                                   el.altura_mm):
+        return []
+
     x_mm, y_mm = template.com_calibracao(el)
 
     # A zona muda é somada por baixo: a pessoa posiciona onde quer e a norma é
@@ -121,8 +128,14 @@ def _render_codigo(el: CodigoBarras, template: Template, dados: dict, dpi: int) 
         correcao = (el.correcao_qr or "M").upper()[:1]
         if correcao not in "LMQH":
             correcao = "M"
+        # A magnificação vem da ALTURA pedida, não do `modulo_dots`. Usar o
+        # modulo_dots era o bug: ele é a largura da barra fina de um código
+        # linear e não diz nada sobre o tamanho de um QR, então o mesmo modelo
+        # saía 16,5mm aqui e 18,0mm no PDF. Ver `codigos.lado_do_qr_mm`.
+        _lado_mm, magnificacao = codigos.lado_do_qr_mm(
+            valor, el.altura_mm, dpi, correcao)
         return ["^FO%d,%d^BQN,2,%d^FD%sA,%s^FS"
-                % (x, y, max(1, el.modulo_dots), correcao, _escapar(valor))]
+                % (x, y, magnificacao, correcao, _escapar(valor))]
 
     saida = ["^BY%d,3,%d" % (el.modulo_dots, altura)]
     if simbologia is codigos.CODE128:

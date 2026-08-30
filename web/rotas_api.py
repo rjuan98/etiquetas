@@ -131,6 +131,9 @@ def _receita_do_pedido(dados: dict):
         separador_decimal=str(r.get("separador_decimal", ","))[:1] or ",",
         separador_milhar=str(r.get("separador_milhar", "."))[:1],
         rotulo_sku=bool(r.get("rotulo_sku", True)),
+        digitos_do_codigo=bool(r.get("digitos_do_codigo", True)),
+        largura_mm=r.get("largura_mm") or 0,
+        altura_mm=r.get("altura_mm") or 0,
         simbologia=str(r.get("simbologia", "EAN13")),
         desvio_x_mm=float(r.get("desvio_x_mm") or 0),
         desvio_y_mm=float(r.get("desvio_y_mm") or 0),
@@ -183,6 +186,13 @@ def lista_de_formatos(loja):
             "por_folha": (f.midia.colunas * f.midia.linhas
                           if f.midia.tipo == "folha" else 0),
         } for f in formatos.CATALOGO],
+        # Medida livre não é um formato do catálogo — é o lojista digitando.
+        # A tela precisa do código e dos limites pra montar o campo e avisar
+        # antes de mandar um número que o motor vai recusar.
+        "livre": {"codigo": formatos.LIVRE,
+                  "nome": _t("formato_livre"),
+                  "menor_mm": formatos.MENOR_MEDIDA_MM,
+                  "maior_mm": formatos.MAIOR_MEDIDA_MM},
         "campos": [{"chave": k, "nome": _t("campo_" + k)} for k in receitas.CAMPOS],
         "padrao": list(receitas.PADRAO),
     })
@@ -216,8 +226,10 @@ def previa(loja):
         "svg": desenho,
         # O que o lojista pediu e não coube. Sem isto ele liga "fornecedor", não
         # vê diferença nenhuma e conclui que o app está quebrado.
-        "nao_coube": receitas.cabem_os_campos(
-            r.get("formato") or "zebra_2x1",
+        # Sai do template que ACABOU de ser desenhado, não de um remontado
+        # nos padrões — senão o aviso pode discordar da prévia logo acima.
+        "nao_coube": receitas.nao_couberam(
+            template,
             tuple(campos) if isinstance(campos, list) else receitas.PADRAO),
         "largura_mm": template.midia.largura_mm,
         "altura_mm": template.midia.altura_mm,

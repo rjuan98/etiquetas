@@ -78,6 +78,12 @@ CATALOGO = [
             _folha(99.1, 38.1, A4, 2, 7, 15.1, 5.0, 2.5, 0.0), "Avery (A4)"),
     Formato("pimaco_6180", "6180 — 20 por folha",
             _folha(101.6, 25.4, CARTA, 2, 10, 12.7, 4.8, 3.2, 0.0), "Pimaco (Brasil)"),
+    # Pedidos por lojistas que reclamaram do app oficial, com nome e loja.
+    # Ver docs/primeiros-lojistas.md — demanda com nome vale mais que palpite.
+    Formato("avery_5167", "5167 — 80 por folha",
+            _folha(44.45, 12.7, CARTA, 4, 20, 12.7, 7.62, 7.62, 0.0), "Avery (Carta)"),
+    Formato("rolo_1x1", "1 x 1 pol",
+            Midia(largura_mm=25.4, altura_mm=25.4), "Rolo"),
     # Faltam os formatos A4 da Pimaco, que é o papel mais vendido no Brasil.
     #
     # Eu tinha posto um aqui, deduzido por analogia com a versão Carta — e a
@@ -90,6 +96,38 @@ CATALOGO = [
 ]
 
 POR_CODIGO = {f.codigo: f for f in CATALOGO}
+
+
+# Medida livre: o lojista digita largura e altura, e o resto do motor trata
+# igual a um rolo. Pedido por nome — THATS-RALLY e Rill reclamaram publicamente
+# de não poder digitar a medida da etiqueta que já compraram.
+LIVRE = "livre"
+
+# Os limites são de bom senso, não de norma. Abaixo de 8mm não cabe nem uma
+# linha de texto legível; acima de 300mm não existe impressora de etiqueta, e
+# número absurdo aqui vira etiqueta gigante que trava o navegador na prévia.
+MENOR_MEDIDA_MM = 8.0
+MAIOR_MEDIDA_MM = 300.0
+
+
+def midia_livre(largura_mm: float, altura_mm: float) -> Midia:
+    """Uma mídia com a medida que o lojista digitou, dentro do bom senso.
+
+    Não valida em silêncio: medida fora dos limites levanta erro, porque a
+    alternativa é o lojista digitar 2000 e receber uma etiqueta que nenhuma
+    impressora aceita, sem entender por quê.
+    """
+    for nome, valor in (("largura", largura_mm), ("altura", altura_mm)):
+        try:
+            valor = float(valor)
+        except (TypeError, ValueError):
+            raise ValueError("%s tem que ser um número" % nome)
+        if not (MENOR_MEDIDA_MM <= valor <= MAIOR_MEDIDA_MM):
+            raise ValueError(
+                "%s de %.1fmm está fora do que dá pra imprimir (%.0f a %.0fmm)"
+                % (nome, valor, MENOR_MEDIDA_MM, MAIOR_MEDIDA_MM))
+    return Midia(largura_mm=float(largura_mm), altura_mm=float(altura_mm),
+                 tipo="rolo")
 
 
 def obter(codigo: str) -> Formato:

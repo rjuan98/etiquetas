@@ -27,7 +27,7 @@ código de barras encolhe até o mínimo que ainda bipa. **Etiqueta com código 
 barras ilegível é pior que etiqueta sem código**, porque o defeito só aparece no
 caixa, com fila.
 """
-from . import formatos
+from . import codigos, formatos, unidades
 from .modelo import Calibracao, CodigoBarras, Preco, Template, Texto
 
 # Os campos que a tela oferece, na ordem em que aparecem na etiqueta. A chave é o
@@ -62,6 +62,11 @@ ORDEM_VISUAL = ("titulo", "variante", "fornecedor", "sku", "preco", "codigo_barr
 # Altura mínima de barra que ainda bipa com folga em leitor de caixa. Abaixo
 # disso o leitor precisa de mira boa e mão parada, que é o oposto de fila.
 BARRA_MINIMA_MM = 6.0
+
+# Largura de cada barra fina, em dots de impressora térmica. Dois dots a 203dpi
+# dão 0,25mm, que é o mínimo confortável pra leitor de mão barato — um dot só
+# depende de impressora bem regulada e de etiqueta que não borra.
+MODULO_PADRAO_DOTS = 2
 
 # O número legível embaixo do código ocupa espaço próprio no desenho do reportlab.
 TEXTO_DO_CODIGO_MM = 2.6
@@ -100,13 +105,23 @@ def montar(formato: str = "zebra_2x1",
            separador_decimal: str = ",",
            separador_milhar: str = ".",
            rotulo_sku: bool = True,
+           digitos_do_codigo: bool = True,
            simbologia: str = "EAN13",
+           largura_mm: float = 0.0,
+           altura_mm: float = 0.0,
            desvio_x_mm: float = 0.0,
            desvio_y_mm: float = 0.0,
            nome: str = "") -> Template:
     """Monta o template. Só recebe coisa que o lojista sabe responder."""
-    fmt = formatos.obter(formato)
-    midia = fmt.novo()
+    # Medida livre não vem do catálogo: o lojista digitou. O resto do montador
+    # não muda — ele já trabalhava só com largura e altura em milímetro.
+    if formato == formatos.LIVRE:
+        midia = formatos.midia_livre(largura_mm, altura_mm)
+        nome_do_formato = "%.4gx%.4g" % (midia.largura_mm, midia.altura_mm)
+    else:
+        fmt = formatos.obter(formato)
+        midia = fmt.novo()
+        nome_do_formato = fmt.nome
     ligados = [c for c in CAMPOS if c in set(campos or ())]
 
     largura, altura = midia.largura_mm, midia.altura_mm
@@ -143,17 +158,43 @@ def montar(formato: str = "zebra_2x1",
     folga_do_codigo = max(FOLGA_MINIMA_MM,
                           _mm_da_fonte(pt_preco) * (DESCIDA_DA_LETRA + 0.04))
 
+    # Os dígitos impressos sob as barras custam 2,6mm de altura, e numa etiqueta
+    # pequena esses 2,6mm são a diferença entre caber o SKU e não caber. Numa
+    # Avery 5167 (44,45 × 12,7mm) a conta dava 0,07mm de falta — e o lojista
+    # perdia o SKU sem nunca ter escolhido isso.
+    #
+    # Os dígitos repetem o que as barras já carregam; o SKU não está em nenhum
+    # outro lugar da etiqueta. Mas eles são o plano B quando o leitor falha, e
+    # essa troca é do lojista, não nossa: aqui só obedecemos.
+    altura_dos_digitos = TEXTO_DO_CODIGO_MM if digitos_do_codigo else 0.0
+
     # --- 1. quem entra ------------------------------------------------------
     # O código de barras reserva o mínimo dele ANTES de o texto pegar espaço.
     # Sem essa reserva, o título come a etiqueta e a barra fica ilegível — e
     # barra ilegível só aparece no caixa, com fila.
     orcamento = altura - 2 * margem_y
+
+    # Até aqui só a ALTURA era conferida, e por muito tempo isso bastou: nenhum
+    # dos formatos do catálogo é estreito o suficiente pra um EAN-13 vazar. Uma
+    # etiqueta de 1"×1" (25,4mm) é — o EAN-13 precisa de 28,3mm, e não é limite
+    # nosso, é a norma: 95 módulos mais as duas zonas mudas.
+    #
+    # Sem esta conta, medida livre deixaria qualquer um digitar 20mm de largura e
+    # receber um código serrado pela borda. Que é exatamente o defeito que este
+    # app existe pra corrigir.
+    largura_do_codigo = codigos.largura_minima_mm(
+        codigos.obter(simbologia), MODULO_PADRAO_DOTS, unidades.ZEBRA_203,
+        BARRA_MINIMA_MM)
+    codigo_cabe_na_largura = margem_x + largura_do_codigo <= largura + 0.01
+
     entram = []
     for chave in PRIORIDADE:
         if chave not in ligados:
             continue
         if chave == "codigo_barras":
-            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo
+            if not codigo_cabe_na_largura:
+                continue
+            custo = BARRA_MINIMA_MM + altura_dos_digitos + folga_do_codigo
         elif chave in ("sku", "preco"):
             # Dividem a mesma linha: só o primeiro paga, e paga pela altura do
             # mais alto dos dois.
@@ -245,28 +286,39 @@ def montar(formato: str = "zebra_2x1",
                                    altura * 0.42))
             elementos.append(CodigoBarras(
                 campo="variante.codigo_barras", x_mm=margem_x,
-                y_mm=altura - margem_y - altura_barra - TEXTO_DO_CODIGO_MM,
+                y_mm=altura - margem_y - altura_barra - altura_dos_digitos,
                 altura_mm=altura_barra, simbologia=simbologia,
-                modulo_dots=2, mostrar_texto=True))
+                modulo_dots=MODULO_PADRAO_DOTS,
+                mostrar_texto=digitos_do_codigo))
 
     return Template(
-        nome=nome or fmt.nome,
+        nome=nome or nome_do_formato,
         midia=midia,
         calibracao=Calibracao(desvio_x_mm=desvio_x_mm, desvio_y_mm=desvio_y_mm),
         elementos=elementos)
 
 
-def cabem_os_campos(formato: str, campos) -> list:
-    """Quais campos pedidos NÃO couberam. A tela avisa antes de imprimir.
+def nao_couberam(montado: Template, campos) -> list:
+    """Quais campos pedidos NÃO entraram NESTE template. A tela avisa antes.
 
     Sem isto, o lojista liga "fornecedor", não vê diferença nenhuma na prévia e
     conclui que o app está quebrado. Dizer "não coube nesta etiqueta" é uma
     resposta; não mostrar nada não é.
+
+    Recebe o template PRONTO de propósito. A versão anterior remontava um do
+    zero com os padrões, e aí o aviso podia discordar do desenho na tela: quem
+    escolhesse Code128 numa etiqueta estreita via o código sumir da prévia e
+    nenhum aviso dizendo por quê — porque o aviso tinha sido calculado com
+    EAN-13. Aviso que discorda da tela é pior que aviso nenhum.
     """
-    montado = montar(formato, campos)
     usados = set()
     for el in montado.elementos:
         for chave, info in CAMPOS.items():
             if el.campo == info["campo"]:
                 usados.add(chave)
     return [c for c in (campos or ()) if c in CAMPOS and c not in usados]
+
+
+def cabem_os_campos(formato: str, campos, **escolhas) -> list:
+    """O mesmo, montando o template na hora. Atalho pra teste e pra script."""
+    return nao_couberam(montar(formato, campos, **escolhas), campos)

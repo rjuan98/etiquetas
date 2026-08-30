@@ -99,7 +99,7 @@ def _desenhar_texto(c, el: Texto, dados: dict, ox_mm: float, oy_mm: float,
 
 
 def _desenhar_codigo(c, el: CodigoBarras, dados: dict, ox_mm: float, oy_mm: float,
-                     altura_pagina_mm: float):
+                     altura_pagina_mm: float, largura_etiqueta_mm: float = 0.0):
     valor = campos.resolver(el.campo, dados).strip()
     if not valor:
         return
@@ -113,6 +113,12 @@ def _desenhar_codigo(c, el: CodigoBarras, dados: dict, ox_mm: float, oy_mm: floa
     if not ok:
         # Mesma regra do ZPL: código que não bipa é pior que código nenhum,
         # porque o lojista só descobre no caixa, com fila.
+        return
+
+    # E o que vaza pela borda também não bipa.
+    if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots,
+                                   unidades.ZEBRA_203, el.x_mm,
+                                   largura_etiqueta_mm, el.altura_mm):
         return
 
     # A largura do módulo é definida em dots de impressora térmica no template.
@@ -132,7 +138,10 @@ def _desenhar_codigo(c, el: CodigoBarras, dados: dict, ox_mm: float, oy_mm: floa
         # QR é quadrado: no reportlab, barWidth e barHeight são o LADO do
         # desenho inteiro, não o tamanho do módulo. A altura manda e a largura
         # acompanha, senão o código sai esticado e nenhum leitor pega.
-        lado = _pt(el.altura_mm)
+        # Mesmo lado dos outros dois motores — ver `codigos.lado_do_qr_mm`.
+        lado_mm, _mag = codigos.lado_do_qr_mm(
+            valor, el.altura_mm, unidades.ZEBRA_203, el.correcao_qr)
+        lado = _pt(lado_mm)
         desenho = createBarcodeDrawing(
             NOME_REPORTLAB[simbologia.nome],
             value=valor, barWidth=lado, barHeight=lado,
@@ -166,7 +175,8 @@ def _desenhar_etiqueta(c, template: Template, dados: dict,
         x_cal, y_cal = template.com_calibracao(el)
         posicionado = replace(el, x_mm=x_cal, y_mm=y_cal)
         if isinstance(el, CodigoBarras):
-            _desenhar_codigo(c, posicionado, dados, ox_mm, oy_mm, altura_pagina_mm)
+            _desenhar_codigo(c, posicionado, dados, ox_mm, oy_mm, altura_pagina_mm,
+                             template.midia.largura_mm)
         elif isinstance(el, Texto):
             _desenhar_texto(c, posicionado, dados, ox_mm, oy_mm, altura_pagina_mm)
         else:

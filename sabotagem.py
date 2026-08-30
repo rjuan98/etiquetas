@@ -153,7 +153,7 @@ SABOTAGENS = [
     # a etiqueta e a barra some — foi um bug de verdade na etiqueta de joia.
     ("a reserva de altura do codigo de barras",
      "etiquetas/receitas.py",
-     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo",
+     "            custo = BARRA_MINIMA_MM + altura_dos_digitos + folga_do_codigo",
      "            custo = 0.0"),
 
     ("o piso de altura que faz o codigo de barras bipar",
@@ -264,8 +264,8 @@ SABOTAGENS = [
     # pegavam porque tudo continuava DENTRO da etiqueta.
     ("a folga entre o texto e as barras",
      "etiquetas/receitas.py",
-     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM + folga_do_codigo",
-     "            custo = BARRA_MINIMA_MM + TEXTO_DO_CODIGO_MM"),
+     "            custo = BARRA_MINIMA_MM + altura_dos_digitos + folga_do_codigo",
+     "            custo = BARRA_MINIMA_MM + altura_dos_digitos"),
 
     # Folga fixa resolvia nas etiquetas pequenas e continuava colidindo na de
     # 3x2 polegadas, onde a fonte e o dobro e a letra desce o dobro junto.
@@ -273,6 +273,79 @@ SABOTAGENS = [
      "etiquetas/receitas.py",
      "_mm_da_fonte(pt_preco) * (DESCIDA_DA_LETRA + 0.04))",
      "FOLGA_MINIMA_MM)"),
+
+    # ------------------------------------------- o codigo cabendo na LARGURA
+    # A etiqueta de 1"x1" mostrou o buraco: so a ALTURA era conferida. Um
+    # EAN-13 legivel precisa de 28,3mm e o papel tem 25,4mm, entao o codigo
+    # saia serrado pela borda — o defeito que este app existe pra corrigir.
+    ("a receita conferindo se o codigo cabe na largura",
+     "etiquetas/receitas.py",
+     "    codigo_cabe_na_largura = margem_x + largura_do_codigo <= largura + 0.01",
+     "    codigo_cabe_na_largura = True"),
+
+    # O motor e a segunda rede: um Code128 comprido cabe no template e nao cabe
+    # no papel, e isso so da pra saber com o dado do produto na mao.
+    ("o ZPL recusando codigo que vaza pela borda",
+     "etiquetas/motores/zpl.py",
+     "    if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots, dpi,\n"
+     "                                   el.x_mm, template.midia.largura_mm,\n"
+     "                                   el.altura_mm):\n        return []",
+     "    if False:\n        return []"),
+
+    ("a previa recusando o mesmo codigo que o ZPL recusa",
+     "etiquetas/motores/svg.py",
+     "    if not codigos.cabe_na_largura(simbologia, valor, el.modulo_dots,\n"
+     "                                   unidades.ZEBRA_203, el.x_mm,\n"
+     "                                   template.midia.largura_mm, el.altura_mm):\n        return []",
+     "    if False:\n        return []"),
+
+    ("a zona muda entrando na conta de largura",
+     "etiquetas/codigos.py",
+     "    return (barras\n            + margem_esquerda_mm(simbologia, modulo_dots, dpi)\n"
+     "            + margem_direita_mm(simbologia, modulo_dots, dpi))",
+     "    return barras"),
+
+    # ------------------------------------------------- o QR do mesmo tamanho
+    # Medido: o mesmo modelo saia 18,0mm no PDF/SVG e 16,5mm no ZPL, porque o
+    # ^BQ recebe uma MAGNIFICACAO inteira e o motor passava o `modulo_dots` —
+    # que e a largura da barra fina de um codigo linear e nao diz nada sobre
+    # QR. Com URL longa (matriz 57) isso da 28,5mm num campo de 18mm.
+    ("a magnificacao do QR saindo da altura pedida, nao do modulo_dots",
+     "etiquetas/motores/zpl.py",
+     "        _lado_mm, magnificacao = codigos.lado_do_qr_mm(\n"
+     "            valor, el.altura_mm, dpi, correcao)",
+     "        magnificacao = max(1, el.modulo_dots)"),
+
+    ("a previa desenhando o QR no mesmo lado que o ZPL",
+     "etiquetas/motores/svg.py",
+     "        lado_mm, _mag = codigos.lado_do_qr_mm(\n"
+     "            valor, el.altura_mm, unidades.ZEBRA_203, el.correcao_qr)\n"
+     "        lado = unidades.mm_para_pontos(lado_mm)",
+     "        lado = unidades.mm_para_pontos(el.altura_mm)"),
+
+    # ------------------------------------- os digitos sob o codigo custam 2,6mm
+    # Numa Avery 5167 faltavam 0,07mm pro SKU. Os digitos repetem o que as
+    # barras ja carregam; o SKU nao esta em outro lugar da etiqueta. Se o custo
+    # deixar de responder a escolha, o lojista perde o SKU sem ter escolhido.
+    ("os digitos sob o codigo devolvendo os 2,6mm quando desligados",
+     "etiquetas/receitas.py",
+     "    altura_dos_digitos = TEXTO_DO_CODIGO_MM if digitos_do_codigo else 0.0",
+     "    altura_dos_digitos = TEXTO_DO_CODIGO_MM"),
+
+    # ------------------------------------------------------- medida livre
+    # Sem limite, o lojista digita 4000 e recebe uma etiqueta que impressora
+    # nenhuma aceita — e um SVG gigante que trava a prova na tela.
+    ("os limites de bom senso da medida livre",
+     "etiquetas/formatos.py",
+     "        if not (MENOR_MEDIDA_MM <= valor <= MAIOR_MEDIDA_MM):",
+     "        if False:"),
+
+    # Sem a conversao, texto vira medida e o erro sai como TypeError la no
+    # fundo do motor, em vez de um 400 que o lojista consegue ler.
+    ("medida livre recusando o que nao e numero",
+     "etiquetas/formatos.py",
+     "        try:\n            valor = float(valor)\n        except (TypeError, ValueError):\n            raise ValueError(\"%s tem que ser um número\" % nome)",
+     "        pass"),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
