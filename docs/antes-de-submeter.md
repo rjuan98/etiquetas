@@ -96,9 +96,9 @@ teste.
 
 > *"Include a screencast to demonstrate your app's onboarding and features"*
 
-- [ ] Gravar um vídeo curto: instalar, escolher produtos, montar a etiqueta, ver
-      a prévia, baixar o PDF. As quatro capturas de `docs/capturas/` servem de
-      roteiro.
+- [ ] Gravar o vídeo. **O roteiro cena a cena está em
+      [`screencast.md`](screencast.md)** — 2 a 3 minutos, gravado na loja de
+      desenvolvimento de verdade, não no `/dev/`.
 
 ### 5. Instruções de teste — **FALTA**
 

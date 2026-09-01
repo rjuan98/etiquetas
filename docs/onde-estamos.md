@@ -116,7 +116,7 @@ adiar a submissão.
 [`antes-de-submeter.md`](antes-de-submeter.md); o resumo:
 
 1. Declarar os 3 webhooks de privacidade no painel ← **sem isto, reprovação**
-2. Gravar o screencast (exigido)
+2. Gravar o screencast (exigido) — roteiro em [`screencast.md`](screencast.md)
 3. Escrever as instruções de teste, incluindo como o revisor alcança o Pro
 4. Pagar os **US$ 19** — uma vez por conta, para sempre
 5. Renovar o PythonAnywhere e pôr lembrete — app fora do ar durante a revisão é
