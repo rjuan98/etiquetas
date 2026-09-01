@@ -115,7 +115,8 @@ adiar a submissão.
 É só aí que se gasta dinheiro. A lista completa está em
 [`antes-de-submeter.md`](antes-de-submeter.md); o resumo:
 
-1. Declarar os 3 webhooks de privacidade no painel ← **sem isto, reprovação**
+1. ~~Declarar os 3 webhooks de privacidade~~ — **feito em 31/08/2026**, versão
+   `etik-barcode-labels-5`, pela CLI (o formulário do painel não tem esse campo)
 2. Gravar o screencast (exigido) — roteiro em [`screencast.md`](screencast.md)
 3. Escrever as instruções de teste, incluindo como o revisor alcança o Pro
 4. Pagar os **US$ 19** — uma vez por conta, para sempre

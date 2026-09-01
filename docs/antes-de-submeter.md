@@ -69,13 +69,42 @@ quando o token daquela loja já foi apagado.
 Corrigido no código em 30/08/2026 — a instalação assina só `app/uninstalled` e
 `app_subscriptions/update`. **Falta a parte que é no painel:**
 
-- [ ] No painel de Partner, em **App setup → Compliance webhooks**, preencher os
-      três campos com:
-      `https://etikbarcode.pythonanywhere.com/webhooks`
-      (a mesma URL nos três — a rota lê o tópico do cabeçalho)
+- [x] **Declarados em 31/08/2026**, na versão `etik-barcode-labels-5`.
 
-O app **já responde** aos três corretamente, com conferência de HMAC, e isso tem
-teste.
+**E não foi no painel** — a Shopify mudou isso de lugar. O Dev Dashboard tem um
+formulário de "Criar versão", mas ele é um **subconjunto**: não tem campo para
+webhook de conformidade. O aviso na própria tela diz *"Para ter acesso a todas as
+configurações, use a CLI"*.
+
+O caminho que funcionou:
+
+```
+npm install -g @shopify/cli
+cd <a pasta do projeto>
+shopify app config link      # baixa a config que ja esta no ar
+# acrescentar o bloco [[webhooks.subscriptions]]
+shopify app deploy           # publica uma versao nova
+```
+
+> **Rodar DENTRO da pasta do projeto.** Na primeira tentativa o comando rodou na
+> pasta do Windows e o arquivo foi parar lá, com erro de permissão.
+
+### CUIDADO ao mexer no `shopify.app.toml` depois
+
+**A CLI reescreve o arquivo e apaga todo comentário.** Ela também normaliza a URL
+do webhook para o caminho relativo (`/webhooks`), o que aponta para o mesmo
+lugar. Por isso os dois avisos que importam ficam aqui, e não lá dentro:
+
+- **`use_legacy_install_flow = true` não pode sumir.** É o que faz o OAuth atual
+  funcionar. Sem essa linha o fluxo de instalação muda e a próxima loja que
+  instalar quebra.
+- **Os escopos são dois, e os dois de leitura.** Eles são a promessa "read-only"
+  que está na ficha da loja de apps e na política de privacidade — a única frase
+  que nenhum concorrente pode escrever. Mexer aqui obriga a mudar os dois textos
+  no mesmo commit.
+
+O app **já respondia** aos três webhooks corretamente, com conferência de HMAC, e
+isso tem teste. O que faltava era só a declaração.
 
 ### 2. Cobrança fora da plataforma
 
