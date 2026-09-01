@@ -1,0 +1,46 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+#
+# Este arquivo é a configuração do app na Shopify. Ele foi baixado da versão que
+# já estava no ar (`shopify app config link`) e recebeu UMA adição: os três
+# webhooks obrigatórios de privacidade, que não têm campo no formulário do Dev
+# Dashboard e só podem ser declarados por aqui.
+#
+# Sem eles o app é REPROVADO na revisão: "If you don't provide URLs for the
+# mandatory compliance webhooks [...] then your app will be rejected".
+#
+# Publicar: `shopify app deploy` DENTRO desta pasta.
+
+client_id = "f16a2aeb1253c1d1532fdbfecf9dd5cc"
+application_url = "https://etikbarcode.pythonanywhere.com"
+embedded = true
+name = "Etik Barcode Labels"
+
+[webhooks]
+api_version = "2026-07"
+
+  # Uma URL só para os três tópicos: a rota lê qual é no cabeçalho
+  # `X-Shopify-Topic` e confere o HMAC em todos. Ver `web/rotas_webhooks.py`.
+  #
+  # Estes NÃO se assinam pela API — `webhookSubscriptionCreate` recusa tópico de
+  # conformidade, e nem faria sentido: `shop/redact` chega 48h depois da
+  # desinstalação, quando o token daquela loja já foi apagado.
+  [[webhooks.subscriptions]]
+  uri = "https://etikbarcode.pythonanywhere.com/webhooks"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+#
+# Dois escopos, os dois de LEITURA. É a promessa "read-only" que está na ficha da
+# loja de apps e na política de privacidade, e é a única frase que nenhum
+# concorrente pode escrever — os dois pedem escrita porque geram código de
+# barras. Mexer aqui obriga a mudar os dois textos no mesmo commit.
+scopes = "read_inventory,read_products"
+optional_scopes = [ ]
+
+# NÃO REMOVER. É o que faz o OAuth atual do app funcionar. Sem esta linha o fluxo
+# de instalação muda e a próxima loja que instalar quebra.
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [ "https://etikbarcode.pythonanywhere.com/instalar/volta" ]
