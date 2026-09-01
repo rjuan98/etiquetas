@@ -69,7 +69,17 @@ quando o token daquela loja já foi apagado.
 Corrigido no código em 30/08/2026 — a instalação assina só `app/uninstalled` e
 `app_subscriptions/update`. **Falta a parte que é no painel:**
 
-- [x] **Declarados em 31/08/2026**, na versão `etik-barcode-labels-5`.
+- [x] **Declarados e CONFERIDOS em 31/08/2026**, na versão
+      `etik-barcode-labels-5`.
+
+A tela de leitura da versão passou a mostrar uma seção que não existia na `-3`:
+**"Assinaturas de webhook de conformidade de privacidade"**, com
+`customers_redact_url`, `customers_data_request_url` e `shop_redact_url`, os três
+apontando para `https://etikbarcode.pythonanywhere.com/webhooks`.
+
+E o resto sobreviveu ao deploy — conferido na mesma tela:
+`use_legacy_install_flow: true`, escopos `read_inventory,read_products`, URL de
+redirecionamento e `embedded: true` intactos.
 
 **E não foi no painel** — a Shopify mudou isso de lugar. O Dev Dashboard tem um
 formulário de "Criar versão", mas ele é um **subconjunto**: não tem campo para
