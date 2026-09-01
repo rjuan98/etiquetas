@@ -241,6 +241,14 @@ won't take more of your time.
 | Saratoga Chocolate | só telefone | pular |
 | Frip'Dream · The Scented Cardinal | não encontrados | pular |
 
+> **Marca grande demais tem bot na frente.** A Bhumi respondeu em **um minuto**,
+> assinado *"Jason — Bhumi Virtual Care Assistant"*, dizendo que não tinha
+> informação sobre testar apps externos. Isso **não é um não da loja** — é um
+> atendimento automático que não chegou em ninguém. Não conta no placar.
+>
+> O ponto ideal é o meio: grande o bastante pra ser encontrável, pequena o
+> bastante pra a mensagem chegar numa pessoa.
+
 > **Varie a queixa entre os dias, não só o texto.** Duas lojas com a mesma
 > reclamação no mesmo dia é o que faz a mensagem parecer gerada, mesmo sendo
 > escrita à mão.

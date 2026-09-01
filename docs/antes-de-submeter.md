@@ -105,12 +105,11 @@ teste.
 > *"Include account credentials in your testing instructions"* — e elas precisam
 > *"grant full access to the app's complete feature set"*.
 
-- [ ] Escrever as instruções. O app não tem conta própria (a entrada é pelo
-      admin do Shopify), então o texto precisa dizer isso e explicar como o
-      revisor chega em cada recurso — **incluindo o Pro**, que ele não vai
-      conseguir ver sem assinar. Vale oferecer liberar o Pro na loja de teste
-      dele, ou explicar como usar a loja de desenvolvimento, onde a cobrança do
-      Shopify é sempre de teste.
+- [x] **Escritas** — texto pronto pra colar em
+      [`instrucoes-de-teste.md`](instrucoes-de-teste.md). Elas resolvem os dois
+      pontos onde o revisor travaria: loja de teste **sem código de barras nos
+      produtos** (ele conclui que o app está quebrado) e **como alcançar o Pro**
+      sem pagar (loja de desenvolvimento tem cobrança de teste).
 
 ---
 
