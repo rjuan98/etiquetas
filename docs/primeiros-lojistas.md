@@ -121,6 +121,33 @@ tell me if it actually solves it? No cost, no commitment — I'd just like
 to know if it works for someone who isn't me.
 ```
 
+### A descoberta que encolheu este canal (31/08/2026)
+
+**A Shopify não expõe a loja de quem avalia.** Os nomes nas avaliações são texto
+puro, não link — sobra nome e país, e mais nada. Achar o contato depende de a
+loja ter presença pública por conta própria.
+
+O placar real das cinco primeiras tentativas:
+
+| loja | achei contato? | por quê |
+|---|---|---|
+| Patch Magazine | **sim** | é revista, tem presença pública |
+| THATS-RALLY | **sim** | é GmbH — a lei alemã obriga Impressum com e-mail |
+| Bhumi Organic Cotton | **sim** | marca com lojas físicas |
+| Maiocchi | **sim** | idem |
+| Saratoga Chocolate | site sim, **e-mail não** | só telefone e endereço |
+| Frip'Dream | **não** | nem site nem Instagram |
+| The Scented Cardinal | **não** | idem |
+
+**O padrão:** marca estabelecida com loja física é encontrável; loja pequena
+só-online não é. E isso **joga a favor** — quem tem loja física é exatamente
+quem imprime etiqueta de prateleira.
+
+**O que isso faz com a conta:** o plano era 8 mensagens × 10–30% = 1 a 2
+respostas esperadas. Com ~4 alcançáveis, a expectativa cai para 0,4 a 1,2. Ainda
+vale mandar, mas **este canal sozinho provavelmente não produz o sinal** que
+justificaria adiar a submissão.
+
 ### Não mande link de instalação junto
 
 **Corrigido em 30/08/2026, e a versão anterior deste documento estava errada.**

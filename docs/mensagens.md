@@ -230,6 +230,21 @@ won't take more of your time.
 
 ---
 
+## O placar de contatos (31/08/2026)
+
+| loja | contato | situação |
+|---|---|---|
+| Patch Magazine | `contact@patchmagazine.co.uk` | **enviada 30/08** |
+| THATS-RALLY | `info@thats-rally.de` | enviar hoje — mensagem 7 |
+| Bhumi Organic Cotton | `help@bhumi.com.au` | enviar hoje — grupo da quantidade |
+| Maiocchi | `e-boutique@maiocchi.com.au` | **guardar pra próxima leva** — mesma queixa da Bhumi, e mandar as duas no mesmo dia parece molde |
+| Saratoga Chocolate | só telefone | pular |
+| Frip'Dream · The Scented Cardinal | não encontrados | pular |
+
+> **Varie a queixa entre os dias, não só o texto.** Duas lojas com a mesma
+> reclamação no mesmo dia é o que faz a mensagem parecer gerada, mesmo sendo
+> escrita à mão.
+
 ## Se alguém disser sim
 
 É aí que os US$ 19 fazem sentido, e não antes. A ordem:

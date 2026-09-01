@@ -80,13 +80,23 @@ dizer que não consegue usar porque os produtos dele não têm código*.
 - [x] **Patch Magazine** (Reino Unido) — enviada em **30/08/2026** para
       `contact@patchmagazine.co.uk`, do `rjuan.andrade99@gmail.com`
 
-### Próximas
-- [ ] **THATS-RALLY** (Alemanha) — buscar contato, mensagem 7 de
-      [`mensagens.md`](mensagens.md)
-- [ ] **Saratoga Chocolate Co.** (EUA) — buscar contato, mensagem 6
+### Próximas — contatos já achados
+- [ ] **THATS-RALLY** (Alemanha) — `info@thats-rally.de`
+- [ ] **Bhumi Organic Cotton** (Austrália) — `help@bhumi.com.au`
+- [ ] **Maiocchi** (Austrália) — `e-boutique@maiocchi.com.au`, guardar pra
+      próxima leva: mesma queixa da Bhumi
 
-As duas são onde o app passou a resolver **exatamente** o que elas pediram, por
-causa do que foi construído hoje.
+### E uma descoberta que encolheu o canal
+
+**A Shopify não expõe a loja de quem avalia.** Sobra nome e país. De sete
+tentadas, **quatro são alcançáveis** — Saratoga só tem telefone, e Frip'Dream e
+The Scented Cardinal não existem em busca nenhuma, nem no Instagram.
+
+Marca com loja física é encontrável; loja pequena só-online não é. Isso joga a
+favor (loja física é quem imprime etiqueta de prateleira), mas **derruba a
+premissa do plano**: 8 mensagens viraram 4, e a expectativa de resposta caiu de
+1–2 para 0,4–1,2. O canal sozinho provavelmente não dá o sinal que justificaria
+adiar a submissão.
 
 ### As regras combinadas
 
