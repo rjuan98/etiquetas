@@ -1,5 +1,30 @@
 # Onde estamos
 
+> ## PARADO EM 09/10/2026 — e a razão está medida
+>
+> **O canal da loja de apps não entrega para quem chega novo nesta categoria.**
+> Quem provou isso não fomos nós: foi o **LabelFast**, um app com a mesma ideia,
+> feito por uma empresa, **listado desde 06/07/2026** — e com **zero avaliações
+> três meses depois**. No mesmo período o incumbente Yanet foi de 448 para 457
+> avaliações e ganhou o selo *Built for Shopify*.
+>
+> Ou seja: **estar na vitrine não é ser encontrado.** O experimento que custaria
+> US$ 19 já rodou de graça, feito por outro, e o resultado está acima.
+>
+> O canal de e-mail frio também morreu, e dentro do previsto: das 8 lojas da
+> lista só ~4 eram alcançáveis, 3 mensagens foram enviadas em 30–31/08, e a
+> expectativa calculada era de 0,4 a 1,2 resposta. Vieram zero (a única resposta
+> foi um bot da Bhumi, em um minuto).
+>
+> **Decisão: não pagar os US$ 19 e não submeter.** O app continua no ar, custa
+> zero, e nada se perde ao deixá-lo existir.
+>
+> O que sobra de vivo da pesquisa está em
+> [`../../Hercules/PESQUISA-PLATAFORMAS.md`] — a Nuvemshop é a única lacuna
+> medida (180 mil lojistas, PDV com leitor, nenhum app de etiqueta). Mas lá vale
+> a mesma regra nova: **antes de portar, confirmar que alguém quer.**
+
+
 **Atualizado em 30/08/2026.** Documento vivo: estado atual e próxima ação. Se
 divergir dos outros documentos, este está mais novo.
 
