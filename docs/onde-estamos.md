@@ -35,6 +35,16 @@ divergir dos outros documentos, este está mais novo.
 
 ---
 
+## O plano, em 09/10/2026
+
+1. **Gerar SKU** por regra — barato, sem norma, sem risco de mentir
+2. **"Mostrar só produtos sem código"** — horas, e é destaque de ficha do líder
+3. **Gerar código de barras** — ver [`gerador-de-codigo.md`](gerador-de-codigo.md)
+4. **Screencast** — roteiro em [`screencast.md`](screencast.md)
+5. **Aí sim os US$ 19**
+
+Entrar com o que o mercado compra, não com o que a gente achou bonito.
+
 ## Em uma frase
 
 O app está pronto, no ar e funcionando numa loja real. **A primeira mensagem foi

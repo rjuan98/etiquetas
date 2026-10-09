@@ -1,5 +1,24 @@
 # Decisão: o app não gera código de barras (por enquanto)
 
+> ## REABERTA EM 09/10/2026 — e o gatilho abaixo era CIRCULAR
+>
+> O gatilho escrito aqui era *"um lojista de verdade dizer que não consegue usar
+> porque os produtos dele não têm código"*. **Ele exigia lojistas para uma
+> decisão que determinava se haveria lojistas.** Com zero usuários, nunca podia
+> disparar.
+>
+> A evidência que o substituiu: **os dois apps que crescem no nicho usam gerar
+> código como MANCHETE.** O *RF — Gerador código barras* saiu do zero a 539
+> avaliações em doze meses (lançado 24/10/2025) com três dos cinco destaques
+> sobre gerar; o *LabelCraft* abre a ficha com "GTINs a partir do prefixo GS1 ou
+> códigos internos sem prefixo".
+>
+> **O desenho está em [`gerador-de-codigo.md`](gerador-de-codigo.md).**
+>
+> O raciocínio abaixo fica como registro — ele estava bem construído e mesmo
+> assim levou ao lugar errado, porque o teste que ele propunha não era
+> executável.
+
 **30/08/2026.** Item 5 de [`comparacao.md`](comparacao.md) — o único recurso que
 hoje **impede** um lojista de usar o Etik.
 
