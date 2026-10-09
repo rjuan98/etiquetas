@@ -532,6 +532,47 @@ SABOTAGENS = [
      "  if (escolhidos.has(it.variante.id)) return;   // bipou duas vezes: não duplica",
      "  if (false) return;"),
 
+    # ------------------------------------------------------ gerador de SKU
+    # SKU em uso esta em planilha, em etiqueta ja impressa e na cabeca de quem
+    # trabalha na loja. Sobrescrever quebra os tres de uma vez, em silencio.
+    ("o SKU que ja existe nao sendo tocado",
+     "etiquetas/skus.py",
+     "        if atual:",
+     "        if False:"),
+
+    # SKU repetido faz pegar o produto errado no estoque — e, se virar codigo de
+    # barras depois, bipa errado no caixa.
+    ("o desvio de SKU repetido",
+     "etiquetas/skus.py",
+     "            if candidato and candidato.upper() not in usados:",
+     "            if candidato:"),
+
+    # Comparar sem normalizar caixa faz o desvio falhar justamente quando a loja
+    # ja tem o SKU escrito em minusculas.
+    ("a colisao ignorando maiusculas",
+     "etiquetas/skus.py",
+     "    usados = {str(s).strip().upper() for s in (ja_usados or ()) if str(s).strip()}",
+     "    usados = {str(s).strip() for s in (ja_usados or ()) if str(s).strip()}"),
+
+    # Produto sem fornecedor, tipo nem variante existe de verdade em catalogo
+    # importado as pressas. Gerar "0001" pra ele e dar um SKU que nao diz nada.
+    ("o produto sem texto sendo pulado em vez de virar numero puro",
+     "etiquetas/skus.py",
+     "        if not sku or not any(c.isalpha() for c in sku):",
+     "        if not sku:"),
+
+    # O acento vira lixo na fonte da impressora termica e no Code 128.
+    ("o acento saindo do SKU",
+     "etiquetas/skus.py",
+     "    sem_acento = \"\".join(\n        c for c in unicodedata.normalize(\"NFD\", str(texto))\n        if unicodedata.category(c) != \"Mn\")",
+     "    sem_acento = str(texto)"),
+
+    # Medido: "M / Preto" saia "MPRE", colado e ilegivel.
+    ("a estrutura da variante sendo preservada",
+     "etiquetas/skus.py",
+     "        pecas[nome] = (normalizar_variante(bruto, letras) if nome == \"variante\"\n                       else normalizar(bruto, letras))",
+     "        pecas[nome] = normalizar(bruto, letras)"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

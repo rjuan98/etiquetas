@@ -3720,6 +3720,103 @@ check("e o leitor so age em busca nova, nao ao carregar mais resultados",
       "if (!continuar) escolherOEscaneado();" in _tela)
 
 
+secao("74. Gerador de SKU: o passo barato, e o unico que nao mente")
+
+# SKU nao tem norma — nao existe autoridade de numeracao, nem digito
+# verificador, nem faixa reservada. Por isso ele e o primeiro passo do gerador:
+# da pra gerar sem prometer o que nao e. Ver docs/gerador-de-codigo.md.
+#
+# Entrou porque os DOIS apps que crescem no nicho usam gerar como manchete: o
+# RF (539 avaliacoes, lancado 24/10/2025) e o LabelCraft. O Etik nao gerava.
+from etiquetas import skus
+
+
+def _prod(titulo, variante, sku="", forn="Acme Ltda", tipo="Camiseta"):
+    return {"produto": {"titulo": titulo, "fornecedor": forn, "tipo": tipo},
+            "variante": {"titulo": variante, "sku": sku}}
+
+
+check("acento sai, porque vira Code 128 e fonte de impressora termica",
+      skus.normalizar("Açaí") == "ACAI", skus.normalizar("Açaí"))
+check("o que nao e letra nem numero sai",
+      skus.normalizar("A/B C-1") == "ABC1", skus.normalizar("A/B C-1"))
+check("campo vazio vira peca vazia, sem quebrar", skus.normalizar("") == "")
+check("e campo None tambem", skus.normalizar(None) == "")
+
+# MEDIDO, e foi defeito da primeira versao: "M / Preto" saia "MPRE", colado e
+# ilegivel. O Shopify ja entrega a estrutura em barras — destruir era jogar
+# informacao fora.
+check("a variante preserva a estrutura das opcoes",
+      skus.normalizar_variante("M / Preto") == "M-PRET",
+      skus.normalizar_variante("M / Preto"))
+check("opcao vazia nao deixa separador solto",
+      skus.normalizar_variante("M /  / Preto") == "M-PRET",
+      skus.normalizar_variante("M /  / Preto"))
+
+# O molde padrao NAO tem {seq}, e isso tambem foi medicao: com a variante no
+# molde cada item virava seu proprio grupo e a sequencia saia 0001 em TODOS.
+# Ela nao desambiguava nada — so sujava o SKU.
+check("o molde padrao nao carrega sequencia inutil",
+      "{seq}" not in skus.MOLDE_PADRAO, skus.MOLDE_PADRAO)
+check("e {seq} deixou de ser exigida",
+      skus.conferir_molde("{fornecedor}-{variante}") == [],
+      skus.conferir_molde("{fornecedor}-{variante}"))
+check("mas molde so com numero continua recusado",
+      skus.conferir_molde("{seq}") != [])
+check("e peca inventada e recusada com a lista do que existe",
+      "fantasia" in (skus.conferir_molde("{fantasia}-{seq}") or [""])[0])
+
+_itens = [_prod("Camiseta Basica", "P / Preto"),
+          _prod("Camiseta Basica", "M / Preto"),
+          _prod("Outra camiseta", "M / Preto"),
+          _prod("Ja cadastrada", "M", sku="CAM-ANTIGO-01"),
+          _prod("Sem nada", "", forn="", tipo="")]
+_lote = skus.gerar_lote(_itens)
+
+check("cada variante vira um SKU legivel",
+      _lote[0]["sku"] == "ACME-CAMI-P-PRET", _lote[0]["sku"])
+
+# A REGRA QUE VEM DE FORA E NAO SE DISCUTE: SKU em uso esta em planilha, em
+# etiqueta ja impressa e na cabeca de quem trabalha na loja. Trocar quebra os
+# tres de uma vez, e em silencio.
+check("quem ja tem SKU nao e tocado",
+      _lote[3]["sku"] == "CAM-ANTIGO-01" and _lote[3]["pulado"],
+      _lote[3])
+
+# SKU repetido faz o lojista pegar o produto errado no estoque — e, se virar
+# codigo de barras depois, bipa errado no caixa.
+check("SKU repetido dentro do lote ganha sufixo",
+      _lote[2]["sku"] == "ACME-CAMI-M-PRET-2", _lote[2]["sku"])
+check("e o lojista e AVISADO de que ganhou, em vez de o numero aparecer do nada",
+      "sufixo" in (_lote[2].get("aviso") or ""), _lote[2].get("aviso"))
+
+# Produto sem fornecedor, sem tipo e sem variante existe de verdade em catalogo
+# importado as pressas. A primeira versao gerava "0001" pra ele — um SKU que e
+# so numero, que nao diz nada e com o qual nao se acha nada.
+check("produto sem texto nenhum e PULADO, nao vira numero puro",
+      _lote[4]["sku"] == "" and "texto" in _lote[4]["pulado"], _lote[4])
+
+# Colisao com o que a LOJA ja tem, nao so com o lote.
+_com_loja = skus.gerar_lote([_prod("Camiseta Basica", "P / Preto")],
+                            ja_usados=["ACME-CAMI-P-PRET"])
+check("colide com SKU que a loja ja usa, e desvia",
+      _com_loja[0]["sku"] == "ACME-CAMI-P-PRET-2", _com_loja[0]["sku"])
+check("e a comparacao ignora maiusculas, senao o desvio falha",
+      skus.gerar_lote([_prod("Camiseta Basica", "P / Preto")],
+                      ja_usados=["acme-cami-p-pret"])[0]["sku"]
+      != "ACME-CAMI-P-PRET")
+
+check("mesmo molde e mesmo produto dao sempre o mesmo SKU",
+      skus.montar(skus.MOLDE_PADRAO, _itens[0], 1)
+      == skus.montar(skus.MOLDE_PADRAO, _itens[0], 1))
+check("SKU nao passa do teto que cabe na etiqueta pequena",
+      len(skus.montar("{titulo}-{fornecedor}-{tipo}-{variante}",
+                      _prod("T"*40, "V"*40, forn="F"*40, tipo="P"*40))
+          ) <= skus.TAMANHO_MAXIMO)
+check("a ordem do lote e a ordem recebida, pro lojista conferir a tabela",
+      len(_lote) == len(_itens))
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))
