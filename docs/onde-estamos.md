@@ -1,6 +1,11 @@
 # Onde estamos
 
-> ## PARADO EM 09/10/2026 — e a razão está medida
+> ## ATENÇÃO: o veredito de 09/10 pela MANHÃ foi CORRIGIDO na mesma tarde.
+> Ver [`correcao-o-nicho-estava-aberto.md`](correcao-o-nicho-estava-aberto.md)
+> — o nicho ADMITE entrante novo, e o LabelFast era a exceção, não a regra.
+> O texto abaixo fica como registro do raciocínio errado.
+>
+> ## ~~PARADO EM 09/10/2026~~ — e a razão está medida
 >
 > **O canal da loja de apps não entrega para quem chega novo nesta categoria.**
 > Quem provou isso não fomos nós: foi o **LabelFast**, um app com a mesma ideia,
