@@ -268,7 +268,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **996 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **1.016 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -281,7 +281,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 77 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 82 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
@@ -293,6 +293,22 @@ quebrado. E o da quebra de texto passava por causa do teto de caracteres, não d
 algoritmo — duas defesas, só uma provada.
 
 Quando aparece "ESCAPOU", não é o código que está errado — é o teste.
+
+### Como NÃO rodar a sabotagem
+
+Ela **reescreve os arquivos no lugar** e os devolve no fim. Disso saem duas
+regras, as duas aprendidas do jeito ruim:
+
+**Uma rodada por vez.** Duas em paralelo se atropelam e podem deixar um arquivo
+quebrado.
+
+**Nunca matar no meio.** Em 09/10/2026 três rodadas simultâneas foram
+interrompidas e uma delas deixou a sabotagem aplicada: o teto de páginas da
+busca filtrada ficou como `pass`. O defeito só apareceu porque a bateria passou
+a **travar** — e por isso o teste daquele teto foi reescrito pra falhar alto em
+vez de pendurar.
+
+São 82 defesas × 1.016 checagens: ela leva uns 25 minutos. Deixe rodar sozinha.
 
 ---
 

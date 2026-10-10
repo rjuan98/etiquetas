@@ -41,6 +41,12 @@ TETO_POR_VEZ = 5000
 
 # ------------------------------------------------------------------ catálogo
 
+# Quantas páginas de catálogo a busca filtrada varre antes de devolver o que
+# achou. Oito páginas de 50 são 400 produtos — o suficiente pra loja pequena
+# inteira, e pouco o bastante pra não estourar o tempo da requisição numa grande.
+PAGINAS_POR_FILTRO = 8
+
+
 @rotas.get("/produtos")
 @exige_loja
 def produtos(loja):
@@ -58,39 +64,71 @@ def produtos(loja):
         if dev.loja_de_mentira(loja):
             itens, tem_mais, cursor = dev.catalogo_falso(
                 request.args.get("busca"), request.args.get("depois"))
+            vistos = len(itens)
+            itens = catalogo.filtrar(itens, request.args.get("filtro") or "")
             for item in itens:
                 item["quantidade"] = catalogo.quantidade_sugerida(item)
             return jsonify({
                 "itens": itens, "tem_mais": tem_mais, "cursor": cursor,
                 "variantes_cortadas": catalogo.produtos_com_variantes_cortadas(itens),
+                "filtro": request.args.get("filtro") or "",
+                "varridos": vistos if request.args.get("filtro") else None,
+                "parou_no_teto": False,
             })
 
-    corpo = catalogo.consulta_de_produtos(
-        quantos=request.args.get("quantos", 50),
-        depois=request.args.get("depois") or None,
-        busca=request.args.get("busca") or None)
+    filtro = request.args.get("filtro") or ""
 
-    try:
-        resposta = rede.graphql(loja["dominio"], loja["token"], corpo)
-    except rede.ErroDeRede as erro:
-        return jsonify({"erro": str(erro)}), 502
+    # Com filtro ligado, UMA página não serve. O Shopify devolve 50 produtos e
+    # talvez 2 deles estejam sem código — o lojista veria 2 e concluiria que são
+    # todos. Então a gente continua buscando até juntar uma página de verdade ou
+    # acabar o catálogo.
+    #
+    # O teto existe porque o caso oposto também é real: loja onde quase tudo tem
+    # código faria isso varrer 8 mil produtos e estourar o tempo da requisição.
+    # Quando o teto é alcançado, a resposta DIZ até onde olhou.
+    alvo = int(request.args.get("quantos", 50) or 50)
+    cursor = request.args.get("depois") or None
+    itens, tem_mais, vistos, paginas = [], False, 0, 0
 
-    erros = catalogo.erros_do_graphql(resposta)
-    if erros:
-        # GraphQL responde 200 mesmo tendo falhado. Sem isto, a tela mostraria
-        # uma lista vazia e o lojista acharia que não tem produto nenhum.
-        current_app.logger.warning("graphql: %s", "; ".join(erros))
-        return jsonify({"erro": _t("erro_graphql"),
-                        "detalhes": erros}), 502
+    while True:
+        corpo = catalogo.consulta_de_produtos(
+            quantos=alvo, depois=cursor,
+            busca=request.args.get("busca") or None)
+        try:
+            resposta = rede.graphql(loja["dominio"], loja["token"], corpo)
+        except rede.ErroDeRede as erro:
+            return jsonify({"erro": str(erro)}), 502
 
-    itens = catalogo.para_etiquetas(resposta, loja["dominio"])
-    tem_mais, cursor = catalogo.tem_proxima_pagina(resposta)
+        erros = catalogo.erros_do_graphql(resposta)
+        if erros:
+            # GraphQL responde 200 mesmo tendo falhado. Sem isto, a tela
+            # mostraria uma lista vazia e o lojista acharia que não tem produto.
+            current_app.logger.warning("graphql: %s", "; ".join(erros))
+            return jsonify({"erro": _t("erro_graphql"),
+                            "detalhes": erros}), 502
+
+        pagina = catalogo.para_etiquetas(resposta, loja["dominio"])
+        vistos += len(pagina)
+        paginas += 1
+        itens.extend(catalogo.filtrar(pagina, filtro))
+        tem_mais, cursor = catalogo.tem_proxima_pagina(resposta)
+
+        if not filtro or not tem_mais or len(itens) >= alvo:
+            break
+        if paginas >= PAGINAS_POR_FILTRO:
+            break
     for item in itens:
         item["quantidade"] = catalogo.quantidade_sugerida(item)
 
     return jsonify({
         "itens": itens, "tem_mais": tem_mais, "cursor": cursor,
         "variantes_cortadas": catalogo.produtos_com_variantes_cortadas(itens),
+        # Com filtro, a tela precisa saber ATÉ ONDE a gente olhou. Dizer "3
+        # produtos sem código" sem dizer "entre os 400 que varri" seria deixar o
+        # lojista achar que são 3 na loja inteira.
+        "filtro": filtro,
+        "varridos": vistos if filtro else None,
+        "parou_no_teto": bool(filtro and paginas >= PAGINAS_POR_FILTRO and tem_mais),
     })
 
 

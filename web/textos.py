@@ -52,6 +52,16 @@ TEXTOS = {
     "col_codigo":          {"en": "Barcode",             "pt": "Código"},
     "col_quantas":         {"en": "How many",            "pt": "Quantas"},
     "sem_codigo":          {"en": "no barcode",          "pt": "sem código"},
+    "filtro_todos":        {"en": "All products",        "pt": "Todos os produtos"},
+    "filtro_sem_codigo":   {"en": "Missing barcode",     "pt": "Sem código de barras"},
+    "filtro_sem_sku":      {"en": "Missing SKU",         "pt": "Sem SKU"},
+    "filtro_sem_nenhum":   {"en": "Missing both",        "pt": "Sem os dois"},
+    "filtro_resultado":    {"en": "%d of the first %d products are missing it.",
+                            "pt": "%d dos %d primeiros produtos estão sem."},
+    "filtro_teto":         {"en": "Searched the first %d products — there may be "
+                                  "more further in the catalog.",
+                            "pt": "Procurei nos %d primeiros produtos — pode "
+                                  "haver mais adiante no catálogo."},
     "codigo_invalido":     {"en": "The barcode is not shown because %s. A code "
                                   "that doesn't scan is worse than no code.",
                             "pt": "O código não aparece porque %s. Código que "

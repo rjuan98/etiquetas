@@ -132,6 +132,36 @@ def para_etiquetas(resposta: dict, nome_da_loja: str = "") -> list:
     return saida
 
 
+# Os filtros de "o que está faltando no cadastro". Existem como função pura,
+# separada da rota, porque são a regra — e porque a rota tem rede no meio.
+#
+# Isto é o destaque nº 5 da ficha do líder do nicho ("Identifique instantaneamente
+# produtos sem códigos de barras ou SKUs"), e é o passo zero de quem vai gerar:
+# antes de criar código pra alguém, mostrar PRA QUEM falta.
+FILTROS = {
+    "sem_codigo": lambda it: not _texto(
+        (it.get("variante") or {}).get("codigo_barras")).strip(),
+    "sem_sku": lambda it: not _texto(
+        (it.get("variante") or {}).get("sku")).strip(),
+    # Serve pro gerador: um item que não tem nem um nem outro é o caso mais
+    # urgente, e é o que o lojista quer ver primeiro.
+    "sem_nenhum": lambda it: (
+        not _texto((it.get("variante") or {}).get("codigo_barras")).strip()
+        and not _texto((it.get("variante") or {}).get("sku")).strip()),
+}
+
+
+def filtrar(itens, filtro: str) -> list:
+    """Aplica o filtro. Filtro desconhecido ou vazio devolve tudo.
+
+    Desconhecido NÃO levanta erro de propósito: isto vem da querystring, e uma
+    tela antiga mandando um nome que não existe mais deve mostrar o catálogo
+    inteiro, não uma tela de erro.
+    """
+    regra = FILTROS.get(filtro or "")
+    return [i for i in (itens or []) if regra(i)] if regra else list(itens or [])
+
+
 def produtos_com_variantes_cortadas(itens) -> list:
     """Os produtos que tinham mais variantes do que a consulta trouxe."""
     vistos = []

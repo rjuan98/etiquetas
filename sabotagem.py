@@ -573,6 +573,41 @@ SABOTAGENS = [
      "        pecas[nome] = (normalizar_variante(bruto, letras) if nome == \"variante\"\n                       else normalizar(bruto, letras))",
      "        pecas[nome] = normalizar(bruto, letras)"),
 
+    # ---------------------------------------- o filtro do que falta no cadastro
+    # Uma pagina so nao serve: o Shopify devolve 50 produtos e talvez 2 estejam
+    # sem codigo. O lojista veria 2 e concluiria que sao todos na loja inteira.
+    ("a busca filtrada continuando pelas paginas seguintes",
+     "web/rotas_api.py",
+     "        if not filtro or not tem_mais or len(itens) >= alvo:\n            break",
+     "        break"),
+
+    # Dizer "3 sem codigo" sem dizer "entre os 400 que varri" e deixar o lojista
+    # achar que sao 3 na loja toda.
+    ("a resposta dizendo entre quantos procurou",
+     "web/rotas_api.py",
+     '        "varridos": vistos if filtro else None,',
+     '        "varridos": None,'),
+
+    # O teto existe pro caso oposto: loja onde quase tudo tem codigo faria isso
+    # varrer 8 mil produtos e estourar o tempo da requisicao.
+    ("o teto de paginas da busca filtrada",
+     "web/rotas_api.py",
+     "        if paginas >= PAGINAS_POR_FILTRO:\n            break",
+     "        pass"),
+
+    # Espaco em branco aparece preenchido na planilha e nao serve pra nada.
+    ("o espaco em branco contando como cadastro vazio",
+     "loja/catalogo.py",
+     '    "sem_codigo": lambda it: not _texto(\n        (it.get("variante") or {}).get("codigo_barras")).strip(),',
+     '    "sem_codigo": lambda it: not _texto(\n        (it.get("variante") or {}).get("codigo_barras")),'),
+
+    # Filtro desconhecido vem da querystring. Tela antiga mandando nome que nao
+    # existe mais deve ver o catalogo inteiro, nao uma tela de erro.
+    ("o filtro desconhecido devolvendo tudo em vez de quebrar",
+     "loja/catalogo.py",
+     "    return [i for i in (itens or []) if regra(i)] if regra else list(itens or [])",
+     "    return [i for i in (itens or []) if FILTROS[filtro](i)]"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

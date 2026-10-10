@@ -3817,6 +3817,162 @@ check("a ordem do lote e a ordem recebida, pro lojista conferir a tabela",
       len(_lote) == len(_itens))
 
 
+secao("75. O filtro de 'o que esta faltando no cadastro'")
+
+# E o destaque numero 5 da ficha do lider do nicho ("Identifique instantaneamente
+# produtos sem codigos de barras ou SKUs") e o passo zero de quem vai gerar:
+# antes de criar codigo pra alguem, mostrar PRA QUEM falta.
+from loja import catalogo as _cat
+
+_catalogo = [
+    {"produto": {"titulo": "com tudo"},
+     "variante": {"sku": "A-1", "codigo_barras": "7891234567895"}},
+    {"produto": {"titulo": "sem codigo"},
+     "variante": {"sku": "A-2", "codigo_barras": ""}},
+    {"produto": {"titulo": "sem sku"},
+     "variante": {"sku": "", "codigo_barras": "7899876543210"}},
+    {"produto": {"titulo": "sem nada"},
+     "variante": {"sku": "   ", "codigo_barras": None}},
+    # Espaco em branco e DIFERENTE de None, e precisa de item proprio: com None
+    # o campo ja e falso sem `.strip()`, entao a primeira versao deste teste nao
+    # exercitava o `.strip()` nenhuma vez. A sabotagem denunciou.
+    {"produto": {"titulo": "so espacos"},
+     "variante": {"sku": " ", "codigo_barras": "   "}},
+]
+
+
+def _titulos(filtro):
+    return [i["produto"]["titulo"] for i in _cat.filtrar(_catalogo, filtro)]
+
+
+check("sem filtro vem tudo", len(_cat.filtrar(_catalogo, "")) == 5)
+check("'sem_codigo' pega quem nao tem codigo",
+      _titulos("sem_codigo") == ["sem codigo", "sem nada", "so espacos"],
+      _titulos("sem_codigo"))
+check("'sem_sku' pega quem nao tem SKU",
+      _titulos("sem_sku") == ["sem sku", "sem nada", "so espacos"],
+      _titulos("sem_sku"))
+check("'sem_nenhum' pega so quem nao tem os dois",
+      _titulos("sem_nenhum") == ["sem nada", "so espacos"], _titulos("sem_nenhum"))
+
+# Espaco em branco nao e cadastro preenchido. Produto com sku "   " aparece
+# preenchido na planilha e nao serve pra nada.
+# Produto com sku "   " aparece PREENCHIDO na planilha e nao serve pra nada.
+check("so espaco em branco conta como vazio, no SKU",
+      "so espacos" in _titulos("sem_sku"))
+check("e no codigo de barras tambem",
+      "so espacos" in _titulos("sem_codigo"))
+check("None tambem conta como vazio", "sem nada" in _titulos("sem_codigo"))
+
+# Filtro desconhecido NAO pode levantar erro: ele vem da querystring, e uma tela
+# antiga mandando um nome que nao existe mais deve ver o catalogo inteiro, nao
+# uma tela de erro.
+check("filtro que nao existe devolve tudo, em vez de quebrar",
+      len(_cat.filtrar(_catalogo, "inventado")) == 5)
+check("filtro que nao existe devolve tudo mesmo com nome de filtro real dentro",
+      len(_cat.filtrar(_catalogo, "SEM_CODIGO")) == 5)
+check("lista vazia nao quebra", _cat.filtrar([], "sem_codigo") == [])
+check("lista None nao quebra", _cat.filtrar(None, "sem_codigo") == [])
+
+
+# O LACO DE PAGINAS. Uma pagina so nao serve com filtro ligado: o Shopify
+# devolve 50 produtos e talvez 2 estejam sem codigo — o lojista veria 2 e
+# concluiria que sao todos na loja inteira.
+_paginas = {"n": 0}
+
+
+def _catalogo_falso(loja, token, corpo, **kw):
+    """Tres paginas, e so a TERCEIRA tem produto sem codigo."""
+    _paginas["n"] += 1
+    sem = _paginas["n"] == 3
+    return {"data": {"products": {
+        "pageInfo": {"hasNextPage": _paginas["n"] < 3,
+                     "endCursor": "c%d" % _paginas["n"]},
+        "nodes": [{
+            "title": "Produto da pagina %d" % _paginas["n"],
+            "vendor": "Acme", "productType": "Camiseta",
+            "variants": {"pageInfo": {"hasNextPage": False}, "nodes": [{
+                "id": "gid://shopify/ProductVariant/%d" % _paginas["n"],
+                "title": "Default", "sku": "SKU-%d" % _paginas["n"],
+                "barcode": "" if sem else "789123456789%d" % _paginas["n"],
+                "price": "10.00", "compareAtPrice": None,
+                "inventoryQuantity": 3}]}}]}}}
+
+
+_orig_g = _rede4.graphql
+_rede4.graphql = _catalogo_falso
+try:
+    _r = _pega("/api/produtos?filtro=sem_codigo", "loja-a.myshopify.com")
+    _d = _r.get_json()
+finally:
+    _rede4.graphql = _orig_g
+
+check("com filtro, a busca continua ate achar — nao para na primeira pagina",
+      _paginas["n"] == 3, _paginas["n"])
+check("e devolve o que achou", len(_d.get("itens") or []) == 1, _d.get("itens"))
+check("dizendo ENTRE QUANTOS procurou, senao o lojista acha que e a loja toda",
+      _d.get("varridos") == 3, _d.get("varridos"))
+check("e repetindo qual filtro foi aplicado", _d.get("filtro") == "sem_codigo")
+
+# Sem filtro, uma pagina so — varrer o catalogo inteiro a toa estouraria o tempo
+# da requisicao numa loja grande.
+_paginas["n"] = 0
+_rede4.graphql = _catalogo_falso
+try:
+    _r = _pega("/api/produtos", "loja-a.myshopify.com")
+finally:
+    _rede4.graphql = _orig_g
+check("sem filtro, busca uma pagina so", _paginas["n"] == 1, _paginas["n"])
+check("e nao inventa contagem de varredura",
+      _r.get_json().get("varridos") is None)
+
+# O TETO, medido pelo COMPORTAMENTO e nao pela constante. A primeira versao
+# deste teste so conferia que o numero existia entre 2 e 20 — e a sabotagem
+# mostrou que dava pra apagar o `break` inteiro sem nada gritar.
+#
+# O caso que ele protege e o oposto do anterior: loja onde TUDO tem codigo faria
+# a busca varrer o catalogo inteiro e estourar o tempo da requisicao.
+_sem_fim = {"n": 0}
+
+
+# O catalogo falso TEM fim, e de proposito. Sem o teto na rota, um catalogo
+# infinito faria a bateria TRAVAR em vez de falhar — e travar e o pior jeito de
+# pegar defeito: nao diz o que quebrou, so para. Aconteceu de verdade: a
+# sabotagem que remove o teto ficou aplicada num arquivo e a bateria pendurou.
+_TETO_DO_FALSO = 40
+
+
+def _catalogo_infinito(loja, token, corpo, **kw):
+    """Muitas paginas, e NENHUMA tem produto sem codigo."""
+    _sem_fim["n"] += 1
+    return {"data": {"products": {
+        "pageInfo": {"hasNextPage": _sem_fim["n"] < _TETO_DO_FALSO,
+                     "endCursor": "c%d" % _sem_fim["n"]},
+        "nodes": [{
+            "title": "Tem codigo %d" % _sem_fim["n"],
+            "vendor": "Acme", "productType": "Camiseta",
+            "variants": {"pageInfo": {"hasNextPage": False}, "nodes": [{
+                "id": "gid://shopify/ProductVariant/%d" % _sem_fim["n"],
+                "title": "Default", "sku": "S%d" % _sem_fim["n"],
+                "barcode": "789123456789%d" % (_sem_fim["n"] % 10),
+                "price": "10.00", "compareAtPrice": None,
+                "inventoryQuantity": 1}]}}]}}}
+
+
+_rede4.graphql = _catalogo_infinito
+try:
+    _r = _pega("/api/produtos?filtro=sem_codigo", "loja-a.myshopify.com")
+finally:
+    _rede4.graphql = _orig_g
+
+check("a busca filtrada PARA no teto, em vez de varrer o catalogo inteiro",
+      _sem_fim["n"] == _api.PAGINAS_POR_FILTRO, _sem_fim["n"])
+check("e para MUITO antes do fim do catalogo, senao o teto nao serve pra nada",
+      _api.PAGINAS_POR_FILTRO < _TETO_DO_FALSO)
+check("e avisa que parou no teto, pro lojista saber que pode haver mais",
+      _r.get_json().get("parou_no_teto") is True, _r.get_json().get("parou_no_teto"))
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

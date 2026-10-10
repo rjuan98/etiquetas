@@ -166,7 +166,13 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
     <div class="cx">
       <h2>{{ T.produtos }}</h2>
       <div class="linha" style="margin:0 0 12px">
-        <input type="search" id="busca" placeholder="{{ T.buscar_dica }}">
+        <select id="filtro" style="margin:0 0 9px">
+        <option value="">{{ T.filtro_todos }}</option>
+        <option value="sem_codigo">{{ T.filtro_sem_codigo }}</option>
+        <option value="sem_sku">{{ T.filtro_sem_sku }}</option>
+        <option value="sem_nenhum">{{ T.filtro_sem_nenhum }}</option>
+      </select>
+      <input type="search" id="busca" placeholder="{{ T.buscar_dica }}">
         <button class="b" id="buscar">{{ T.buscar }}</button>
       </div>
       <div id="lista"><p class="vazio">{{ T.carregando_catalogo }}</p></div>
@@ -687,6 +693,8 @@ async function carregarProdutos(busca, continuar) {
 
   let url = "/api/produtos?quantos=50";
   if (buscaAtual) url += "&busca=" + encodeURIComponent(buscaAtual);
+  const filtro = $("filtro") ? $("filtro").value : "";
+  if (filtro) url += "&filtro=" + encodeURIComponent(filtro);
   if (continuar && cursorAtual) url += "&depois=" + encodeURIComponent(cursorAtual);
 
   const r = await api(url);
@@ -704,12 +712,33 @@ async function carregarProdutos(busca, continuar) {
   cursorAtual = d.cursor || null;
   $("mais").classList.toggle("oculto", !d.tem_mais);
 
+  // Os dois recados do catálogo moram no mesmo lugar e NÃO podem se apagar.
+  // A primeira versão deixava cada um escrever `innerHTML` direto, e aí o
+  // último a rodar apagava o outro — o lojista com produto de 100+ variantes
+  // perdia esse aviso assim que ligasse um filtro.
+  $("aviso_catalogo").innerHTML = "";
+
+  function recado(texto, classe) {
+    const p = document.createElement("p");
+    p.className = classe;
+    p.textContent = texto;
+    $("aviso_catalogo").appendChild(p);
+  }
+
+  // Com filtro ligado, dizer quantos achou SEM dizer entre quantos procurou
+  // faria o lojista achar que "3 sem código" é a loja inteira.
+  if (d.filtro && d.varridos) {
+    recado(T.filtro_resultado
+             .replace("%d", (d.itens || []).length).replace("%d", d.varridos)
+           + (d.parou_no_teto ? " " + T.filtro_teto.replace("%d", d.varridos) : ""),
+           "ajuda");
+  }
+
   // Produto com mais de 100 variantes vem cortado pela consulta. Sumir em
   // silêncio faria o lojista imprimir a prateleira faltando tamanhos.
   if (d.variantes_cortadas && d.variantes_cortadas.length) {
-    $("aviso_catalogo").innerHTML = '<p class="aviso"></p>';
-    $("aviso_catalogo").firstChild.textContent =
-      T.variantes_cortadas.replace("%s", d.variantes_cortadas.join(", "));
+    recado(T.variantes_cortadas.replace("%s", d.variantes_cortadas.join(", ")),
+           "aviso");
   }
   if (!continuar) escolherOEscaneado();
   desenharLista();
@@ -946,6 +975,9 @@ async function comecar() {
     $("dlg_planos").close();
   });
 
+  $("filtro").addEventListener("change", function () {
+    carregarProdutos($("busca").value);
+  });
   $("buscar").addEventListener("click", function () { carregarProdutos($("busca").value); });
   $("busca").addEventListener("keydown", function (e) {
     if (e.key === "Enter") carregarProdutos($("busca").value);
