@@ -59,6 +59,17 @@ DIGITOS_DA_SEQUENCIA = 4
 TAMANHO_MAXIMO = 32
 
 
+# O que o Shopify põe no título da variante quando o produto NÃO TEM variante.
+# Não é nome de nada, e cada letra dele no SKU é ruído.
+#
+# MEDIDO numa loja de verdade em 20/10/2026: com o molde padrão, 13 de 23
+# produtos viravam algo terminado em `-DEFA`. Além de não dizer nada, isso
+# fazia produtos diferentes colidirem e ganharem sufixo `-2`, `-3`.
+#
+# A constante do Shopify é literal e em inglês, independente do idioma da loja.
+SEM_VARIANTE = "default title"
+
+
 def normalizar_variante(texto: str, letras: int = LETRAS_POR_PECA) -> str:
     """A variante preservando a estrutura que o Shopify já deu.
 
@@ -68,15 +79,32 @@ def normalizar_variante(texto: str, letras: int = LETRAS_POR_PECA) -> str:
 
         "M / Preto"  ->  M-PRE
         "P / Azul Marinho"  ->  P-AZUL
+        "Default Title"  ->  (nada)
     """
+    if str(texto or "").strip().lower() == SEM_VARIANTE:
+        return ""
     partes = [normalizar(p, letras) for p in str(texto or "").split("/")]
     return "-".join(x for x in partes if x)
+
+
+# Artigos que começam título de produto e não distinguem nada.
+#
+# MEDIDO numa loja de verdade: com 4 letras, "The Minimal Snowboard" virava
+# `THEM` e "The Complete Snowboard" virava `THEC`. O artigo comia quase todo o
+# orçamento de letras, e três produtos diferentes ("The Collection Snowboard:
+# Hydrogen", "...: Oxygen", "...: Liquid") viravam o MESMO `THEC`, precisando
+# de sufixo `-2` e `-3` pra se distinguir.
+#
+# Só artigo, e só no COMEÇO. Preposição ("de", "da") fica: ela aparece no meio
+# de nome próprio com frequência, e tirar faria mais estrago que bem.
+ARTIGOS = {"the", "a", "an", "o", "os", "as", "um", "uma", "uns", "umas"}
 
 
 def normalizar(texto: str, letras: int = LETRAS_POR_PECA) -> str:
     """Um pedaço de texto virando peça de SKU.
 
-    Tira acento, tira o que não é letra ou número, deixa maiúsculo e corta.
+    Tira acento, descarta artigo do começo, tira o que não é letra ou número,
+    deixa maiúsculo e corta.
 
     O acento sai por motivo prático, não estético: este texto vai parar num
     Code 128 e numa etiqueta impressa por fonte de impressora térmica, onde "ç"
@@ -87,8 +115,25 @@ def normalizar(texto: str, letras: int = LETRAS_POR_PECA) -> str:
     sem_acento = "".join(
         c for c in unicodedata.normalize("NFD", str(texto))
         if unicodedata.category(c) != "Mn")
-    so_alfanumerico = re.sub(r"[^0-9A-Za-z]", "", sem_acento)
-    return so_alfanumerico.upper()[:max(1, letras)]
+
+    # Separa em palavras ANTES de cortar: colar tudo primeiro é o que fazia o
+    # artigo consumir as letras que deviam identificar o produto.
+    palavras = [p for p in re.split(r"[^0-9A-Za-z]+", sem_acento) if p]
+    corte = max(1, letras)
+
+    # Só descarta o artigo se o que SOBRA ainda enche uma peça inteira.
+    #
+    # Sem essa condição, "A/B C-1" virava `BC1` — o "A" ali não é artigo, é
+    # parte do valor. O mesmo valeria pra "A 200": descartar um "A" que
+    # distingue o produto é pior que manter um artigo que não distingue.
+    #
+    # Com a condição, "A Casa do Pão" ainda vira CASA (sobram 9 letras) e
+    # "A 200" continua A200 (sobrariam 3).
+    while (len(palavras) > 1 and palavras[0].lower() in ARTIGOS
+           and len("".join(palavras[1:])) >= corte):
+        palavras.pop(0)
+
+    return "".join(palavras).upper()[:corte]
 
 
 def _juntar(molde: str, pecas: dict) -> str:

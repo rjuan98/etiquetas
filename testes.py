@@ -3881,6 +3881,78 @@ check("a ordem do lote e a ordem recebida, pro lojista conferir a tabela",
       len(_lote) == len(_itens))
 
 
+# --- o que uma loja DE VERDADE mostrou, em 20/10/2026 ---------------------
+#
+# Rodando o gerador na loja de testes, com os produtos de demonstracao do
+# Shopify, a tabela saiu assim:
+#
+#     The Minimal Snowboard            ->  ETIK-THEM-DEFA
+#     The Complete Snowboard           ->  ETIK-THEC-DEFA
+#     The Collection Snowboard: Oxygen ->  HYDR-THEC-DEFA-2  (!)
+#
+# Dois defeitos de uma vez, e nenhum aparecia no catalogo falso dos testes.
+
+# (a) "Default Title" e o que o Shopify poe quando o produto NAO TEM variante.
+# Nao e nome de nada, e estava em 13 das 23 linhas.
+check("'Default Title' nao vira peca de SKU",
+      skus.normalizar_variante("Default Title") == "",
+      skus.normalizar_variante("Default Title"))
+check("e nao depende de maiuscula",
+      skus.normalizar_variante("  default TITLE ") == "")
+check("mas variante de verdade continua virando",
+      skus.normalizar_variante("M / Preto") == "M-PRET",
+      skus.normalizar_variante("M / Preto"))
+
+# (b) O ARTIGO comia o orcamento de letras. Com 4 letras, "The Minimal
+# Snowboard" virava THEM e "The Complete Snowboard" virava THEC — e tres
+# produtos diferentes viravam o MESMO texto, precisando de sufixo pra existir.
+check("o artigo do comeco e descartado",
+      skus.normalizar("The Minimal Snowboard") == "MINI",
+      skus.normalizar("The Minimal Snowboard"))
+check("e dois titulos que so diferiam depois do artigo agora se separam",
+      skus.normalizar("The Minimal Snowboard")
+      != skus.normalizar("The Complete Snowboard"))
+check("artigo em portugues tambem",
+      skus.normalizar("A Casa do Pao") == "CASA",
+      skus.normalizar("A Casa do Pao"))
+# Preposicao NAO sai: ela aparece no meio de nome proprio e tirar faria mais
+# estrago que bem.
+check("mas preposicao no meio fica",
+      skus.normalizar("Casa de Carnes", 12) == "CASADECARNES",
+      skus.normalizar("Casa de Carnes", 12))
+# Um produto chamado so "A" ainda precisa de SKU.
+check("titulo que e SO um artigo nao vira vazio",
+      skus.normalizar("A") == "A", skus.normalizar("A"))
+check("nem 'The'", skus.normalizar("The") == "THE", skus.normalizar("The"))
+
+# E o artigo SO sai se o que sobra ainda encher uma peca inteira. Sem isto,
+# "A/B C-1" virava BC1 — ali o "A" nao e artigo, e parte do valor. O mesmo
+# vale pra "A 200": descartar um "A" que DISTINGUE e pior que manter um que
+# nao distingue.
+check("'A' nao e descartado quando o que sobra e curto demais",
+      skus.normalizar("A 200") == "A200", skus.normalizar("A 200"))
+check("e o caso que pegou isso continua inteiro",
+      skus.normalizar("A/B C-1") == "ABC1", skus.normalizar("A/B C-1"))
+
+# E o conjunto: os mesmos produtos da loja de verdade, antes e depois.
+_REAIS = [("Etik", "The Minimal Snowboard", "Default Title"),
+          ("Hydrogen Vendor", "The Collection Snowboard: Hydrogen", "Default Title"),
+          ("Hydrogen Vendor", "The Collection Snowboard: Oxygen", "Default Title"),
+          ("Snowboard Vendor", "The Archived Snowboard", "Default Title"),
+          ("Etik", "The Videographer Snowboard", "Default Title")]
+_itens = [{"produto": {"titulo": _t2, "fornecedor": _f, "tipo": ""},
+           "variante": {"titulo": _v, "sku": "", "codigo_barras": ""}}
+          for _f, _t2, _v in _REAIS]
+_r = skus.gerar_lote(_itens, "{fornecedor}-{titulo}-{variante}")
+_saiu = [l["sku"] for l in _r]
+check("nenhum SKU da loja real termina em DEFA",
+      not any(s.endswith("DEFA") for s in _saiu), _saiu)
+check("e o Minimal vira ETIK-MINI, que diz o que e",
+      _saiu[0] == "ETIK-MINI", _saiu[0])
+check("so os tres que SO diferem na ultima palavra ainda colidem",
+      sum(1 for l in _r if l.get("aviso")) == 1, _saiu)
+
+
 secao("75. O filtro de 'o que esta faltando no cadastro'")
 
 # E o destaque numero 5 da ficha do lider do nicho ("Identifique instantaneamente
@@ -4563,6 +4635,16 @@ check("e esse texto NAO fala em desfazer",
 # gravacao que falhou tira justamente o que serve pra tentar de novo.
 check("a tabela so e apagada quando algo foi gravado",
       _tela.count("if (quantos) {") == 2, _tela.count("if (quantos) {"))
+
+# O ⚠ por linha obriga a ler a tabela inteira pra perceber que o molde nao
+# distingue nada. MEDIDO numa loja de verdade: 13 de 23 linhas ganharam
+# sufixo, e so dava pra ver conferindo uma a uma.
+check("o resumo conta quantas linhas so se distinguem pelo sufixo",
+      "podem.filter(function (l) { return l.aviso; })" in _tela
+      and "T.gerar_repetidos" in _tela)
+check("e o aviso ensina a saida, que e o {seq}",
+      "{seq}" in _txt.TEXTOS["gerar_repetidos"]["pt"]
+      and "{seq}" in _txt.TEXTOS["gerar_repetidos"]["en"])
 
 
 # --- 8. a conferencia de repetidos olha o catalogo, nao a lista filtrada ---

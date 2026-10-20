@@ -81,6 +81,15 @@ TEXTOS = {
     # Zero gravado NÃO pode usar o texto de cima: prometer "dá para desfazer"
     # uma gravação que não aconteceu é a meia verdade que este app recusa em
     # todo lugar — e mandaria o lojista clicar em Desfazer atrás de nada.
+    # O ⚠ por linha existe, mas obriga a ler a tabela inteira pra perceber.
+    # MEDIDO numa loja de verdade: 13 de 23 linhas ganharam sufixo e so dava
+    # pra ver isso conferindo uma a uma. O resumo diz na cara.
+    "gerar_repetidos":     {"en": "%d of them only differ by the suffix — the "
+                                  "pattern doesn't tell your products apart. "
+                                  "Add {seq} to number them instead.",
+                            "pt": "%d delas só se distinguem pelo sufixo — o "
+                                  "molde não separa seus produtos. Inclua "
+                                  "{seq} no molde para numerá-las."},
     "gerar_nada_gravado":  {"en": "Nothing was written.",
                             "pt": "Nada foi gravado."},
     # A conferência de repetidos só enxerga o que foi varrido. Em catálogo

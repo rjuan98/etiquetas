@@ -930,6 +930,12 @@ function gerDesenhar(p, d) {
   // A conferência de repetidos só alcança o que foi varrido. Dizer isso é
   // melhor que deixar o lojista achar que vale pro catálogo inteiro.
   if (d.conferencia_completa === false) resumo += " " + T.gerar_parcial;
+  // O ⚠ por linha obriga a ler a tabela inteira pra perceber que o molde nao
+  // distingue nada. Dito no resumo, o lojista ve antes de gravar.
+  const comSufixo = podem.filter(function (l) { return l.aviso; }).length;
+  if (comSufixo) {
+    resumo += " " + T.gerar_repetidos.replace("%d", comSufixo);
+  }
   $(p + "_resumo").textContent = resumo;
 
   const tabela = document.createElement("table");

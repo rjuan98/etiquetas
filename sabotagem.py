@@ -737,6 +737,26 @@ SABOTAGENS = [
      '  if (quantos) {\n    $(p + "_tabela").innerHTML = "";\n    carregarProdutos($("busca").value);\n  }\n  gerAtualizarBotao(p);',
      '  $(p + "_tabela").innerHTML = "";\n  carregarProdutos($("busca").value);\n  gerAtualizarBotao(p);'),
 
+    ("o 'Default Title' do Shopify nao virando peca de SKU",
+     'etiquetas/skus.py',
+     '    if str(texto or "").strip().lower() == SEM_VARIANTE:\n        return ""\n',
+     ''),
+
+    ('o artigo sendo descartado do comeco do titulo',
+     'etiquetas/skus.py',
+     '    while (len(palavras) > 1 and palavras[0].lower() in ARTIGOS\n           and len("".join(palavras[1:])) >= corte):\n        palavras.pop(0)',
+     '    pass'),
+
+    ('o artigo FICANDO quando o que sobra e curto demais',
+     'etiquetas/skus.py',
+     '           and len("".join(palavras[1:])) >= corte):',
+     '           ):'),
+
+    ('o resumo avisando que o molde nao distingue os produtos',
+     'web/rotas_tela.py',
+     '  const comSufixo = podem.filter(function (l) { return l.aviso; }).length;',
+     '  const comSufixo = 0;'),
+
     # ------------------------------------- o Code 128 so aceita ASCII
     # MEDIDO: "CAFÉ-01" estourava ValueError dentro do reportlab (erro de
     # servidor na cara do lojista) e ia inteiro pro ZPL. "Aceita texto" nao
