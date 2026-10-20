@@ -161,7 +161,26 @@ CREATE TABLE IF NOT EXISTS impressoes (
     criado_em  TEXT NOT NULL
 );
 
+-- O que o app ESCREVEU no catálogo do lojista, pra dar pra desfazer.
+--
+-- É a única tabela que guarda conteúdo do catálogo, e é exceção assumida: sem
+-- o valor anterior não existe desfazer, e sem desfazer o gerador não sobe. Ela
+-- guarda o mínimo (id da variante, campo, antes, depois), só o que NÓS
+-- escrevemos, e tem prazo — ver `dados/gravacoes.py`.
+CREATE TABLE IF NOT EXISTS gravacoes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    loja_id      INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+    lote         TEXT NOT NULL,
+    variante_id  TEXT NOT NULL,
+    campo        TEXT NOT NULL,
+    valor_antigo TEXT NOT NULL,
+    valor_novo   TEXT NOT NULL,
+    criado_em    TEXT NOT NULL,
+    desfeito_em  TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_modelos_loja ON modelos(loja_id);
+CREATE INDEX IF NOT EXISTS idx_gravacoes_loja_lote ON gravacoes(loja_id, lote);
 CREATE INDEX IF NOT EXISTS idx_impressoes_loja_data ON impressoes(loja_id, criado_em);
 """
 

@@ -87,6 +87,7 @@ dados/             O BANCO — toda consulta filtra por loja_id
   lojas.py         instalar, reinstalar, desinstalar, apagar
   modelos.py       os modelos: o template que imprime + a receita que reabre
   impressoes.py    a conta do mês (só a conta, nada do conteúdo)
+  gravacoes.py     o que o app escreveu, pra dar pra DESFAZER
 
 web/               O FLASK
   config.py        variáveis de ambiente, conferidas no boot
@@ -268,7 +269,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **1.016 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **1.038 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -281,7 +282,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 82 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 88 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

@@ -2791,9 +2791,18 @@ check("nenhum escopo de cliente, pedido ou escrita",
       not any(p in oauth.ESCOPOS for p in _proibidos), oauth.ESCOPOS)
 
 # 2. o banco nao pode ganhar coluna de dado pessoal sem a politica mudar junto
+#
+# A lista de tabelas sai do PROPRIO BANCO, nao escrita a mao. A primeira versao
+# listava ("lojas", "modelos", "impressoes") e por isso pegava coluna nova mas
+# NAO pegava TABELA nova — foi assim que a `gravacoes` entrou sem ninguem reler
+# a politica. Tabela nova guarda dado novo; e o caso mais forte, nao o mais
+# fraco.
 with banco.conectar() as _con:
+    _tabelas = [r["name"] for r in _con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' "
+        "AND name NOT LIKE 'sqlite_%'").fetchall()]
     _colunas = set()
-    for _tab in ("lojas", "modelos", "impressoes"):
+    for _tab in _tabelas:
         for _c in _con.execute("PRAGMA table_info(%s)" % _tab).fetchall():
             _colunas.add("%s.%s" % (_tab, _c["name"]))
 
@@ -2809,6 +2818,12 @@ _ESPERADAS = {
     "modelos.receita", "modelos.criado_em", "modelos.alterado_em",
     "impressoes.id", "impressoes.loja_id", "impressoes.modelo_id",
     "impressoes.motor", "impressoes.quantidade", "impressoes.criado_em",
+    # A UNICA tabela que guarda conteudo do catalogo, e e excecao assumida: sem
+    # o valor anterior nao existe desfazer, e sem desfazer o gerador nao sobe.
+    # Guarda o minimo, so o que NOS escrevemos, e tem prazo de 30 dias.
+    "gravacoes.id", "gravacoes.loja_id", "gravacoes.lote",
+    "gravacoes.variante_id", "gravacoes.campo", "gravacoes.valor_antigo",
+    "gravacoes.valor_novo", "gravacoes.criado_em", "gravacoes.desfeito_em",
 }
 # Este teste FALHA de proposito quando o esquema muda. Nao e chatice: coluna
 # nova e o momento de reler a politica e decidir se ela continua verdadeira.
@@ -3971,6 +3986,97 @@ check("e para MUITO antes do fim do catalogo, senao o teto nao serve pra nada",
       _api.PAGINAS_POR_FILTRO < _TETO_DO_FALSO)
 check("e avisa que parou no teto, pro lojista saber que pode haver mais",
       _r.get_json().get("parou_no_teto") is True, _r.get_json().get("parou_no_teto"))
+
+
+secao("76. O registro de desfazer — a excecao assumida do projeto")
+
+# O impressoes.py diz que NADA do conteudo e guardado: nem titulo, nem SKU, nem
+# preco. Esta tabela guarda SKU, e nao ha contorno: desfazer exige saber o que
+# estava la antes. Entao a excecao e construida COMO excecao — o minimo, so o
+# que NOS escrevemos, com prazo, e declarada na politica.
+#
+# Sem desfazer o gerador nao sobe: um defeito nosso aqui mexe no catalogo de
+# quem paga, nao num papel. Etiqueta errada custa uma folha; SKU errado em 300
+# produtos custa o inventario da loja.
+from dados import gravacoes as _grav
+
+_ID_G1 = _instalar("gravadora.myshopify.com", "tok-g1")
+_ID_G2 = _instalar("vizinha.myshopify.com", "tok-g2")
+
+_lote = _grav.registrar(_ID_G1, "sku",
+                        [("gid/v1", "", "ACME-A"), ("gid/v2", "ANTIGO", "ACME-B")])
+check("o lote e registrado e tem identificador", bool(_lote))
+
+_u = _grav.ultimo_lote(_ID_G1)
+check("e aparece como o ultimo lote desfazivel",
+      _u and _u["quantos"] == 2 and _u["campo"] == "sku", _u)
+
+_linhas = _grav.linhas_do_lote(_ID_G1, _lote)
+check("guardando o valor ANTERIOR, que e o que permite reverter",
+      [l["valor_antigo"] for l in _linhas] == ["", "ANTIGO"], _linhas)
+check("e o valor novo, pra saber se ainda e nosso quando for desfazer",
+      [l["valor_novo"] for l in _linhas] == ["ACME-A", "ACME-B"])
+
+# A falha mais comum de app multi-inquilino, e aqui ela teria consequencia
+# pior que ler: desfazer a escrita de outra loja.
+check("uma loja NAO enxerga o lote da outra, mesmo sabendo o identificador",
+      _grav.linhas_do_lote(_ID_G2, _lote) == [])
+check("nem consegue marcar como desfeito o lote alheio",
+      _grav.marcar_desfeito(_ID_G2, _lote) == 0)
+check("e o lote continua intacto depois da tentativa",
+      len(_grav.linhas_do_lote(_ID_G1, _lote)) == 2)
+
+check("marcar desfeito marca as duas linhas",
+      _grav.marcar_desfeito(_ID_G1, _lote) == 2)
+check("e ai ele some da fila de desfazer, pra nao ser revertido duas vezes",
+      _grav.ultimo_lote(_ID_G1) is None)
+check("desfazer o mesmo lote de novo nao mexe em nada",
+      _grav.marcar_desfeito(_ID_G1, _lote) == 0)
+
+# Lista FECHADA de campos. Se um dia alguem tentar gravar `price` por engano, o
+# erro aparece aqui e nao na loja do lojista.
+for _campo in ("preco", "titulo", "inventoryQuantity", ""):
+    _recusou = False
+    try:
+        _grav.registrar(_ID_G1, _campo, [("gid/x", "", "1")])
+    except ValueError:
+        _recusou = True
+    check("campo %r nao e gravavel" % _campo, _recusou)
+check("mas sku e codigo_barras sao",
+      set(_grav.CAMPOS_GRAVAVEIS) == {"sku", "codigo_barras"})
+
+_vazio = False
+try:
+    _grav.registrar(_ID_G1, "sku", [])
+except ValueError:
+    _vazio = True
+check("lote sem mudanca nenhuma e recusado, em vez de criar lote fantasma",
+      _vazio)
+
+# O PRAZO e o que impede isto de virar, com o tempo, uma copia do catalogo de
+# todo mundo que ja usou o app.
+check("existe prazo de guarda, e ele e curto o bastante",
+      1 <= _grav.DIAS_DE_GUARDA <= 90, _grav.DIAS_DE_GUARDA)
+
+_antigo = _grav.registrar(_ID_G1, "sku", [("gid/velho", "", "X")])
+with banco.conectar() as _c:
+    _c.execute("UPDATE gravacoes SET criado_em = datetime('now','-400 days') "
+               "WHERE lote = ?", (_antigo,))
+_novo = _grav.registrar(_ID_G1, "sku", [("gid/novo", "", "Y")])
+_saiu = _grav.apagar_vencidas()
+check("o que passou do prazo e apagado", _saiu >= 1, _saiu)
+check("e o recente fica", len(_grav.linhas_do_lote(_ID_G1, _novo)) == 1)
+
+# A politica tem que falar disto. O teste de esquema do banco agora pega TABELA
+# nova tambem — foi ele que obrigou esta frase a existir.
+_priv = _cliente.get("/privacy?idioma=pt").get_data(as_text=True)
+_priv_en = _cliente.get("/privacy?idioma=en").get_data(as_text=True)
+check("a politica em portugues fala do registro de desfazer",
+      "desfazer" in _priv and "30 dias" in _priv)
+check("e a em ingles tambem", "undo" in _priv_en and "30 days" in _priv_en)
+check("e as duas dizem que so acontece se o lojista PEDIR",
+      ("nunca usar" in _priv or "Se você nunca" in _priv)
+      and "never use" in _priv_en)
 
 
 # ---------------------------------------------------------------- fim

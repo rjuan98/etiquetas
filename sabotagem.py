@@ -608,6 +608,47 @@ SABOTAGENS = [
      "    return [i for i in (itens or []) if regra(i)] if regra else list(itens or [])",
      "    return [i for i in (itens or []) if FILTROS[filtro](i)]"),
 
+    # -------------------------------------------- o registro de desfazer
+    # Mesma falha do IDOR de leitura, com consequencia pior: aqui o vizinho nao
+    # leria o alheio, ele DESFARIA a escrita do alheio.
+    ("o filtro de loja ao ler o lote de desfazer",
+     "dados/gravacoes.py",
+     "                WHERE loja_id = ? AND lote = ? AND desfeito_em IS NULL\n             ORDER BY id\"\"\", (dono, str(lote))).fetchall()",
+     "                WHERE lote = ? AND desfeito_em IS NULL\n             ORDER BY id\"\"\", (str(lote),)).fetchall()"),
+
+    ("o filtro de loja ao marcar o lote como desfeito",
+     "dados/gravacoes.py",
+     "                WHERE loja_id = ? AND lote = ? AND desfeito_em IS NULL\"\"\",\n            (agora(), dono, str(lote)))",
+     "                WHERE lote = ? AND desfeito_em IS NULL\"\"\",\n            (agora(), str(lote)))"),
+
+    # Sem o valor anterior nao existe desfazer — e sem desfazer o gerador nao
+    # pode subir, porque um bug nosso mexe no catalogo de quem paga.
+    ("o valor ANTERIOR sendo guardado",
+     "dados/gravacoes.py",
+     "    linhas = [(str(v), str(antigo or \"\"), str(novo or \"\"))",
+     "    linhas = [(str(v), \"\", str(novo or \"\"))"),
+
+    # Lista fechada: se alguem tentar gravar `price` por engano, o erro tem que
+    # aparecer aqui e nao na loja do lojista.
+    ("a lista fechada de campos gravaveis",
+     "dados/gravacoes.py",
+     "    if campo not in CAMPOS_GRAVAVEIS:",
+     "    if False:"),
+
+    # O prazo e o que impede isto de virar uma copia permanente do catalogo
+    # alheio. Ver a politica de privacidade, que promete 30 dias.
+    ("o prazo de guarda do registro de desfazer",
+     "dados/gravacoes.py",
+     "            (\"-%d days\" % max(1, int(dias)),))",
+     "            (\"-99999 days\",))"),
+
+    # Marcar em vez de apagar: desfazer duas vezes sobrescreveria um valor que o
+    # lojista pode ter posto a mao depois.
+    ("o lote desfeito saindo da fila",
+     "dados/gravacoes.py",
+     "                WHERE loja_id = ? AND desfeito_em IS NULL\n             GROUP BY lote, campo",
+     "                WHERE loja_id = ?\n             GROUP BY lote, campo"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

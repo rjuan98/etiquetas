@@ -105,6 +105,11 @@ authorize at install</li>
 <li>Which plan your store is on</li>
 <li>The label templates you design: their layout, which fields you turned on,
 your currency and calibration settings, and any fixed text you typed</li>
+<li><strong>Only when you ask the app to fill in a missing SKU or barcode:</strong>
+the variant, the value that was there before, and the value written. This exists
+so you can undo it, it covers only what the app itself wrote — never a copy of
+your catalog — and it is <strong>deleted after 30 days</strong>. If you never use
+that feature, nothing of this is stored</li>
 <li>A count of labels generated, with the date and the printer type — the number
 only, never what was on the labels</li>
 </ul>
@@ -215,6 +220,11 @@ que você autorizou na instalação</li>
 <li>Em que plano sua loja está</li>
 <li>Os modelos de etiqueta que você desenha: o desenho, quais campos você ligou,
 suas escolhas de moeda e calibração, e qualquer texto fixo que você digitou</li>
+<li><strong>Só quando você pede ao app para preencher um SKU ou código que
+falta:</strong> a variante, o valor que estava lá antes e o valor gravado. Isso
+existe para você poder desfazer, cobre apenas o que o próprio app escreveu —
+nunca uma cópia do seu catálogo — e é <strong>apagado em 30 dias</strong>. Se
+você nunca usar esse recurso, nada disso é guardado</li>
 <li>A contagem de etiquetas geradas, com a data e o tipo de impressora — só o
 número, nunca o que estava escrito nelas</li>
 </ul>
