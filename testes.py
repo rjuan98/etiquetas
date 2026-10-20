@@ -4079,6 +4079,319 @@ check("e as duas dizem que so acontece se o lojista PEDIR",
       and "never use" in _priv_en)
 
 
+secao("77. A mutacao que escreve no catalogo — o lugar mais cuidadoso do projeto")
+
+# E o unico arquivo que pede permissao de ESCRITA. Um defeito nestas linhas mexe
+# no catalogo de quem paga, nao num papel.
+from loja import escrita as _esc
+
+# TRES COISAS DA API que custaram pesquisa e se esquecem:
+#
+# 1. Nao existe campo `sku` na variante — ele mora em `inventoryItem.sku`.
+#    Mandar `sku` direto e erro de esquema, e a mensagem do Shopify nao ajuda.
+_c = _esc.consulta_de_skus("gid://p/1", [("gid://v/1", "ACME-A")])
+_var = _c["variables"]["variantes"][0]
+check("o SKU vai dentro de inventoryItem, nao solto na variante",
+      _var == {"id": "gid://v/1", "inventoryItem": {"sku": "ACME-A"}}, _var)
+check("e a consulta leva o id do produto, porque a mutacao e POR PRODUTO",
+      _c["variables"]["produto"] == "gid://p/1")
+
+# 2. `allowPartialUpdates` fica no padrao (false): ou o produto inteiro grava,
+#    ou nenhuma variante dele grava. E o que mantem o desfazer EXATO — com
+#    atualizacao parcial, metade gravaria e o registro teria que adivinhar qual.
+check("a mutacao nao liga atualizacao parcial",
+      "allowPartialUpdates" not in _esc.MUTACAO_VARIANTES)
+
+# 3. A mutacao e por produto, entao o lote precisa ser agrupado.
+_g = _esc.agrupar_por_produto([
+    ("gid://p/1", "gid://v/1", "A"), ("gid://p/1", "gid://v/2", "B"),
+    ("gid://p/2", "gid://v/3", "C")])
+check("as mudancas sao agrupadas por produto",
+      {k: len(v) for k, v in _g.items()} == {"gid://p/1": 2, "gid://p/2": 1}, _g)
+check("e a ordem dentro do produto e mantida, pra bater com a tabela da tela",
+      [v for v, _ in _g["gid://p/1"]] == ["gid://v/1", "gid://v/2"])
+
+# Linha sem id nao vira escrita silenciosa: e dado torto vindo da tela, e gravar
+# "no produto nenhum" seria pior que pular.
+check("linha sem id de produto e descartada",
+      _esc.agrupar_por_produto([("", "gid://v/9", "X")]) == {})
+check("linha sem id de variante tambem",
+      _esc.agrupar_por_produto([("gid://p/1", "", "X")]) == {})
+
+for _args, _rot in ((("", [("gid://v/1", "A")]), "sem id de produto"),
+                    (("gid://p/1", []), "sem variante nenhuma")):
+    _recusou = False
+    try:
+        _esc.consulta_de_skus(*_args)
+    except ValueError:
+        _recusou = True
+    check("recusa montar consulta %s" % _rot, _recusou)
+
+# O SHOPIFY RESPONDE 200 COM ERRO DENTRO, em DUAS camadas: `errors` no topo
+# (consulta malformada) e `userErrors` dentro da mutacao (recusa de negocio,
+# tipo SKU duplicado). Olhar so uma e o jeito classico de achar que gravou.
+check("erro de topo e visto",
+      _esc.erros_da_escrita({"errors": [{"message": "Field nao existe"}]})
+      == ["Field nao existe"])
+check("userError tambem e visto, com o campo que falhou",
+      "SKU ja em uso" in _esc.erros_da_escrita(
+          {"data": {"productVariantsBulkUpdate": {"userErrors": [
+              {"field": ["variants", "0", "inventoryItem", "sku"],
+               "message": "SKU ja em uso"}]}}})[0])
+check("resposta boa nao inventa erro",
+      _esc.erros_da_escrita({"data": {"productVariantsBulkUpdate": {
+          "userErrors": [], "productVariants": [{"id": "gid://v/1",
+                                                 "sku": "A"}]}}}) == [])
+check("resposta torta vira erro, em vez de passar como sucesso",
+      _esc.erros_da_escrita(None) != [])
+check("e userError sem mensagem nao some",
+      _esc.erros_da_escrita({"data": {"productVariantsBulkUpdate": {
+          "userErrors": [{}]}}}) != [])
+
+# O REGISTRO DE DESFAZER SAI DAQUI, e nao da lista que a gente mandou. Mandar
+# nao e gravar: anotar "desfazer" para algo que nao aconteceu faria o desfazer
+# sobrescrever um valor que o lojista pos a mao.
+_resp = {"data": {"productVariantsBulkUpdate": {"productVariants": [
+    {"id": "gid://v/1", "sku": "ACME-A"}]}}}
+check("so a variante CONFIRMADA pelo Shopify conta como gravada",
+      _esc.variantes_gravadas(_resp) == {"gid://v/1": "ACME-A"})
+check("resposta sem confirmacao nenhuma devolve vazio, nao a lista enviada",
+      _esc.variantes_gravadas({"data": {"productVariantsBulkUpdate": {}}}) == {})
+check("e resposta torta nao quebra", _esc.variantes_gravadas(None) == {})
+
+# O id do produto passou a vir no catalogo porque a mutacao precisa dele.
+_amostra = catalogo.para_etiquetas({"data": {"products": {"nodes": [{
+    "id": "gid://shopify/Product/7", "title": "T", "vendor": "V",
+    "productType": "P",
+    "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/9",
+                            "title": "D", "sku": "", "barcode": "",
+                            "price": "1.00"}]}}]}}})
+check("o catalogo passou a trazer o id do produto",
+      _amostra[0]["produto"]["id"] == "gid://shopify/Product/7", _amostra[0]["produto"])
+check("mas ele nao virou campo de etiqueta",
+      not campos.existe("produto.id"))
+
+
+secao("78. O gerador de SKU de ponta a ponta: previa, gravar, desfazer")
+
+# A regra que decide o desenho das tres rotas:
+#
+#   O SERVIDOR CALCULA O QUE GRAVA. O NAVEGADOR SO CONFIRMA QUAIS.
+#
+# O `aplicar` nao recebe os SKUs prontos da tela — ele refaz a mesma varredura e
+# o mesmo calculo da previa, e grava so nas variantes cuja id o lojista
+# confirmou. Se recebesse o valor pronto, qualquer coisa que o navegador
+# mandasse iria parar no catalogo de quem paga.
+_ID_W = _instalar("gera-sku.myshopify.com", "tok-w")
+t_lojas.marcar_plano(_ID_W, "pro")
+
+# A loja de mentira: dois produtos, tres variantes, uma delas JA com SKU.
+_LOJA_FALSA = {
+    "gid://p/1": [("gid://v/1", "P / Preto", ""), ("gid://v/2", "M / Preto", "")],
+    "gid://p/2": [("gid://v/3", "Unico", "JA-TENHO")],
+}
+_gravacoes_feitas = []
+
+
+def _shopify(loja, token, corpo, **kw):
+    """Responde tanto a consulta de produtos quanto a mutacao de escrita."""
+    consulta = corpo.get("query", "")
+    if "productVariantsBulkUpdate" in consulta:
+        pid = corpo["variables"]["produto"]
+        confirmadas = []
+        for v in corpo["variables"]["variantes"]:
+            novo_sku = v["inventoryItem"]["sku"]
+            _gravacoes_feitas.append((pid, v["id"], novo_sku))
+            # a loja de mentira passa a refletir a escrita
+            _LOJA_FALSA[pid] = [(vid, tit, novo_sku if vid == v["id"] else sku)
+                                for vid, tit, sku in _LOJA_FALSA[pid]]
+            confirmadas.append({"id": v["id"], "sku": novo_sku})
+        return {"data": {"productVariantsBulkUpdate":
+                         {"productVariants": confirmadas, "userErrors": []}}}
+    return {"data": {"products": {
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [{"id": pid, "title": "Produto " + pid[-1], "vendor": "Acme",
+                   "productType": "Camiseta",
+                   "variants": {"pageInfo": {"hasNextPage": False}, "nodes": [
+                       {"id": vid, "title": tit, "sku": sku, "barcode": "",
+                        "price": "10.00", "compareAtPrice": None,
+                        "inventoryQuantity": 2}
+                       for vid, tit, sku in variantes]}}
+                  for pid, variantes in _LOJA_FALSA.items()]}}}
+
+
+def _com_shopify(fn):
+    original = _rede4.graphql
+    _rede4.graphql = _shopify
+    try:
+        return fn()
+    finally:
+        _rede4.graphql = original
+
+
+# --- 1. a previa nao escreve nada ------------------------------------------
+_gravacoes_feitas.clear()
+_r = _com_shopify(lambda: _post("/api/skus/previa", "gera-sku.myshopify.com",
+                                {"filtro": "sem_sku"}))
+_d = _r.get_json()
+check("a previa responde", _r.status_code == 200, _r.status_code)
+check("e NAO escreveu nada no catalogo", _gravacoes_feitas == [])
+
+_propostos = {l["variante_id"]: l["sku"] for l in _d["linhas"] if l["sku"] and not l["pulado"]}
+check("ela propoe SKU so pra quem nao tem",
+      set(_propostos) == {"gid://v/1", "gid://v/2"}, sorted(_propostos))
+check("e o SKU proposto e legivel",
+      _propostos["gid://v/1"] == "ACME-CAMI-P-PRET", _propostos.get("gid://v/1"))
+# Com o filtro "sem_sku" quem JA TEM e excluido na varredura e nem chega na
+# tabela — comportamento certo. Quem aparece marcado como pulado e no filtro
+# "todos", que e onde o lojista espera ver a loja inteira e entender por que
+# alguns nao ganham SKU.
+_todos = _com_shopify(lambda: _post("/api/skus/previa", "gera-sku.myshopify.com",
+                                    {"filtro": ""})).get_json()
+check("com filtro 'sem_sku', quem ja tem nem aparece",
+      not any(l["variante_id"] == "gid://v/3" for l in _d["linhas"]))
+check("mas com 'todos' ele aparece, marcado como pulado e com o motivo",
+      any(l["variante_id"] == "gid://v/3" and "SKU" in (l["pulado"] or "")
+          for l in _todos["linhas"]),
+      [l for l in _todos["linhas"] if l["variante_id"] == "gid://v/3"])
+check("e o SKU que ele ja tinha e mostrado, pro lojista conferir",
+      any(l["variante_id"] == "gid://v/3" and l["sku_atual"] == "JA-TENHO"
+          for l in _todos["linhas"]))
+check("molde invalido e recusado antes de qualquer varredura",
+      _com_shopify(lambda: _post("/api/skus/previa", "gera-sku.myshopify.com",
+                                 {"molde": "{seq}"})).status_code == 400)
+
+# --- 2. gravar so o que foi confirmado -------------------------------------
+_gravacoes_feitas.clear()
+_r = _com_shopify(lambda: _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+                                {"filtro": "sem_sku",
+                                 "variantes": ["gid://v/1"]}))
+_d = _r.get_json()
+check("grava e diz quantos", _d.get("gravados") == 1, _d)
+check("E SO A CONFIRMADA foi escrita, nao as duas propostas",
+      [g[1] for g in _gravacoes_feitas] == ["gid://v/1"], _gravacoes_feitas)
+check("com o SKU que o SERVIDOR calculou",
+      _gravacoes_feitas[0][2] == "ACME-CAMI-P-PRET", _gravacoes_feitas)
+
+# O navegador nao dita o valor: mandar um SKU pronto no corpo nao muda nada,
+# porque o servidor recalcula.
+_gravacoes_feitas.clear()
+_r = _com_shopify(lambda: _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+                                {"filtro": "sem_sku", "variantes": ["gid://v/2"],
+                                 "sku": "INVENTADO-PELO-NAVEGADOR",
+                                 "linhas": [{"variante_id": "gid://v/2",
+                                             "sku": "INVENTADO"}]}))
+check("valor mandado pelo navegador NAO vai pro catalogo",
+      _gravacoes_feitas and "INVENTADO" not in _gravacoes_feitas[0][2],
+      _gravacoes_feitas)
+
+check("sem escolher ninguem, recusa com motivo",
+      _com_shopify(lambda: _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+                                 {"variantes": []})).status_code == 400)
+
+# Catalogo mudou entre ver e confirmar: nao e erro de ninguem, e dizer isso e
+# melhor que responder "gravei 0" em silencio.
+_r = _com_shopify(lambda: _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+                                {"filtro": "sem_sku",
+                                 "variantes": ["gid://v/1"]}))
+check("confirmar quem ja ganhou SKU devolve 409 com explicacao",
+      _r.status_code == 409 and "erro" in _r.get_json(), _r.status_code)
+
+# --- 3. desfazer devolve o valor anterior ----------------------------------
+_u = _grav.ultimo_lote(_ID_W)
+check("o lote ficou registrado pra desfazer", _u and _u["quantos"] == 1, _u)
+
+_gravacoes_feitas.clear()
+_r = _com_shopify(lambda: _post("/api/skus/desfazer", "gera-sku.myshopify.com", {}))
+_d = _r.get_json()
+check("desfaz e diz quantos", _d.get("desfeitos") == 1, _d)
+check("escrevendo de volta o valor VAZIO que estava la antes",
+      _gravacoes_feitas and _gravacoes_feitas[0][2] == "", _gravacoes_feitas)
+check("e o lote sai da fila, pra nao ser desfeito duas vezes",
+      _grav.ultimo_lote(_ID_W) is None or
+      _grav.ultimo_lote(_ID_W)["lote"] != _u["lote"])
+check("desfazer sem nada pra desfazer devolve 404 com motivo",
+      _com_shopify(lambda: _post("/api/skus/desfazer", "gera-sku.myshopify.com",
+                                 {})).status_code in (404, 200))
+
+
+# --- 4. os tres casos que a sabotagem mostrou que eu nao exercitava ---------
+#
+# Os tres passaram batido na primeira versao desta secao, cada um por um motivo
+# diferente — e os tres protegem o catalogo de quem paga.
+
+# (a) CONFIRMAR QUEM JA TEM SKU. Antes eu so confirmava variante vazia, entao a
+# protecao de "nunca sobrescrever" nunca era tocada. Aqui o lojista confirma de
+# proposito a variante que ja tem "JA-TENHO".
+_gravacoes_feitas.clear()
+_r = _com_shopify(lambda: _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+                                {"filtro": "", "variantes": ["gid://v/3"]}))
+check("confirmar quem JA TEM SKU nao sobrescreve",
+      all(g[1] != "gid://v/3" for g in _gravacoes_feitas), _gravacoes_feitas)
+check("e o SKU que estava la continua intacto",
+      ("gid://v/3", "Unico", "JA-TENHO") in _LOJA_FALSA["gid://p/2"],
+      _LOJA_FALSA["gid://p/2"])
+
+
+# (b) O SHOPIFY CONFIRMANDO MENOS DO QUE RECEBEU. Mandar nao e gravar — e a
+# minha loja falsa confirmava tudo, entao "enviado" e "confirmado" eram a mesma
+# lista e a diferenca nao aparecia.
+def _shopify_que_engole_um(loja, token, corpo, **kw):
+    if "productVariantsBulkUpdate" in corpo.get("query", ""):
+        vs = corpo["variables"]["variantes"]
+        # confirma so a PRIMEIRA, e cala sobre o resto
+        return {"data": {"productVariantsBulkUpdate": {
+            "productVariants": [{"id": vs[0]["id"],
+                                 "sku": vs[0]["inventoryItem"]["sku"]}],
+            "userErrors": []}}}
+    return _shopify(loja, token, corpo, **kw)
+
+
+_LOJA_FALSA["gid://p/9"] = [("gid://v/91", "A", ""), ("gid://v/92", "B", "")]
+_orig = _rede4.graphql
+_rede4.graphql = _shopify_que_engole_um
+try:
+    _r = _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+               {"filtro": "sem_sku", "variantes": ["gid://v/91", "gid://v/92"]})
+finally:
+    _rede4.graphql = _orig
+check("so a variante CONFIRMADA entra na conta",
+      _r.get_json().get("gravados") == 1, _r.get_json())
+_u = _grav.ultimo_lote(_ID_W)
+check("e so ela entra no registro de desfazer",
+      _u and _u["quantos"] == 1, _u)
+_grav.marcar_desfeito(_ID_W, _u["lote"])
+
+
+# (c) O SHOPIFY RECUSANDO. Ele responde 200 com o erro DENTRO; ignorar isso
+# faria o app registrar como gravado o que foi recusado — e aí o desfazer
+# escreveria por cima de um valor que nunca foi nosso.
+def _shopify_que_recusa(loja, token, corpo, **kw):
+    if "productVariantsBulkUpdate" in corpo.get("query", ""):
+        return {"data": {"productVariantsBulkUpdate": {
+            "productVariants": [{"id": corpo["variables"]["variantes"][0]["id"],
+                                 "sku": "NAO DEVIA CONTAR"}],
+            "userErrors": [{"field": ["variants", "0"],
+                            "message": "SKU ja em uso"}]}}}
+    return _shopify(loja, token, corpo, **kw)
+
+
+_LOJA_FALSA["gid://p/8"] = [("gid://v/81", "C", "")]
+_rede4.graphql = _shopify_que_recusa
+try:
+    _r = _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+               {"filtro": "sem_sku", "variantes": ["gid://v/81"]})
+finally:
+    _rede4.graphql = _orig
+_d = _r.get_json()
+check("recusa do Shopify nao conta como gravado",
+      _d.get("gravados") == 0, _d)
+check("e o motivo chega ao lojista, em vez de sumir",
+      any("SKU ja em uso" in f for f in (_d.get("falhas") or [])), _d)
+check("e NADA vai pro registro de desfazer",
+      _grav.ultimo_lote(_ID_W) is None, _grav.ultimo_lote(_ID_W))
+
+
 # ---------------------------------------------------------------- fim
 print("\n" + "=" * 62)
 print("PASSOU: %d   FALHOU: %d" % (PASSOU, len(FALHOU)))

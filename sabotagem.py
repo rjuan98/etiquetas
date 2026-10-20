@@ -649,6 +649,44 @@ SABOTAGENS = [
      "                WHERE loja_id = ? AND desfeito_em IS NULL\n             GROUP BY lote, campo",
      "                WHERE loja_id = ?\n             GROUP BY lote, campo"),
 
+    # -------------------------------------------- as rotas do gerador de SKU
+    # A REGRA que decide o desenho das tres rotas: o servidor calcula o que
+    # grava, o navegador so confirma QUAIS. Sem o filtro de confirmadas, o
+    # aplicar gravaria tudo que a previa propos — inclusive o que o lojista
+    # desmarcou olhando a tabela.
+    ("o aplicar gravando SO o que o lojista confirmou",
+     "web/rotas_api.py",
+     "                and str(l[\"item\"][\"variante\"].get(\"id\")) in confirmadas]",
+     "                ]"),
+
+    # Regra que vem de fora e nao se discute: SKU em uso esta em planilha, em
+    # etiqueta ja impressa e na cabeca de quem trabalha na loja.
+    ("o aplicar nao tocando em quem ja tem SKU",
+     "web/rotas_api.py",
+     "                if l[\"sku\"] and not l[\"pulado\"]",
+     "                if l[\"sku\"]"),
+
+    # Mandar nao e gravar. Anotar "desfazer" para o que nao aconteceu faria o
+    # desfazer sobrescrever um valor que o lojista pos a mao.
+    ("o registro de desfazer saindo do que o Shopify CONFIRMOU",
+     "web/rotas_api.py",
+     "        for variante_id, sku in escrita.variantes_gravadas(resposta).items():\n            gravados.append((variante_id, anteriores.get(variante_id, \"\"), sku))",
+     "        for pid, vid, sku in [(produto_id, v, s) for v, s in pares]:\n            gravados.append((vid, anteriores.get(vid, \"\"), sku))"),
+
+    # O Shopify responde 200 com erro dentro. Ignorar os motivos faria o app
+    # registrar como gravado o que foi recusado.
+    ("as recusas do Shopify barrando o registro de desfazer",
+     "web/rotas_api.py",
+     "        motivos = escrita.erros_da_escrita(resposta)\n        if motivos:\n            falhas.extend(motivos)\n            continue\n        # Só o que o Shopify CONFIRMOU",
+     "        motivos = []\n        # Só o que o Shopify CONFIRMOU"),
+
+    # Com `or`, o lojista que escolhesse "todos os produtos" (string vazia)
+    # teria a escolha trocada em silencio por "sem SKU".
+    ("a escolha de filtro do lojista sendo respeitada",
+     "web/rotas_api.py",
+     "            \"sem_sku\" if filtro is None else str(filtro))",
+     "            filtro or \"sem_sku\")"),
+
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",
      "etiquetas/motores/svg.py",

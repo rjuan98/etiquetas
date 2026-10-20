@@ -53,6 +53,17 @@ TEXTOS = {
     "col_quantas":         {"en": "How many",            "pt": "Quantas"},
     "sem_codigo":          {"en": "no barcode",          "pt": "sem código"},
     "filtro_todos":        {"en": "All products",        "pt": "Todos os produtos"},
+    "gerador_nada_escolhido": {
+        "en": "Pick at least one product first.",
+        "pt": "Escolha ao menos um produto antes."},
+    "gerador_nada_a_gravar": {
+        "en": "Nothing left to write — the products you picked already have a "
+              "SKU now. Reload the preview to see the current state.",
+        "pt": "Não sobrou nada para gravar — os produtos escolhidos já têm SKU "
+              "agora. Recarregue a prévia para ver como está."},
+    "gerador_nada_a_desfazer": {
+        "en": "There is nothing to undo.",
+        "pt": "Não há nada para desfazer."},
     "filtro_sem_codigo":   {"en": "Missing barcode",     "pt": "Sem código de barras"},
     "filtro_sem_sku":      {"en": "Missing SKU",         "pt": "Sem SKU"},
     "filtro_sem_nenhum":   {"en": "Missing both",        "pt": "Sem os dois"},

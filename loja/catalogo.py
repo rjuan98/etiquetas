@@ -109,6 +109,10 @@ def para_etiquetas(resposta: dict, nome_da_loja: str = "") -> list:
                 continue
             saida.append({
                 "produto": {
+                    # O id entra porque a mutação de escrita é por PRODUTO, não
+                    # por variante — ver `loja/escrita.py`. Ele não vai pra
+                    # etiqueta; `campos.py` nem o conhece.
+                    "id": _texto(produto.get("id")),
                     "titulo": _texto(produto.get("title")),
                     "fornecedor": _texto(produto.get("vendor")),
                     "tipo": _texto(produto.get("productType")),

@@ -80,6 +80,7 @@ loja/              O SHOPIFY — só regra, sem rede (exceto rede.py)
   catalogo.py      GraphQL + tradução pro formato do motor
   cobranca.py      planos, pelo Shopify App Pricing
   webhooks.py      inclui os 3 obrigatórios de privacidade
+  escrita.py       as mutações que ESCREVEM no catálogo
   rede.py          o ÚNICO arquivo que fala com a internet
 
 dados/             O BANCO — toda consulta filtra por loja_id
@@ -269,7 +270,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **1.038 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **1.083 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -282,7 +283,7 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 88 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 93 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 

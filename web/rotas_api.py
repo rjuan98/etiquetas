@@ -17,11 +17,11 @@ import json
 
 from flask import Blueprint, request, jsonify, send_file, current_app, g
 
-from loja import catalogo, cobranca, rede
-from dados import modelos as tabela_modelos, impressoes
+from loja import catalogo, cobranca, escrita, rede
+from dados import modelos as tabela_modelos, impressoes, gravacoes
 from dados import lojas as tabela_lojas
 from etiquetas.modelo import CodigoBarras
-from etiquetas import (campos as campos_do_motor, codigos, esquema,
+from etiquetas import (campos as campos_do_motor, codigos, esquema, skus,
                        formatos, receitas, unidades)
 from etiquetas.motores import zpl as motor_zpl, pdf as motor_pdf, svg as motor_svg
 from .sessao import exige_loja
@@ -77,46 +77,12 @@ def produtos(loja):
             })
 
     filtro = request.args.get("filtro") or ""
+    erro, itens, tem_mais, cursor, vistos, paginas = _varrer(
+        loja, filtro, request.args.get("busca") or None,
+        request.args.get("quantos", 50), request.args.get("depois") or None)
+    if erro:
+        return erro
 
-    # Com filtro ligado, UMA página não serve. O Shopify devolve 50 produtos e
-    # talvez 2 deles estejam sem código — o lojista veria 2 e concluiria que são
-    # todos. Então a gente continua buscando até juntar uma página de verdade ou
-    # acabar o catálogo.
-    #
-    # O teto existe porque o caso oposto também é real: loja onde quase tudo tem
-    # código faria isso varrer 8 mil produtos e estourar o tempo da requisição.
-    # Quando o teto é alcançado, a resposta DIZ até onde olhou.
-    alvo = int(request.args.get("quantos", 50) or 50)
-    cursor = request.args.get("depois") or None
-    itens, tem_mais, vistos, paginas = [], False, 0, 0
-
-    while True:
-        corpo = catalogo.consulta_de_produtos(
-            quantos=alvo, depois=cursor,
-            busca=request.args.get("busca") or None)
-        try:
-            resposta = rede.graphql(loja["dominio"], loja["token"], corpo)
-        except rede.ErroDeRede as erro:
-            return jsonify({"erro": str(erro)}), 502
-
-        erros = catalogo.erros_do_graphql(resposta)
-        if erros:
-            # GraphQL responde 200 mesmo tendo falhado. Sem isto, a tela
-            # mostraria uma lista vazia e o lojista acharia que não tem produto.
-            current_app.logger.warning("graphql: %s", "; ".join(erros))
-            return jsonify({"erro": _t("erro_graphql"),
-                            "detalhes": erros}), 502
-
-        pagina = catalogo.para_etiquetas(resposta, loja["dominio"])
-        vistos += len(pagina)
-        paginas += 1
-        itens.extend(catalogo.filtrar(pagina, filtro))
-        tem_mais, cursor = catalogo.tem_proxima_pagina(resposta)
-
-        if not filtro or not tem_mais or len(itens) >= alvo:
-            break
-        if paginas >= PAGINAS_POR_FILTRO:
-            break
     for item in itens:
         item["quantidade"] = catalogo.quantidade_sugerida(item)
 
@@ -130,6 +96,234 @@ def produtos(loja):
         "varridos": vistos if filtro else None,
         "parou_no_teto": bool(filtro and paginas >= PAGINAS_POR_FILTRO and tem_mais),
     })
+
+
+def _varrer(loja, filtro, busca, quantos, depois):
+    """Busca o catálogo aplicando o filtro, atravessando páginas quando precisa.
+
+    Devolve `(resposta_de_erro, itens, tem_mais, cursor, vistos, paginas)`. O
+    erro vem como primeiro elemento em vez de exceção porque as três rotas que
+    usam isto precisam devolver o mesmo 502 com o mesmo texto.
+
+    Está fatorado porque a prévia e o aplicar do gerador precisam EXATAMENTE da
+    mesma varredura — se cada um fizesse a sua, o lojista confirmaria uma tabela
+    e o app gravaria outra.
+    """
+    # Com filtro ligado, UMA página não serve. O Shopify devolve 50 produtos e
+    # talvez 2 deles estejam sem código — o lojista veria 2 e concluiria que são
+    # todos. Então a gente continua buscando até juntar uma página de verdade ou
+    # acabar o catálogo.
+    #
+    # O teto existe porque o caso oposto também é real: loja onde quase tudo tem
+    # código faria isso varrer 8 mil produtos e estourar o tempo da requisição.
+    # Quando o teto é alcançado, a resposta DIZ até onde olhou.
+    alvo = int(quantos or 50)
+    cursor = depois
+    itens, tem_mais, vistos, paginas = [], False, 0, 0
+
+    while True:
+        corpo = catalogo.consulta_de_produtos(
+            quantos=alvo, depois=cursor, busca=busca)
+        try:
+            resposta = rede.graphql(loja["dominio"], loja["token"], corpo)
+        except rede.ErroDeRede as erro:
+            return (jsonify({"erro": str(erro)}), 502), None, None, None, 0, 0
+
+        erros = catalogo.erros_do_graphql(resposta)
+        if erros:
+            # GraphQL responde 200 mesmo tendo falhado. Sem isto, a tela
+            # mostraria uma lista vazia e o lojista acharia que não tem produto.
+            current_app.logger.warning("graphql: %s", "; ".join(erros))
+            return ((jsonify({"erro": _t("erro_graphql"), "detalhes": erros}), 502),
+                    None, None, None, 0, 0)
+
+        pagina = catalogo.para_etiquetas(resposta, loja["dominio"])
+        vistos += len(pagina)
+        paginas += 1
+        itens.extend(catalogo.filtrar(pagina, filtro))
+        tem_mais, cursor = catalogo.tem_proxima_pagina(resposta)
+
+        if not filtro or not tem_mais or len(itens) >= alvo:
+            break
+        if paginas >= PAGINAS_POR_FILTRO:
+            break
+
+    return None, itens, tem_mais, cursor, vistos, paginas
+
+
+# ------------------------------------------------------------- gerador de SKU
+#
+# Três rotas e uma regra que decide o desenho das três:
+#
+#   **O SERVIDOR CALCULA O QUE GRAVA. O NAVEGADOR SÓ CONFIRMA QUAIS.**
+#
+# O `aplicar` não recebe os SKUs prontos da tela — ele refaz a mesma varredura e
+# o mesmo cálculo da prévia, e grava só nas variantes cuja id o lojista
+# confirmou. Se recebesse o valor pronto, qualquer coisa que o navegador
+# mandasse iria parar no catálogo de quem paga.
+#
+# E se o catálogo mudou entre ver e confirmar, a conta simplesmente dá menos
+# linhas — e a resposta diz quantas.
+
+
+def _escolhas_do_gerador(dados):
+    """Molde e filtro do pedido, com o padrão de sempre.
+
+    O filtro só cai no padrão quando a chave **não vem**. Com `or` simples, o
+    lojista que escolhesse "todos os produtos" (string vazia) teria a escolha
+    trocada em silêncio por "sem SKU" — e não entenderia por que metade da loja
+    sumiu da tabela.
+    """
+    filtro = dados.get("filtro")
+    return ((dados.get("molde") or skus.MOLDE_PADRAO).strip(),
+            "sem_sku" if filtro is None else str(filtro))
+
+
+def _calcular_skus(loja, molde, filtro):
+    """A varredura + o cálculo. É o MESMO caminho na prévia e no aplicar.
+
+    Devolve `(erro, linhas, vistos)`. Cada linha traz o item, o SKU proposto e o
+    motivo de ter sido pulado.
+    """
+    erro, itens, _tem_mais, _cursor, vistos, _pag = _varrer(
+        loja, filtro, None, 50, None)
+    if erro:
+        return erro, None, 0
+    # Os SKUs que a loja já usa entram na conferência de colisão — senão o
+    # gerador criaria um que já pertence a outro produto.
+    ja_usados = [i["variante"].get("sku") for i in itens]
+    return None, skus.gerar_lote(itens, molde, ja_usados), vistos
+
+
+@rotas.post("/skus/previa")
+@exige_loja
+def skus_previa(loja):
+    """A tabela do que SERIA gravado. Não escreve nada, não pede escopo nenhum.
+
+    É a mesma ideia da prévia da etiqueta: mostrar antes de fazer.
+    """
+    dados = request.get_json(silent=True) or {}
+    molde, filtro = _escolhas_do_gerador(dados)
+
+    problemas = skus.conferir_molde(molde)
+    if problemas:
+        return jsonify({"erro": "; ".join(problemas)}), 400
+
+    erro, linhas, vistos = _calcular_skus(loja, molde, filtro)
+    if erro:
+        return erro
+
+    return jsonify({
+        "molde": molde, "filtro": filtro, "varridos": vistos,
+        "linhas": [{
+            "produto_id": l["item"]["produto"].get("id"),
+            "variante_id": l["item"]["variante"].get("id"),
+            "produto": l["item"]["produto"].get("titulo"),
+            "variante": l["item"]["variante"].get("titulo"),
+            "sku_atual": l["item"]["variante"].get("sku"),
+            "sku": l["sku"], "pulado": l["pulado"], "aviso": l.get("aviso", ""),
+        } for l in linhas],
+    })
+
+
+@rotas.post("/skus/aplicar")
+@exige_loja
+def skus_aplicar(loja):
+    """Grava os SKUs confirmados, e anota o que gravou pra dar pra desfazer."""
+    dados = request.get_json(silent=True) or {}
+    molde, filtro = _escolhas_do_gerador(dados)
+    confirmadas = {str(v) for v in (dados.get("variantes") or []) if str(v).strip()}
+    if not confirmadas:
+        return jsonify({"erro": _t("gerador_nada_escolhido")}), 400
+
+    problemas = skus.conferir_molde(molde)
+    if problemas:
+        return jsonify({"erro": "; ".join(problemas)}), 400
+
+    erro, linhas, _vistos = _calcular_skus(loja, molde, filtro)
+    if erro:
+        return erro
+
+    # Só o que o lojista confirmou, e só o que AINDA está vazio. A segunda
+    # condição é a regra que não se discute: SKU em uso está em planilha, em
+    # etiqueta impressa e na cabeça de quem trabalha na loja.
+    a_gravar = [(l["item"]["produto"].get("id"),
+                 l["item"]["variante"].get("id"), l["sku"])
+                for l in linhas
+                if l["sku"] and not l["pulado"]
+                and str(l["item"]["variante"].get("id")) in confirmadas]
+
+    if not a_gravar:
+        # Pode acontecer sem ninguém ter errado: o catálogo mudou entre ver e
+        # confirmar. Dizer isso é melhor que responder "gravei 0" em silêncio.
+        return jsonify({"erro": _t("gerador_nada_a_gravar")}), 409
+
+    anteriores = {str(l["item"]["variante"].get("id")):
+                  str(l["item"]["variante"].get("sku") or "") for l in linhas}
+
+    gravados, falhas = [], []
+    for produto_id, pares in escrita.agrupar_por_produto(a_gravar).items():
+        try:
+            resposta = rede.graphql(loja["dominio"], loja["token"],
+                                    escrita.consulta_de_skus(produto_id, pares))
+        except rede.ErroDeRede as e:
+            falhas.append(str(e))
+            continue
+        motivos = escrita.erros_da_escrita(resposta)
+        if motivos:
+            falhas.extend(motivos)
+            continue
+        # Só o que o Shopify CONFIRMOU vira registro de desfazer. Mandar não é
+        # gravar, e anotar o que não aconteceu faria o desfazer sobrescrever um
+        # valor alheio.
+        for variante_id, sku in escrita.variantes_gravadas(resposta).items():
+            gravados.append((variante_id, anteriores.get(variante_id, ""), sku))
+
+    lote = gravacoes.registrar(loja["id"], "sku", gravados) if gravados else ""
+    return jsonify({"gravados": len(gravados), "lote": lote,
+                    "falhas": falhas[:10]})
+
+
+@rotas.post("/skus/desfazer")
+@exige_loja
+def skus_desfazer(loja):
+    """Devolve cada variante do último lote ao valor que tinha antes."""
+    lote = gravacoes.ultimo_lote(loja["id"])
+    if not lote:
+        return jsonify({"erro": _t("gerador_nada_a_desfazer")}), 404
+
+    linhas = gravacoes.linhas_do_lote(loja["id"], lote["lote"])
+    # Pra desfazer é preciso saber de que produto é cada variante, e isso não
+    # está no registro — ele guarda o mínimo de propósito. Vem do catálogo.
+    erro, itens, _tm, _c, _v, _p = _varrer(loja, "", None, 50, None)
+    if erro:
+        return erro
+    produto_de = {str(i["variante"].get("id")): i["produto"].get("id")
+                  for i in itens}
+
+    voltar = [(produto_de.get(l["variante_id"]), l["variante_id"],
+               l["valor_antigo"]) for l in linhas
+              if produto_de.get(l["variante_id"])]
+    if not voltar:
+        return jsonify({"erro": _t("gerador_nada_a_desfazer")}), 404
+
+    desfeitos, falhas = 0, []
+    for produto_id, pares in escrita.agrupar_por_produto(voltar).items():
+        try:
+            resposta = rede.graphql(loja["dominio"], loja["token"],
+                                    escrita.consulta_de_skus(produto_id, pares))
+        except rede.ErroDeRede as e:
+            falhas.append(str(e))
+            continue
+        motivos = escrita.erros_da_escrita(resposta)
+        if motivos:
+            falhas.extend(motivos)
+            continue
+        desfeitos += len(escrita.variantes_gravadas(resposta))
+
+    if desfeitos:
+        gravacoes.marcar_desfeito(loja["id"], lote["lote"])
+    return jsonify({"desfeitos": desfeitos, "falhas": falhas[:10]})
 
 
 # ------------------------------------------------------------------- receita
