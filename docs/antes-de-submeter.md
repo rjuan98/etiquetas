@@ -108,10 +108,16 @@ lugar. Por isso os dois avisos que importam ficam aqui, e não lá dentro:
 - **`use_legacy_install_flow = true` não pode sumir.** É o que faz o OAuth atual
   funcionar. Sem essa linha o fluxo de instalação muda e a próxima loja que
   instalar quebra.
-- **Os escopos são dois, e os dois de leitura.** Eles são a promessa "read-only"
-  que está na ficha da loja de apps e na política de privacidade — a única frase
-  que nenhum concorrente pode escrever. Mexer aqui obriga a mudar os dois textos
-  no mesmo commit.
+- **Os escopos são TRÊS desde 20/10/2026**, e um deles escreve:
+  `read_inventory,read_products,write_products`. Se a CLI reescrever o arquivo
+  e o `write_products` sumir, o gerador para de gravar — e para em silêncio,
+  com erro 403 que parece problema de token.
+
+  A promessa que eles sustentam mudou junto: não é mais *"read-only"*, é
+  *"nothing is written until you review the list and click apply"*. Ela está
+  na ficha da loja de apps e na política de privacidade, e **um teste trava
+  as duas coisas juntas** — havendo escopo de escrita, o texto público tem que
+  dizer que o app escreve.
 
 O app **já respondia** aos três webhooks corretamente, com conferência de HMAC, e
 isso tem teste. O que faltava era só a declaração.
