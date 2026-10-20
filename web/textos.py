@@ -53,6 +53,53 @@ TEXTOS = {
     "col_quantas":         {"en": "How many",            "pt": "Quantas"},
     "sem_codigo":          {"en": "no barcode",          "pt": "sem código"},
     "filtro_todos":        {"en": "All products",        "pt": "Todos os produtos"},
+    "gerar_sku":           {"en": "Fill in missing SKUs",
+                            "pt": "Preencher SKUs que faltam"},
+    "gerar_titulo":        {"en": "Fill in missing SKUs",
+                            "pt": "Preencher os SKUs que faltam"},
+    "gerar_molde":         {"en": "Pattern", "pt": "Molde"},
+    "gerar_molde_ajuda":   {"en": "Available pieces: {fornecedor}, {tipo}, "
+                                  "{titulo}, {variante} and {seq}.",
+                            "pt": "Peças disponíveis: {fornecedor}, {tipo}, "
+                                  "{titulo}, {variante} e {seq}."},
+    "gerar_ver":           {"en": "Preview",        "pt": "Ver prévia"},
+    "gerar_aplicar":       {"en": "Write %d SKUs",  "pt": "Gravar %d SKUs"},
+    "gerar_desfazer":      {"en": "Undo last write","pt": "Desfazer o último"},
+    "gerar_nada_ainda":    {"en": "Click Preview to see what would be written. "
+                                  "Nothing is written until you click the "
+                                  "second button.",
+                            "pt": "Clique em Ver prévia para ver o que seria "
+                                  "gravado. Nada é escrito até você clicar no "
+                                  "segundo botão."},
+    "gerar_col_produto":   {"en": "Product",        "pt": "Produto"},
+    "gerar_col_atual":     {"en": "Current SKU",    "pt": "SKU atual"},
+    "gerar_col_novo":      {"en": "Will become",    "pt": "Vai virar"},
+    "gerar_resumo":        {"en": "%d of the %d products looked at can get a SKU.",
+                            "pt": "%d dos %d produtos olhados podem ganhar SKU."},
+    "gerar_gravados":      {"en": "Wrote %d. You can undo this.",
+                            "pt": "Gravados %d. Dá para desfazer."},
+    # Zero gravado NÃO pode usar o texto de cima: prometer "dá para desfazer"
+    # uma gravação que não aconteceu é a meia verdade que este app recusa em
+    # todo lugar — e mandaria o lojista clicar em Desfazer atrás de nada.
+    "gerar_nada_gravado":  {"en": "Nothing was written.",
+                            "pt": "Nada foi gravado."},
+    # A conferência de repetidos só enxerga o que foi varrido. Em catálogo
+    # grande isso é um pedaço, e calar faria o lojista achar que a garantia
+    # vale pra loja inteira.
+    "gerar_parcial":       {"en": "Your catalog is bigger than what was looked "
+                                  "at, so the duplicate check covers these "
+                                  "products only.",
+                            "pt": "Seu catálogo é maior do que o que foi "
+                                  "olhado, então a conferência de repetidos "
+                                  "vale só para estes produtos."},
+    "gerar_desfeitos":     {"en": "Undone: %d went back to what they were.",
+                            "pt": "Desfeitos: %d voltaram ao que eram."},
+    "gerar_aviso_escrita": {"en": "This writes to your Shopify catalog. Only "
+                                  "the rows you tick, only where the SKU is "
+                                  "empty, and you can undo it.",
+                            "pt": "Isto escreve no seu catálogo do Shopify. Só "
+                                  "as linhas marcadas, só onde o SKU está "
+                                  "vazio, e dá para desfazer."},
     "gerador_nada_escolhido": {
         "en": "Pick at least one product first.",
         "pt": "Escolha ao menos um produto antes."},
@@ -64,6 +111,64 @@ TEXTOS = {
     "gerador_nada_a_desfazer": {
         "en": "There is nothing to undo.",
         "pt": "Não há nada para desfazer."},
+
+    # ---------------------------------------------- gerador de código de barras
+    # As chaves destes três vivem em `etiquetas/numeracao.AVISO_DO_MODO`, e um
+    # teste confere que as duas listas batem. Cada frase diz ONDE aquele
+    # código vale — é a regra 5 do desenho, e é a parte com consequência
+    # comercial: código interno apresentado como GTIN é mentira.
+    "codigo_aviso_gs1": {
+        "en": "Use only the company prefix GS1 issued to YOUR company. "
+              "Generating from someone else's prefix creates codes that "
+              "belong to them.",
+        "pt": "Use apenas o prefixo de empresa que a GS1 deu à SUA empresa. "
+              "Gerar a partir do prefixo de outra pessoa cria códigos que "
+              "pertencem a ela."},
+    "codigo_aviso_interno": {
+        "en": "This is an internal code. It works in your POS and your stock, "
+              "but it will not let you sell this product in another shop. "
+              "For that you need a GS1 company prefix.",
+        "pt": "Este é um código interno. Ele funciona no seu PDV e no seu "
+              "estoque, mas não serve para vender este produto em outra loja. "
+              "Para isso é preciso um prefixo de empresa da GS1."},
+    "codigo_aviso_sku": {
+        "en": "The code will be the product's own SKU. Any scanner reads it "
+              "and it works in your shop, but it is not a registered number — "
+              "it will not let you sell through another retailer.",
+        "pt": "O código será o próprio SKU do produto. Bipa em qualquer leitor "
+              "e vale na sua loja, mas não é número registrado — não serve "
+              "para vender em outro varejista."},
+    "codigo_titulo":    {"en": "Fill in missing barcodes",
+                         "pt": "Preencher os códigos que faltam"},
+    "codigo_botao":     {"en": "Fill in missing barcodes",
+                         "pt": "Preencher códigos de barras"},
+    "codigo_modo":      {"en": "Kind of code", "pt": "Tipo de código"},
+    "codigo_modo_gs1":     {"en": "GTIN-13 from my GS1 company prefix",
+                            "pt": "GTIN-13 do meu prefixo de empresa GS1"},
+    "codigo_modo_interno": {"en": "Internal code (no GS1 prefix needed)",
+                            "pt": "Código interno (não precisa de prefixo GS1)"},
+    "codigo_modo_sku":     {"en": "Code 128 from the product's SKU",
+                            "pt": "Code 128 a partir do SKU do produto"},
+    "codigo_prefixo":   {"en": "GS1 company prefix", "pt": "Prefixo de empresa GS1"},
+    "codigo_cabem":     {"en": "This prefix fits %s products.",
+                         "pt": "Este prefixo comporta %s produtos."},
+    # Cada gerador tem o SEU texto de botão. Com um só, a janela de código de
+    # barras dizia "Gravar 3 SKUs" — contando certo e nomeando a coisa errada.
+    "codigo_aplicar":   {"en": "Write %d barcodes", "pt": "Gravar %d códigos"},
+    "codigo_resumo":    {"en": "%d of the %d products looked at can get a barcode.",
+                         "pt": "%d dos %d produtos olhados podem ganhar código."},
+    "codigo_col_atual": {"en": "Current barcode", "pt": "Código atual"},
+    "codigo_col_tipo":  {"en": "Kind", "pt": "Tipo"},
+    "codigo_aviso_escrita": {
+        "en": "This writes to your Shopify catalog. Only the rows you tick, "
+              "only where the barcode is empty, and you can undo it.",
+        "pt": "Isto escreve no seu catálogo do Shopify. Só as linhas marcadas, "
+              "só onde o código está vazio, e dá para desfazer."},
+    "gerador_so_com_loja_real": {
+        "en": "Test mode: the preview works here, but writing needs a real "
+              "store connected.",
+        "pt": "Modo de teste: a prévia funciona aqui, mas a gravação precisa "
+              "de uma loja de verdade conectada."},
     "filtro_sem_codigo":   {"en": "Missing barcode",     "pt": "Sem código de barras"},
     "filtro_sem_sku":      {"en": "Missing SKU",         "pt": "Sem SKU"},
     "filtro_sem_nenhum":   {"en": "Missing both",        "pt": "Sem os dois"},

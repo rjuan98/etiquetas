@@ -644,10 +644,10 @@ SABOTAGENS = [
 
     # Marcar em vez de apagar: desfazer duas vezes sobrescreveria um valor que o
     # lojista pode ter posto a mao depois.
-    ("o lote desfeito saindo da fila",
-     "dados/gravacoes.py",
-     "                WHERE loja_id = ? AND desfeito_em IS NULL\n             GROUP BY lote, campo",
-     "                WHERE loja_id = ?\n             GROUP BY lote, campo"),
+    ('o lote desfeito saindo da fila',
+     'dados/gravacoes.py',
+     '                WHERE loja_id = ? AND desfeito_em IS NULL""" + condicao +',
+     '                WHERE loja_id = ?""" + condicao +'),
 
     # -------------------------------------------- as rotas do gerador de SKU
     # A REGRA que decide o desenho das tres rotas: o servidor calcula o que
@@ -668,10 +668,10 @@ SABOTAGENS = [
 
     # Mandar nao e gravar. Anotar "desfazer" para o que nao aconteceu faria o
     # desfazer sobrescrever um valor que o lojista pos a mao.
-    ("o registro de desfazer saindo do que o Shopify CONFIRMOU",
-     "web/rotas_api.py",
-     "        for variante_id, sku in escrita.variantes_gravadas(resposta).items():\n            gravados.append((variante_id, anteriores.get(variante_id, \"\"), sku))",
-     "        for pid, vid, sku in [(produto_id, v, s) for v, s in pares]:\n            gravados.append((vid, anteriores.get(vid, \"\"), sku))"),
+    ('o registro de desfazer saindo do que o Shopify CONFIRMOU',
+     'web/rotas_api.py',
+     '        confirmadas = escrita.variantes_gravadas(resposta, campo)\n        for variante_id, valor in confirmadas.items():',
+     '        confirmadas = dict(pares)\n        for variante_id, valor in confirmadas.items():'),
 
     # O Shopify responde 200 com erro dentro. Ignorar os motivos faria o app
     # registrar como gravado o que foi recusado.
@@ -686,6 +686,182 @@ SABOTAGENS = [
      "web/rotas_api.py",
      "            \"sem_sku\" if filtro is None else str(filtro))",
      "            filtro or \"sem_sku\")"),
+
+    # A mutacao e por produto: uma loja fora do ar repete o MESMO erro uma vez
+    # por produto, e quatro linhas identicas escondem a falha diferente.
+    ("as falhas repetidas sendo ditas uma vez so",
+     "web/rotas_api.py",
+     "                    \"falhas\": _sem_repetir(falhas)[:10]})",
+     "                    \"falhas\": falhas[:10]})"),
+
+    # Simular a escrita no /dev/ seria fingir justamente a parte perigosa —
+    # e um bug de gravacao passaria no ensaio e aparecia na loja de quem paga.
+    ("o modo dev RECUSANDO a gravacao em vez de fingir",
+     "web/rotas_api.py",
+     "    bloqueio = _escrita_precisa_de_loja_real(loja)\n    if bloqueio:\n        return bloqueio\n\n    dados = request.get_json(silent=True) or {}\n    molde, filtro = _escolhas_do_gerador(dados)\n    confirmadas",
+     "    dados = request.get_json(silent=True) or {}\n    molde, filtro = _escolhas_do_gerador(dados)\n    confirmadas"),
+
+    ('o modo dev recusando tambem o DESFAZER',
+     'web/rotas_api.py',
+     '    bloqueio = _escrita_precisa_de_loja_real(loja)\n    if bloqueio:\n        return bloqueio\n\n    lote = gravacoes.ultimo_lote(loja["id"], campo)',
+     '    lote = gravacoes.ultimo_lote(loja["id"], campo)'),
+
+    # MEDIDO no navegador: "Gravados 0. Dá para desfazer." — nada escrito, e a
+    # tela mandando o lojista procurar um desfazer que nao existe.
+    ('a tela nao prometendo desfazer o que nao aconteceu',
+     'web/rotas_tela.py',
+     '  let texto = quantos ? T.gerar_gravados.replace("%d", quantos)\n                      : T.gerar_nada_gravado;',
+     '  let texto = T.gerar_gravados.replace("%d", quantos);'),
+
+    # Apagar a previa depois de uma gravacao que falhou tira da tela justamente
+    # o que o lojista precisa pra tentar de novo.
+    ('a previa sobrevivendo a uma gravacao que falhou',
+     'web/rotas_tela.py',
+     '  if (quantos) {\n    $(p + "_tabela").innerHTML = "";\n    carregarProdutos($("busca").value);\n  }\n  gerAtualizarBotao(p);',
+     '  $(p + "_tabela").innerHTML = "";\n  carregarProdutos($("busca").value);\n  gerAtualizarBotao(p);'),
+
+    # ------------------------------------- o Code 128 so aceita ASCII
+    # MEDIDO: "CAFÉ-01" estourava ValueError dentro do reportlab (erro de
+    # servidor na cara do lojista) e ia inteiro pro ZPL. "Aceita texto" nao
+    # quer dizer "aceita qualquer texto".
+    ("o Code 128 marcado como so-ASCII",
+     "etiquetas/codigos.py",
+     "verificador_no_zpl=True, so_ascii=True)",
+     "verificador_no_zpl=True)"),
+
+    ("a conferencia de ASCII do Code 128",
+     "etiquetas/codigos.py",
+     "            fora = [c for c in valor if not 32 <= ord(c) <= 126]",
+     "            fora = []"),
+
+    # ------------------------------------------- o gerador de codigo
+    # Regra 2 do desenho: o codigo que esta la pode ser comprado, e pode estar
+    # impresso em caixa fechada. Trocar e estrago sem volta.
+    ("o gerador nao sobrescrevendo codigo que ja existe",
+     "etiquetas/numeracao.py",
+     "        atual = campos.resolver(\"variante.codigo_barras\", item).strip()",
+     "        atual = \"\""),
+
+    # NAO EXISTE sabotagem para o `if candidato not in usados` nem para o
+    # `usados.add(codigo)` do numeracao.py, e isso e deliberado.
+    #
+    # As duas rodaram em 20/10/2026 e ESCAPARAM. O motivo nao e teste fraco: e
+    # que `proxima_sequencia` ja comeca a contagem acima do maior numero que a
+    # loja usa naquela faixa, e o contador anda a cada item. Um candidato
+    # repetido e impossivel de construir — as duas linhas sao rede de
+    # seguranca para um erro em `proxima_sequencia`, que TEM sabotagem propria.
+    #
+    # Sabotagem que nao pode ser pega e ruido no placar. Fica a nota.
+
+    # MEDIDO: agora() tem resolucao de SEGUNDO. Sem o desempate por id, dois
+    # lotes do mesmo segundo ficam empatados e o SQLite devolve qualquer um —
+    # "o ultimo lote" vira cara ou coroa, e o desfazer reverte o lote errado.
+    #
+    # Foi isto que fez a sabotagem do filtro por campo escapar numa corrida e
+    # ser pega na outra.
+    ('o desempate do ultimo lote, que o relogio nao da',
+     'dados/gravacoes.py',
+     '             ORDER BY quando DESC, ultimo DESC',
+     '             ORDER BY quando DESC'),
+
+    # Com dois geradores, "desfazer o ultimo" sem o campo reverte o lote
+    # do OUTRO: o lojista clica em desfazer numa janela e some o trabalho
+    # que ele fez na outra.
+    ('o desfazer olhando so o lote do SEU gerador',
+     'dados/gravacoes.py',
+     '        condicao = " AND campo = ?"\n        valores.append(campo)',
+     '        condicao = ""'),
+
+    # Regra 3 de verdade: a conferencia precisa enxergar o catalogo, e nao a
+    # lista ja filtrada. Com o filtro "sem SKU" a lista filtrada e justamente
+    # a dos que NAO tem SKU — conferir contra ela e conferir contra nada.
+    ("a conferencia de repetidos colhendo ANTES do filtro",
+     "web/rotas_api.py",
+     "        em_uso.extend(_colher(pagina, colher))\n        itens.extend(catalogo.filtrar(pagina, filtro))",
+     "        itens.extend(catalogo.filtrar(pagina, filtro))\n        em_uso.extend(_colher(catalogo.filtrar(pagina, filtro), colher))"),
+
+    ("o gerador de SKU pedindo os SKUs em uso",
+     "web/rotas_api.py",
+     "        loja, filtro, None, 50, None, colher=\"sku\")",
+     "        loja, filtro, None, 50, None)"),
+
+    # Numero reaproveitado faz etiqueta velha, ja colada, apontar pro produto
+    # de agora. Encher buraco de numeracao e barato e perigoso.
+    ("a numeracao continuando de onde a loja parou",
+     "etiquetas/numeracao.py",
+     "    proximo = proxima_sequencia(usados, faixa)",
+     "    proximo = 1"),
+
+    # O verificador e o que separa um codigo que bipa de um que imprime bonito
+    # e traz o produto errado.
+    ("o digito verificador do numero gerado",
+     "etiquetas/numeracao.py",
+     "    return corpo + codigos.digito_verificador_gs1(corpo)",
+     "    return corpo + \"0\""),
+
+    # Faixa 2 e a unica que a norma reserva a uso interno. Qualquer outra
+    # pertence a alguma empresa.
+    ("a faixa 2, que e a reservada a uso interno de loja",
+     "etiquetas/numeracao.py",
+     "FAIXA_INTERNA = \"2\"",
+     "FAIXA_INTERNA = \"7\""),
+
+    # Prefixo longo e prefixo de empresa pequena. Gravar 9 e calar sobre os
+    # outros 291 e a meia verdade que este app recusa.
+    ('o motivo de o prefixo ter acabado chegando ao lojista',
+     'etiquetas/numeracao.py',
+     '                          "pulado": _motivo_do_fim(faixa, teto, livres)})',
+     '                          "pulado": ""})'),
+
+    # Caso 3: SKU que nao vira Code 128 nao pode ir pro catalogo — gravado,
+    # ele quebra a impressao de quem for usar depois.
+    ("o SKU sendo validado antes de virar codigo de barras",
+     "etiquetas/numeracao.py",
+     "    vale, motivo = codigos.validar(sku, codigos.CODE128)",
+     "    vale, motivo = True, \"\""),
+
+    ("o SKU repetido sendo barrado antes de virar codigo",
+     "etiquetas/numeracao.py",
+     "    if sku in usados:",
+     "    if False:"),
+
+    # Codigo interno apresentado como GTIN e mentira com consequencia
+    # comercial: o lojista acha que pode vender em outro varejista.
+    ("o rotulo que diz QUE TIPO de numero foi gerado",
+     "etiquetas/numeracao.py",
+     "                      \"pulado\": \"\", \"aviso\": \"\"})\n\n    return saida",
+     "                      \"pulado\": \"\", \"aviso\": \"\"})\n\n    for _l in saida:\n        _l[\"tipo\"] = \"\"\n    return saida"),
+
+    # ------------------------------- as rotas do gerador de codigo
+    ('o aplicar de codigo gravando SO o que o lojista confirmou',
+     'web/rotas_api.py',
+     '                if l["codigo"] and not l["pulado"]\n                and str(l["item"]["variante"].get("id")) in confirmadas]',
+     '                if l["codigo"] and not l["pulado"]]'),
+
+    ('o aplicar de codigo nao tocando em quem ja tem',
+     'web/rotas_api.py',
+     '                if l["codigo"] and not l["pulado"]\n',
+     '                if l["codigo"]\n'),
+
+    ('o gerador de codigo pedindo os codigos em uso',
+     'web/rotas_api.py',
+     '        loja, filtro, None, 50, None, colher="codigo_barras")',
+     '        loja, filtro, None, 50, None)'),
+
+    ('o prefixo GS1 sendo conferido antes de gerar',
+     'web/rotas_api.py',
+     '    return numeracao.conferir_prefixo(prefixo) if modo == "gs1" else []',
+     '    return []'),
+
+    ('o aviso de onde o codigo vale chegando na tela',
+     'web/rotas_api.py',
+     '        "aviso_do_modo": _t(numeracao.AVISO_DO_MODO[modo]),',
+     '        "aviso_do_modo": "",'),
+
+    ('o aviso do modo saindo traduzido, e nao a chave crua',
+     'web/rotas_api.py',
+     '_t(numeracao.AVISO_DO_MODO[modo]),',
+     'numeracao.AVISO_DO_MODO[modo],'),
 
     # ---------------------------------------------------------- uma regra, um lugar
     ("valores.py: a formatacao de preco voltando pra dentro do motor",

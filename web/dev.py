@@ -324,11 +324,16 @@ def _enchimento(quantos=118):
     cheio = list(CATALOGO_FALSO)
     for n in range(quantos):
         cheio.append({
-            "produto": {"titulo": "Sample Product %03d" % (n + 1),
+            "produto": {"id": "gid://dev/Product/%d" % n,
+                        "titulo": "Sample Product %03d" % (n + 1),
                         "fornecedor": "Vendor %d" % (n % 7),
                         "tipo": "Sample", "url": ""},
             "variante": {"id": "vt%d" % n, "titulo": "Default",
-                         "sku": "TST-%03d" % (n + 1),
+                         # Um em cada sete SEM SKU, porque catálogo importado
+                         # às pressas é assim — e porque sem isto o gerador de
+                         # SKU não tinha o que exercitar no `/dev/`, que é a
+                         # única tela testável sem Shopify nenhum.
+                         "sku": "" if n % 7 == 3 else "TST-%03d" % (n + 1),
                          # Um em cada cinco sem código, como catálogo de verdade.
                          "codigo_barras": "" if n % 5 == 0 else "789%09d" % n,
                          "preco": "%d.90" % (10 + n % 90), "preco_comparado": "",

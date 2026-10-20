@@ -83,21 +83,46 @@ def registrar(loja_id: int, campo: str, mudancas) -> str:
     return lote
 
 
-def ultimo_lote(loja_id: int):
+def ultimo_lote(loja_id: int, campo: str = ""):
     """O lote mais recente que ainda dá pra desfazer, ou None.
 
     Um só, e o último: oferecer uma lista de "desfazer o de terça" é convite pra
     o lojista reverter por cima de uma edição que ele mesmo fez depois.
+
+    `campo` restringe ao gerador que está perguntando, e isso não é enfeite:
+    com dois geradores na tela, o botão "desfazer" do SKU reverteria o lote de
+    código de barras se tivesse sido ele o último. O lojista clica em desfazer
+    numa janela e some o trabalho que ele fez na outra.
+
+    ## O desempate por `id`, e por que ele é obrigatório
+
+    MEDIDO em 20/10/2026: `agora()` tem resolução de **segundo**, e duas
+    chamadas a 50ms de distância devolvem a mesma string. Ordenar só por
+    `criado_em` deixa duas gravações do mesmo segundo **empatadas**, e aí o
+    SQLite devolve qualquer uma das duas — "o último lote" fica indefinido.
+
+    Dois cliques seguidos caem no mesmo segundo com facilidade. O desfazer
+    reverteria o lote errado, e o lojista não teria como saber.
+
+    O `id` é AUTOINCREMENT, então ele é monotônico mesmo quando o relógio não
+    tem resolução pra separar.
     """
     dono = _loja(loja_id)
+    condicao, valores = "", [dono]
+    if campo:
+        if campo not in CAMPOS_GRAVAVEIS:
+            raise ValueError("campo %r não é gravável" % campo)
+        condicao = " AND campo = ?"
+        valores.append(campo)
     with banco.conectar() as con:
         linha = con.execute(
-            """SELECT lote, campo, COUNT(*) AS quantos, MAX(criado_em) AS quando
+            """SELECT lote, campo, COUNT(*) AS quantos,
+                      MAX(criado_em) AS quando, MAX(id) AS ultimo
                  FROM gravacoes
-                WHERE loja_id = ? AND desfeito_em IS NULL
-             GROUP BY lote, campo
-             ORDER BY quando DESC
-                LIMIT 1""", (dono,)).fetchone()
+                WHERE loja_id = ? AND desfeito_em IS NULL""" + condicao +
+            """ GROUP BY lote, campo
+             ORDER BY quando DESC, ultimo DESC
+                LIMIT 1""", tuple(valores)).fetchone()
     return dict(linha) if linha else None
 
 

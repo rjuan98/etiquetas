@@ -48,12 +48,18 @@ class Simbologia:
     # Zebra do que no PDF e na prévia — o defeito que este projeto existe pra
     # corrigir, e o mesmo que já tinha aparecido no QR.
     razao_larga: float = 0.0
+    # Aceita texto, mas SÓ ASCII imprimível. É o caso do Code 128, cujo
+    # alfabeto é ASCII e nada além dele — "aceita texto" não quer dizer
+    # "aceita qualquer texto", e confundir os dois é o defeito que isto fecha.
+    #
+    # O QR não tem isto: ele codifica UTF-8 de verdade, acento inclusive.
+    so_ascii: bool = False
 
 
 EAN13 = Simbologia("EAN13", "^BE", 11, 7, 12, 13, True)
 UPCA = Simbologia("UPCA", "^BU", 9, 9, 11, 12, True)
 CODE128 = Simbologia("CODE128", "^BC", 10, 10, 0, 0, False,
-                     verificador_no_zpl=True)
+                     verificador_no_zpl=True, so_ascii=True)
 # ITF-14 é o código da CAIXA de atacado — o que vai na embalagem coletiva, não
 # na peça. Sempre 14 dígitos (é um GTIN-14), e a zona muda dele é de 10 módulos,
 # maior que a do EAN-13.
@@ -136,7 +142,22 @@ def validar(valor: str, simbologia: Simbologia) -> tuple[bool, str]:
                        % (len(valor), simbologia.limite_pratico))
 
     if simbologia.digitos_min == 0:
-        return True, ""          # Code128 e QR aceitam texto
+        # Aceitam texto — mas o Code 128 só aceita ASCII, e isto passava.
+        #
+        # MEDIDO: "CAFÉ-01" num Code 128 estourava `ValueError: Illegal
+        # barcode` dentro do reportlab (erro de servidor na cara do lojista,
+        # sem explicação), e no ZPL ia pra impressora do jeito que estava, pra
+        # sair lixo ou não sair. Num catálogo em português, SKU com acento não
+        # é caso de borda.
+        if simbologia.so_ascii:
+            fora = [c for c in valor if not 32 <= ord(c) <= 126]
+            if fora:
+                return False, ("o %s só imprime letra, número e pontuação sem "
+                               "acento. Tire o %s" % (simbologia.nome,
+                                                      " e o ".join(
+                                                          repr(c) for c in
+                                                          dict.fromkeys(fora))))
+        return True, ""
 
     if not valor.isdigit():
         return False, "o %s só aceita número, e veio %r" % (simbologia.nome, valor)

@@ -4053,6 +4053,57 @@ except ValueError:
 check("lote sem mudanca nenhuma e recusado, em vez de criar lote fantasma",
       _vazio)
 
+# O DESEMPATE, que custou uma sabotagem instavel pra aparecer.
+#
+# MEDIDO: `agora()` tem resolucao de SEGUNDO — duas chamadas a 50ms de
+# distancia devolvem a mesma string. Ordenando so por `criado_em`, dois lotes
+# do mesmo segundo ficam EMPATADOS, e o SQLite devolve qualquer um dos dois.
+#
+# Dois cliques seguidos caem no mesmo segundo com facilidade. O desfazer
+# reverteria o lote errado, e o lojista nao teria como saber. A sabotagem do
+# filtro por campo escapou uma vez e foi pega na outra justamente por causa
+# disto — o placar virava cara ou coroa.
+# E O TESTE PRECISA DE REPETICAO, porque o defeito e PROBABILISTICO.
+#
+# Medido: sem o desempate, a consulta acerta 15 de 40 — ela acaba ordenando
+# pelo uuid do lote, que e aleatorio. Um par so de lotes pegaria a sabotagem
+# em ~6 de cada 10 corridas, e teste instavel e pior que teste nenhum: ele faz
+# o placar da bateria virar cara ou coroa.
+#
+# Com 20 pares, a chance de a sabotagem escapar e de uma em centenas de
+# milhoes.
+_ID_G3 = _instalar("empate.myshopify.com", "tok-g3")
+_erraram, _empatados, _PARES = 0, 0, 20
+for _i in range(_PARES):
+    _a = _grav.registrar(_ID_G3, "sku", [("gid/e%da" % _i, "", "A")])
+    _b = _grav.registrar(_ID_G3, "sku", [("gid/e%db" % _i, "", "B")])
+    if (_grav.ultimo_lote(_ID_G3) or {}).get("lote") != _b:
+        _erraram += 1
+    with banco.conectar() as _c:
+        _empatados += _c.execute(
+            "SELECT COUNT(DISTINCT criado_em) FROM gravacoes "
+            " WHERE loja_id = ? AND lote IN (?, ?)",
+            (_ID_G3, _a, _b)).fetchone()[0] == 1
+    _grav.marcar_desfeito(_ID_G3, _a)
+    _grav.marcar_desfeito(_ID_G3, _b)
+
+# O empate e medido PAR A PAR. Medir no conjunto seria instavel: 20 pares
+# podem cruzar a virada do segundo e a assertiva falharia sozinha, sem defeito
+# nenhum — que e o tipo de teste que faz a bateria perder a credibilidade.
+check("os pares cairam MESMO no mesmo segundo (senao o teste nao prova nada)",
+      _empatados >= _PARES - 2, "%d de %d empataram" % (_empatados, _PARES))
+check("e o ultimo lote e SEMPRE o mais recente, mesmo empatado no relogio",
+      _erraram == 0, "%d de %d erraram" % (_erraram, _PARES))
+
+# E continua certo depois de desfazer: o anterior volta a ser o topo.
+_p1 = _grav.registrar(_ID_G3, "sku", [("gid/p1", "", "PRIMEIRO")])
+_p2 = _grav.registrar(_ID_G3, "sku", [("gid/p2", "", "SEGUNDO")])
+_grav.marcar_desfeito(_ID_G3, _p2)
+check("desfeito o segundo, o primeiro vira o ultimo",
+      (_grav.ultimo_lote(_ID_G3) or {}).get("lote") == _p1,
+      _grav.ultimo_lote(_ID_G3))
+_grav.marcar_desfeito(_ID_G3, _p1)
+
 # O PRAZO e o que impede isto de virar, com o tempo, uma copia do catalogo de
 # todo mundo que ja usou o app.
 check("existe prazo de guarda, e ele e curto o bastante",
@@ -4390,6 +4441,612 @@ check("e o motivo chega ao lojista, em vez de sumir",
       any("SKU ja em uso" in f for f in (_d.get("falhas") or [])), _d)
 check("e NADA vai pro registro de desfazer",
       _grav.ultimo_lote(_ID_W) is None, _grav.ultimo_lote(_ID_W))
+
+
+# --- 5. a mesma falha dita UMA vez ------------------------------------------
+#
+# A mutacao do Shopify e por produto. Uma loja fora do ar devolve o mesmo erro
+# uma vez por produto, e a tela mostraria quatro linhas identicas — ruido que
+# esconde a falha que e DIFERENTE das outras.
+_LOJA_FALSA["gid://p/7"] = [("gid://v/71", "D", "")]
+_LOJA_FALSA["gid://p/6"] = [("gid://v/61", "E", "")]
+
+
+def _shopify_fora_do_ar(loja, token, corpo, **kw):
+    if "productVariantsBulkUpdate" in corpo.get("query", ""):
+        raise _rede4.ErroDeRede("a loja nao respondeu")
+    return _shopify(loja, token, corpo, **kw)
+
+
+_rede4.graphql = _shopify_fora_do_ar
+try:
+    _r = _post("/api/skus/aplicar", "gera-sku.myshopify.com",
+               {"filtro": "sem_sku", "variantes": ["gid://v/71", "gid://v/61"]})
+finally:
+    _rede4.graphql = _orig
+_d = _r.get_json()
+check("dois produtos falhando igual viram UMA linha",
+      _d.get("falhas") == ["a loja nao respondeu"], _d)
+check("e com tudo falhando, gravados e zero",
+      _d.get("gravados") == 0, _d)
+check("e nada entrou no registro de desfazer",
+      _grav.ultimo_lote(_ID_W) is None, _grav.ultimo_lote(_ID_W))
+
+
+# --- 6. no modo dev a gravacao RECUSA, em vez de fingir ---------------------
+#
+# Simular a escrita faria o `/dev/` fingir justamente a parte perigosa — e e a
+# parte que esta secao ja exercita com uma loja falsa de verdade. A previa
+# funciona sem Shopify nenhum; a gravacao diz por que nao.
+_ID_DEV = _instalar("so-dev.myshopify.com", _dev.TOKEN_FALSO)
+t_lojas.marcar_plano(_ID_DEV, "pro")
+
+_gravacoes_feitas.clear()
+_r = _post("/api/skus/aplicar", "so-dev.myshopify.com",
+           {"filtro": "sem_sku", "variantes": ["gid://v/1"]})
+check("no modo dev o aplicar recusa", _r.status_code == 400, _r.status_code)
+check("dizendo por que", bool(_r.get_json().get("erro")), _r.get_json())
+check("e NADA foi escrito", _gravacoes_feitas == [], _gravacoes_feitas)
+check("o desfazer recusa do mesmo jeito",
+      _post("/api/skus/desfazer", "so-dev.myshopify.com", {}).status_code == 400)
+# E a previa continua de pe: e pra ela que o /dev/ existe.
+_r = _post("/api/skus/previa", "so-dev.myshopify.com", {"filtro": "sem_sku"})
+check("mas a PREVIA do modo dev funciona", _r.status_code == 200, _r.status_code)
+check("com o catalogo de mentira dentro",
+      bool(_r.get_json().get("linhas")), _r.get_json())
+
+
+# --- 7. a tela nao promete desfazer o que nao aconteceu --------------------
+#
+# MEDIDO no navegador, modo dev: clicar em Gravar respondia
+#
+#     "Gravados 0. Dá para desfazer."
+#
+# Nada tinha sido escrito, e a tela mandava o lojista procurar um desfazer que
+# nao existia. E a mesma meia verdade que o app recusa em todo lugar, so que
+# dita pela tela em vez de pelo servidor.
+check("zero gravado usa o texto de 'nada foi gravado'",
+      "? T.gerar_gravados.replace" in _tela and ": T.gerar_nada_gravado" in _tela)
+check("e esse texto NAO fala em desfazer",
+      "desfazer" not in _txt.TEXTOS["gerar_nada_gravado"]["pt"].lower()
+      and "undo" not in _txt.TEXTOS["gerar_nada_gravado"]["en"].lower())
+# A tabela so sai da tela se algo mudou: apagar a previa depois de uma
+# gravacao que falhou tira justamente o que serve pra tentar de novo.
+check("a tabela so e apagada quando algo foi gravado",
+      _tela.count("if (quantos) {") == 2, _tela.count("if (quantos) {"))
+
+
+# --- 8. a conferencia de repetidos olha o catalogo, nao a lista filtrada ---
+#
+# MEDIDO em 20/10/2026, e era um defeito pra valer.
+#
+# A conferencia de colisao recebia os SKUs dos itens JA FILTRADOS. Com o filtro
+# padrao "sem SKU", isso e uma lista de strings VAZIAS — o filtro tira
+# exatamente os produtos que SEGURAM os SKUs em uso. A regra 3 do desenho
+# ("conferir colisao dentro da loja") estava inteiramente derrotada, e calada.
+#
+# Dois produtos com o mesmo SKU fazem o lojista pegar o produto errado no
+# estoque. Se o SKU virar codigo de barras depois, bipa errado no caixa.
+_LOJA_FALSA["gid://p/5"] = [("gid://v/51", "Unico", "ACME-CAMI-UNIC")]
+_LOJA_FALSA["gid://p/4"] = [("gid://v/41", "Unico", "")]
+
+_r = _com_shopify(lambda: _post("/api/skus/previa", "gera-sku.myshopify.com",
+                                {"filtro": "sem_sku"}))
+_d = _r.get_json()
+_proposto = {l["variante_id"]: l["sku"] for l in _d["linhas"]
+             if l["sku"] and not l["pulado"]}
+check("o produto sem SKU aparece na previa", "gid://v/41" in _proposto,
+      sorted(_proposto))
+check("e o SKU proposto NAO repete o de outro produto do catalogo",
+      _proposto.get("gid://v/41") != "ACME-CAMI-UNIC",
+      _proposto.get("gid://v/41"))
+check("ele ganha sufixo, e o lojista e avisado disso",
+      _proposto.get("gid://v/41") == "ACME-CAMI-UNIC-2"
+      and any(l["variante_id"] == "gid://v/41" and l["aviso"]
+              for l in _d["linhas"]),
+      _proposto.get("gid://v/41"))
+# E o produto que SEGURA o SKU nem aparece na tabela — ele foi filtrado. E
+# justamente por isso que a conferencia nao podia sair dela.
+check("e o dono do SKU nem esta na tabela, que era a armadilha",
+      not any(l["variante_id"] == "gid://v/51" for l in _d["linhas"]))
+
+# A conferencia so alcanca o que foi varrido. Em catalogo grande isso e um
+# pedaco, e a resposta tem que DIZER isso em vez de deixar o lojista achar que
+# a garantia vale pra loja inteira.
+check("a resposta diz se a conferencia foi completa",
+      "conferencia_completa" in _d, sorted(_d))
+
+del _LOJA_FALSA["gid://p/5"], _LOJA_FALSA["gid://p/4"]
+
+
+secao("79. O Code 128 so aceita ASCII — e isso passava batido")
+
+# MEDIDO em 20/10/2026, montando o gerador de codigo:
+#
+#   codigos.validar("CAFÉ-01", CODE128)  ->  (True, "")
+#
+# O validador liberava, e ai:
+#   - o PDF estourava `ValueError: Illegal barcode` dentro do reportlab, que
+#     chega ao lojista como erro de servidor, sem explicacao nenhuma;
+#   - o ZPL mandava o byte acentuado pra impressora, pra sair lixo ou nao sair.
+#
+# A linha culpada dizia "Code128 e QR aceitam texto". Vale pro QR, que codifica
+# UTF-8 de verdade. NAO vale pro Code 128, cujo alfabeto e ASCII e nada alem.
+#
+# Num catalogo em portugues isto nao e caso de borda: "CAFÉ", "AÇÚCAR" e
+# "CAMISA-ÇÃO" sao nomes de produto comuns, e SKU sai de nome de produto.
+check("Code 128 com acento e RECUSADO",
+      codigos.validar("CAFÉ-01", codigos.CODE128)[0] is False)
+check("e o motivo diz QUAL caractere tirar",
+      "'É'" in codigos.validar("CAFÉ-01", codigos.CODE128)[1],
+      codigos.validar("CAFÉ-01", codigos.CODE128)[1])
+check("dois caracteres ruins viram dois avisos, sem repetir",
+      codigos.validar("CAMISA-ÇÃO", codigos.CODE128)[1].count("'") == 4,
+      codigos.validar("CAMISA-ÇÃO", codigos.CODE128)[1])
+check("simbolo de moeda tambem nao vai",
+      codigos.validar("10€", codigos.CODE128)[0] is False)
+check("mas pontuacao ASCII vai, que e SKU de verdade",
+      codigos.validar("ACME-CAM/M.1 2", codigos.CODE128)[0] is True,
+      codigos.validar("ACME-CAM/M.1 2", codigos.CODE128))
+
+# O QR nao herda a restricao: ele codifica UTF-8, e um QR com acento e legitimo.
+check("o QR continua aceitando acento",
+      codigos.validar("Café R$ 9,90", codigos.QRCODE)[0] is True)
+
+# A fronteira foi MEDIDA contra o reportlab, nao adivinhada: ele aceita 0-127 e
+# recusa de 128 pra cima. A gente para em 126 de proposito — caractere de
+# controle num SKU nao e codigo, e um DEL invisivel seria pior que a recusa.
+check("caractere de controle tambem e recusado",
+      codigos.validar("A\x07B", codigos.CODE128)[0] is False)
+
+# E os DOIS motores precisam concordar com o validador, senao a previa mostra
+# uma coisa e o papel sai outra.
+from dataclasses import replace as _dc_replace
+
+_TPL_128 = receitas.montar(formato="avery_5160", campos=["titulo"],
+                           simbologia="CODE128")
+_TPL_128 = _dc_replace(_TPL_128, elementos=list(_TPL_128.elementos) + [
+    CodigoBarras(campo="variante.sku", x_mm=3, y_mm=3, simbologia="CODE128",
+                 altura_mm=10, modulo_dots=2)])
+
+
+def _item_sku(sku):
+    return {"produto": {"titulo": "Cafe", "fornecedor": "A", "tipo": "B"},
+            "variante": {"sku": sku, "codigo_barras": sku, "preco": "10.00",
+                         "titulo": "U"}}
+
+
+_pdf_limpo = motor_pdf.render(_TPL_128, [(_item_sku("CAFE-01"), 1)])
+check("o PDF desenha o Code 128 limpo", len(_pdf_limpo) > 2000, len(_pdf_limpo))
+try:
+    _pdf_acento = motor_pdf.render(_TPL_128, [(_item_sku("CAFÉ-01"), 1)])
+    _estourou = ""
+except Exception as _e:
+    _pdf_acento, _estourou = b"", "%s: %s" % (type(_e).__name__, _e)
+check("e com acento NAO estoura mais", _estourou == "", _estourou)
+check("ele so omite o codigo, que e a regra de sempre",
+      0 < len(_pdf_acento) < len(_pdf_limpo), len(_pdf_acento))
+
+check("o ZPL desenha o limpo", "^BC" in zpl.render(_TPL_128, _item_sku("CAFE-01")))
+check("e OMITE o acentuado, em vez de mandar pra impressora",
+      "^BC" not in zpl.render(_TPL_128, _item_sku("CAFÉ-01")))
+
+# E o lojista precisa saber POR QUE sumiu. A funcao que explica chama o mesmo
+# `codigos.validar`, entao ela herda a mensagem nova de graca — mas isso so e
+# verdade enquanto ela nao tiver uma segunda opiniao propria.
+_motivo = _api._por_que_o_codigo_sumiu(_TPL_128, _item_sku("CAFÉ-01"))
+check("e a previa diz por que o codigo sumiu", "'É'" in _motivo, _motivo)
+
+
+secao("80. O gerador de codigo de barras: tres casos, e nenhum deles mente")
+
+# SKU nao tem dono. Codigo de barras TEM: cada faixa de numeracao pertence a
+# alguem. Por isso aqui nao existe "gerar codigo" no singular — existem tres
+# situacoes, e o lojista precisa saber em qual esta.
+#
+# Ver docs/gerador-de-codigo.md.
+from etiquetas import numeracao as _num
+
+
+def _prod(titulo, sku="", codigo="", fornecedor="Acme"):
+    return {"produto": {"titulo": titulo, "fornecedor": fornecedor,
+                        "tipo": "Camiseta"},
+            "variante": {"titulo": "M", "sku": sku, "codigo_barras": codigo}}
+
+
+# --- caso 1: o lojista TEM prefixo de empresa GS1 --------------------------
+_r = _num.gerar_lote([_prod("A"), _prod("B")], modo="gs1", prefixo="7891234")
+check("gera um codigo por produto", [l["codigo"] for l in _r] ==
+      ["7891234000019", "7891234000026"], [l["codigo"] for l in _r])
+check("e diz que tipo de numero e", all(l["tipo"] == "GTIN-13" for l in _r))
+
+# O teste que importa: o numero gerado tem que passar pela MESMA validacao que
+# o app usa pra aceitar codigo digitado. Verificador errado imprime bonito,
+# bipa, e traz o produto errado no caixa.
+for _seq in (1, 2, 42, 99999):
+    _c = _num.montar_gtin("7891234", _seq)
+    check("o GTIN gerado (seq %d) passa na validacao do proprio app" % _seq,
+          codigos.validar(_c, codigos.EAN13) == (True, ""),
+          (_c, codigos.validar(_c, codigos.EAN13)))
+
+# --- caso 2: sem prefixo, faixa de circulacao restrita ---------------------
+_r = _num.gerar_lote([_prod("A")], modo="interno")
+check("o codigo interno comeca com 2, que e a faixa reservada",
+      _r[0]["codigo"].startswith("2"), _r[0]["codigo"])
+check("e tambem e um EAN-13 valido, que bipa em qualquer leitor",
+      codigos.validar(_r[0]["codigo"], codigos.EAN13) == (True, ""),
+      _r[0]["codigo"])
+# A frase que diz que o codigo NAO vale fora da loja mora junto do gerador, pra
+# nao poder divergir dele. Codigo interno apresentado como GTIN e mentira com
+# consequencia comercial.
+check("existe aviso escrito para cada um dos tres modos",
+      set(_num.AVISO_DO_MODO) == set(_num.MODOS), sorted(_num.AVISO_DO_MODO))
+
+# O modulo guarda a CHAVE; o texto mora em textos.py porque o app e bilingue.
+# Isto e o que impede as duas listas de divergirem — sem este teste, um modo
+# novo sairia com a tela em branco justamente na frase que tem consequencia
+# comercial. E mandar portugues pra tela em ingles seria falhar nela tambem.
+for _modo, _chave in _num.AVISO_DO_MODO.items():
+    check("o modo %s tem frase cadastrada" % _modo, _chave in _txt.TEXTOS, _chave)
+    for _lingua in ("en", "pt"):
+        check("  e ela existe em %s" % _lingua,
+              (_txt.TEXTOS.get(_chave) or {}).get(_lingua, "").strip() != "",
+              (_chave, _lingua))
+
+check("o aviso do interno diz que nao serve em outra loja",
+      "outra loja" in _txt.TEXTOS["codigo_aviso_interno"]["pt"]
+      and "another shop" in _txt.TEXTOS["codigo_aviso_interno"]["en"])
+check("e o do GS1 avisa pra usar o prefixo DELE",
+      "SUA empresa" in _txt.TEXTOS["codigo_aviso_gs1"]["pt"]
+      and "YOUR company" in _txt.TEXTOS["codigo_aviso_gs1"]["en"])
+
+# --- caso 3: Code 128 a partir do SKU --------------------------------------
+_r = _num.gerar_lote([_prod("tem", sku="ACME-CAM-M"), _prod("nao tem"),
+                      _prod("acento", sku="CAMISA-ÇÃO"),
+                      _prod("repetido", sku="ACME-CAM-M")], modo="sku")
+check("o codigo e o proprio SKU", _r[0]["codigo"] == "ACME-CAM-M", _r[0])
+check("sem SKU, ele diz pra gerar o SKU primeiro",
+      "gere o SKU primeiro" in _r[1]["pulado"], _r[1]["pulado"])
+check("SKU com acento e RECUSADO, nao gravado pra quebrar na impressao",
+      _r[2]["codigo"] == "" and "'Ç'" in _r[2]["pulado"], _r[2]["pulado"])
+check("SKU repetido vira recusa, porque bipa o produto errado no caixa",
+      _r[3]["codigo"] == "" and "repetido" in _r[3]["pulado"], _r[3]["pulado"])
+
+# --- as regras que valem nos tres modos ------------------------------------
+# REGRA 2 do desenho: nunca sobrescrever. O codigo que esta la pode ser
+# comprado, e pode estar impresso em caixa fechada.
+for _modo, _pre in (("gs1", "7891234"), ("interno", ""), ("sku", "")):
+    _r = _num.gerar_lote([_prod("ja tem", sku="X1", codigo="7899999999994")],
+                         modo=_modo, prefixo=_pre)
+    check("modo %s nao sobrescreve codigo existente" % _modo,
+          _r[0]["codigo"] == "7899999999994" and _r[0]["pulado"], _r[0])
+
+# REGRA 3: colisao dentro da loja. Dois produtos com o mesmo codigo bipam o
+# produto errado — e essa e a pior falha que este app pode causar.
+_ja = ["7891234000019", "7891234000026"]
+_r = _num.gerar_lote([_prod("C"), _prod("D")], modo="gs1", prefixo="7891234",
+                     ja_usados=_ja)
+check("nao repete codigo que a loja ja usa",
+      not set(l["codigo"] for l in _r) & set(_ja),
+      [l["codigo"] for l in _r])
+check("e continua a numeracao de onde ela parou",
+      [l["codigo"] for l in _r] == ["7891234000033", "7891234000040"],
+      [l["codigo"] for l in _r])
+# Com BURACO na numeracao, "continuar de onde parou" e "encher o buraco" dao
+# respostas diferentes — e a segunda e perigosa: numero reaproveitado faz uma
+# etiqueta velha, ja colada numa peca, apontar pro produto de agora.
+_r = _num.gerar_lote([_prod("Z")], modo="gs1", prefixo="7891234",
+                     ja_usados=["7891234000019", "7891234005009"])
+check("com buraco na numeracao ele CONTINUA, em vez de reaproveitar",
+      _r[0]["codigo"] == "7891234005014", _r[0]["codigo"])
+
+check("nem repete dentro do proprio lote",
+      len({l["codigo"] for l in _num.gerar_lote(
+          [_prod(str(i)) for i in range(30)], modo="interno")}) == 30)
+
+# --- o prefixo, conferido antes de qualquer coisa --------------------------
+check("prefixo vazio e recusado com instrucao",
+      "GS1" in _num.conferir_prefixo("")[0], _num.conferir_prefixo(""))
+check("prefixo com letra e recusado", _num.conferir_prefixo("abc"))
+check("prefixo curto demais e recusado", _num.conferir_prefixo("789"))
+check("prefixo que nao deixa espaco pro item e recusado",
+      _num.conferir_prefixo("789123456789"))
+check("prefixo bom passa", _num.conferir_prefixo("7891234") == [])
+
+# Prefixo longo e prefixo de empresa pequena: com 11 digitos sobram 9 numeros.
+# Dizer isso ANTES vale mais que gravar 9 e calar sobre os outros 291.
+check("a capacidade e dita em numero", _num.capacidade("7891234") == 99999,
+      _num.capacidade("7891234"))
+check("prefixo de 11 digitos comporta 9", _num.capacidade("78912345678") == 9)
+_r = _num.gerar_lote([_prod(str(i)) for i in range(12)], modo="gs1",
+                     prefixo="78912345678")
+check("quando o prefixo enche, os que sobraram dizem POR QUE",
+      sum(1 for l in _r if l["codigo"]) == 9
+      and "cheio" in _r[9]["pulado"], [l["codigo"] or l["pulado"] for l in _r])
+
+# Dois motivos DIFERENTES, e dizer "acabou" nos dois esconderia do lojista
+# justamente o que ele pode resolver.
+#
+# A numeracao continua de onde a loja parou em vez de encher buraco — numero
+# reaproveitado faz etiqueta velha, ja colada, apontar pro produto de agora. O
+# efeito colateral e que um prefixo pequeno esgota a CONTINUACAO com numeros
+# livres embaixo, e isso nao e a mesma coisa que estar cheio.
+_cheio = [_num.montar_gtin("78912345678", i) for i in range(1, 10)]
+_r = _num.gerar_lote([_prod("x")], "gs1", "78912345678", _cheio)
+check("faixa cheia de verdade diz CHEIO",
+      "cheio" in _r[0]["pulado"], _r[0]["pulado"])
+
+_r = _num.gerar_lote([_prod("x")], "gs1", "78912345678", [_cheio[-1]])
+check("mas com numeros livres embaixo ele NAO diz que esta cheio",
+      "cheio" not in _r[0]["pulado"], _r[0]["pulado"])
+check("ele conta quantos sobraram e explica por que nao reaproveita",
+      "8 n" in _r[0]["pulado"] and "apontar" in _r[0]["pulado"],
+      _r[0]["pulado"])
+
+# Modo que nao existe e erro de programacao, nao de lojista: levanta.
+try:
+    _num.gerar_lote([_prod("A")], modo="inventado")
+    _levantou = False
+except ValueError:
+    _levantou = True
+check("modo inexistente levanta, em vez de gerar qualquer coisa", _levantou)
+
+# E o gerador nao escreve em lugar nenhum — e isso que deixa a previa existir
+# antes de o app pedir permissao de escrita ao lojista.
+check("o gerador nao fala com rede nem com banco",
+      "rede" not in _io.open("etiquetas/numeracao.py", encoding="utf-8").read()
+      and "import dados" not in _io.open("etiquetas/numeracao.py",
+                                         encoding="utf-8").read())
+
+
+secao("81. As rotas do gerador de codigo, de ponta a ponta")
+
+# A seçao 78 cobre as rotas de SKU; estas nao tinham nada — e rota foi
+# exatamente onde morava o bug de colisao que quase subiu.
+#
+# A regra e a mesma das outras tres: O SERVIDOR CALCULA O QUE GRAVA, O
+# NAVEGADOR SO CONFIRMA QUAIS.
+_ID_C = _instalar("gera-cod.myshopify.com", "tok-c")
+t_lojas.marcar_plano(_ID_C, "pro")
+
+# {produto: [(variante, titulo, sku, codigo)]}
+_LOJA_C = {
+    "gid://c/1": [("gid://cv/1", "P", "", ""),            # sem sku, sem codigo
+                  ("gid://cv/2", "M", "ACME-M", "")],     # com sku, sem codigo
+    "gid://c/2": [("gid://cv/3", "U", "", "7891111111117")],   # JA tem codigo
+}
+_escritas_c = []
+
+
+def _shopify_c(loja, token, corpo, **kw):
+    """Responde a consulta de produtos E a mutacao, nos DOIS campos.
+
+    A loja falsa da secao 78 so sabia gravar SKU. Esta precisa saber os dois,
+    porque e justamente a mistura dos dois que o desfazer tem que separar.
+    """
+    if "productVariantsBulkUpdate" in corpo.get("query", ""):
+        pid = corpo["variables"]["produto"]
+        confirmadas = []
+        for v in corpo["variables"]["variantes"]:
+            e_codigo = "barcode" in v
+            valor = v["barcode"] if e_codigo else v["inventoryItem"]["sku"]
+            _escritas_c.append((v["id"], "codigo" if e_codigo else "sku", valor))
+            novas = []
+            for vid, tit, sku, cod in _LOJA_C[pid]:
+                if vid == v["id"]:
+                    cod, sku = (valor, sku) if e_codigo else (cod, valor)
+                novas.append((vid, tit, sku, cod))
+            _LOJA_C[pid] = novas
+            atual = [x for x in _LOJA_C[pid] if x[0] == v["id"]][0]
+            confirmadas.append({"id": v["id"], "sku": atual[2],
+                                "barcode": atual[3]})
+        return {"data": {"productVariantsBulkUpdate": {
+            "productVariants": confirmadas, "userErrors": []}}}
+
+    return {"data": {"products": {
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [{"id": pid, "title": "Produto " + pid[-1], "vendor": "Acme",
+                   "productType": "Camiseta",
+                   "variants": {"pageInfo": {"hasNextPage": False}, "nodes": [
+                       {"id": vid, "title": tit, "sku": sku, "barcode": cod,
+                        "price": "10.00", "compareAtPrice": None,
+                        "inventoryQuantity": 2}
+                       for vid, tit, sku, cod in variantes]}}
+                  for pid, variantes in _LOJA_C.items()]}}}
+
+
+def _com_c(fn):
+    original = _rede4.graphql
+    _rede4.graphql = _shopify_c
+    try:
+        return fn()
+    finally:
+        _rede4.graphql = original
+
+
+def _post_c(caminho, corpo):
+    return _com_c(lambda: _post(caminho, "gera-cod.myshopify.com", corpo))
+
+
+# --- 1. a previa nao escreve, e diz o que cada linha e --------------------
+_escritas_c.clear()
+_d = _post_c("/api/codigos/previa", {"modo": "interno"}).get_json()
+check("a previa de codigo responde", "linhas" in _d, sorted(_d))
+check("e NAO escreveu nada", _escritas_c == [], _escritas_c)
+
+_prop = {l["variante_id"]: l["codigo"] for l in _d["linhas"]
+         if l["codigo"] and not l["pulado"]}
+check("propoe codigo so pra quem nao tem",
+      set(_prop) == {"gid://cv/1", "gid://cv/2"}, sorted(_prop))
+# Com o filtro padrao ("sem codigo"), quem JA tem nem chega na tabela — o
+# filtro corta antes. Isso e certo: a janela existe pra preencher o que falta.
+check("com o filtro, quem ja tem codigo nem aparece",
+      not any(l["variante_id"] == "gid://cv/3" for l in _d["linhas"]),
+      [l["variante_id"] for l in _d["linhas"]])
+
+# Mas com "todos os produtos" ele aparece COM O MOTIVO, em vez de sumir
+# calado — que e a regra do app inteiro.
+_todos = _post_c("/api/codigos/previa",
+                 {"modo": "interno", "filtro": ""}).get_json()
+check("sem filtro ele aparece, marcado como pulado",
+      any(l["variante_id"] == "gid://cv/3" and "já tem" in l["pulado"]
+          for l in _todos["linhas"]),
+      [(l["variante_id"], l["pulado"]) for l in _todos["linhas"]])
+
+# O numero gerado tem que passar pela MESMA validacao que o app usa pra
+# aceitar codigo digitado. Verificador errado imprime bonito, bipa, e traz o
+# produto errado no caixa.
+for _vid, _cod in sorted(_prop.items()):
+    check("o codigo de %s passa na validacao do proprio app" % _vid[-4:],
+          codigos.validar(_cod, codigos.EAN13) == (True, ""),
+          (_cod, codigos.validar(_cod, codigos.EAN13)))
+check("e ele esta na faixa 2, a reservada a uso interno",
+      all(c.startswith("2") for c in _prop.values()), sorted(_prop.values()))
+
+# A frase que diz ONDE aquele codigo vale viaja JUNTO da tabela.
+# O aviso vem TRADUZIDO pelo servidor (a bateria roda no idioma padrao, que e
+# o ingles) — mandar portugues pra tela em ingles seria falhar justamente na
+# frase com consequencia comercial.
+check("a previa manda o aviso do modo junto, no idioma da tela",
+      "another shop" in (_d.get("aviso_do_modo") or ""), _d.get("aviso_do_modo"))
+
+# --- 2. as escolhas sao conferidas antes de qualquer varredura ------------
+check("modo gs1 sem prefixo e recusado",
+      _post_c("/api/codigos/previa", {"modo": "gs1"}).status_code == 400)
+check("prefixo com letra e recusado",
+      _post_c("/api/codigos/previa",
+              {"modo": "gs1", "prefixo": "abc"}).status_code == 400)
+check("modo inventado e recusado",
+      _post_c("/api/codigos/previa", {"modo": "xpto"}).status_code == 400)
+
+# --- 3. grava so o que foi confirmado ------------------------------------
+_escritas_c.clear()
+_d = _post_c("/api/codigos/aplicar",
+             {"modo": "interno", "variantes": ["gid://cv/1"]}).get_json()
+check("grava e diz quantos", _d.get("gravados") == 1, _d)
+check("E SO A CONFIRMADA foi escrita, nao as duas propostas",
+      [e[0] for e in _escritas_c] == ["gid://cv/1"], _escritas_c)
+check("e escreveu no campo CODIGO, nao no SKU",
+      _escritas_c[0][1] == "codigo", _escritas_c)
+
+# O navegador nao dita o valor: o servidor refaz a conta.
+_escritas_c.clear()
+_post_c("/api/codigos/aplicar",
+        {"modo": "interno", "variantes": ["gid://cv/2"],
+         "codigo": "9999999999999",
+         "linhas": [{"variante_id": "gid://cv/2", "codigo": "9999999999999"}]})
+check("valor mandado pelo navegador NAO vai pro catalogo",
+      _escritas_c and _escritas_c[0][2] != "9999999999999", _escritas_c)
+
+check("sem escolher ninguem, recusa com motivo",
+      _post_c("/api/codigos/aplicar",
+              {"modo": "interno", "variantes": []}).status_code == 400)
+
+# --- 4. desfazer devolve o vazio que estava la ---------------------------
+_escritas_c.clear()
+_d = _post_c("/api/codigos/desfazer", {}).get_json()
+check("desfaz e diz quantos", _d.get("desfeitos") == 1, _d)
+check("escrevendo de volta o VAZIO que estava la antes",
+      _escritas_c and _escritas_c[0][2] == "", _escritas_c)
+check("e no campo certo", _escritas_c[0][1] == "codigo", _escritas_c)
+
+
+# --- 5. O DESFAZER DE UM GERADOR NAO REVERTE O LOTE DO OUTRO -------------
+#
+# Esta e a que a sabotagem pegou escapando, e ela e real: com duas janelas
+# abertas, "desfazer o ultimo" sem filtrar por campo reverte o lote do OUTRO
+# gerador. O lojista clica em desfazer numa janela e some o trabalho que ele
+# acabou de fazer na outra.
+# Os dois lotes vao em VARIANTES DIFERENTES, de proposito.
+#
+# A primeira versao deste teste usava a mesma variante pros dois, e ele
+# passava com a trava sabotada — porque os dois valores anteriores eram ""
+# e desfazer o lote errado dava exatamente o mesmo resultado visivel.
+# Teste que nao distingue os dois casos nao esta testando nada.
+_LOJA_C["gid://c/3"] = [("gid://cv/4", "G", "", ""),
+                        ("gid://cv/9", "H", "", "")]
+
+# Lote A: um SKU, na cv/4.
+_escritas_c.clear()
+_d = _post_c("/api/skus/aplicar", {"variantes": ["gid://cv/4"]}).get_json()
+check("grava um SKU", _d.get("gravados") == 1, _d)
+
+# Lote B: um codigo, na cv/9, DEPOIS. O "ultimo lote" da loja agora e esse.
+_escritas_c.clear()
+_d = _post_c("/api/codigos/aplicar",
+             {"modo": "interno", "variantes": ["gid://cv/9"]}).get_json()
+check("e grava um codigo em OUTRA variante depois", _d.get("gravados") == 1, _d)
+
+# Desfazer pela janela do SKU tem que reverter o LOTE DO SKU — e da pra provar
+# isso olhando QUAL variante foi tocada.
+_escritas_c.clear()
+_d = _post_c("/api/skus/desfazer", {}).get_json()
+check("o desfazer do SKU reverte o lote do SKU", _d.get("desfeitos") == 1, _d)
+check("E TOCA A VARIANTE DO SKU, nao a do codigo",
+      [e[0] for e in _escritas_c] == ["gid://cv/4"], _escritas_c)
+check("no campo sku", [e[1] for e in _escritas_c] == ["sku"], _escritas_c)
+
+_v4 = [x for x in _LOJA_C["gid://c/3"] if x[0] == "gid://cv/4"][0]
+_v9 = [x for x in _LOJA_C["gid://c/3"] if x[0] == "gid://cv/9"][0]
+check("o SKU voltou a ficar vazio", _v4[2] == "", _v4)
+check("e o codigo da outra variante CONTINUA la", _v9[3] != "", _v9)
+
+# E o lote de codigo continua na fila, porque ninguem o consumiu.
+_escritas_c.clear()
+_d = _post_c("/api/codigos/desfazer", {}).get_json()
+check("o lote de codigo ainda estava na fila", _d.get("desfeitos") == 1, _d)
+check("e esse toca a variante do codigo",
+      [e[0] for e in _escritas_c] == ["gid://cv/9"], _escritas_c)
+
+
+# --- 5b. as duas que a sabotagem mostrou que eu nao exercitava -----------
+
+# (a) CONFIRMAR QUEM JA TEM CODIGO. O codigo que esta la pode ser COMPRADO, e
+# pode estar impresso em caixa fechada. A protecao so e tocada se o lojista
+# confirmar de proposito uma linha dessas — e era isso que faltava.
+_LOJA_C["gid://c/4"] = [("gid://cv/5", "X", "", "7899999999994")]
+_escritas_c.clear()
+_post_c("/api/codigos/aplicar",
+        {"modo": "interno", "filtro": "", "variantes": ["gid://cv/5"]})
+check("confirmar quem JA TEM codigo nao sobrescreve",
+      all(e[0] != "gid://cv/5" for e in _escritas_c), _escritas_c)
+_v5 = [x for x in _LOJA_C["gid://c/4"] if x[0] == "gid://cv/5"][0]
+check("e o codigo que estava la continua intacto",
+      _v5[3] == "7899999999994", _v5)
+
+# (b) RODAR O GERADOR DUAS VEZES. Este e o caso de verdade: o lojista gera,
+# grava, depois cadastra produto novo e gera de novo. Se a conferencia nao
+# enxergar os codigos que a PRIMEIRA rodada gravou, a segunda repete tudo.
+#
+# E ela so enxerga porque `_varrer` colhe ANTES do filtro — com o filtro "sem
+# codigo", quem ja tem (ou seja, quem segura os codigos) e cortado da lista.
+_LOJA_C["gid://c/5"] = [("gid://cv/6", "Y", "", _num.montar_interno(1)),
+                        ("gid://cv/7", "Z", "", _num.montar_interno(2)),
+                        ("gid://cv/8", "W", "", "")]
+_d = _post_c("/api/codigos/previa", {"modo": "interno"}).get_json()
+_novo = {l["variante_id"]: l["codigo"] for l in _d["linhas"]
+         if l["codigo"] and not l["pulado"]}
+_ja_na_loja = {c for lista in _LOJA_C.values() for _, _, _, c in lista if c}
+check("a segunda rodada NAO repete codigo que a primeira ja gravou",
+      not set(_novo.values()) & _ja_na_loja,
+      sorted(set(_novo.values()) & _ja_na_loja))
+check("e o produto novo recebe o proximo da fila, nao o numero 1",
+      _novo.get("gid://cv/8") not in (None, _num.montar_interno(1)),
+      _novo.get("gid://cv/8"))
+
+del _LOJA_C["gid://c/4"], _LOJA_C["gid://c/5"]
+
+
+# --- 6. no modo dev a gravacao recusa, como nas outras -------------------
+check("no modo dev o aplicar de codigo recusa",
+      _post("/api/codigos/aplicar", "so-dev.myshopify.com",
+            {"modo": "interno", "variantes": ["gid://cv/1"]}).status_code == 400)
+check("e o desfazer tambem",
+      _post("/api/codigos/desfazer", "so-dev.myshopify.com",
+            {}).status_code == 400)
+check("mas a PREVIA do modo dev funciona",
+      _post("/api/codigos/previa", "so-dev.myshopify.com",
+            {"modo": "interno"}).status_code == 200)
 
 
 # ---------------------------------------------------------------- fim

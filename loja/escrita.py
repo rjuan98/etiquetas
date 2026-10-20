@@ -17,9 +17,18 @@ no catálogo de quem paga, não num papel.
 **Não existe campo `sku` na variante.** Ele mora em `inventoryItem.sku`. Mandar
 `sku` direto é erro de esquema, e a mensagem do Shopify não ajuda.
 
-**O campo `barcode` está OBSOLETO.** O atual é `barcodes`, uma lista. Quando
-chegar o gerador de código de barras, é por lá — e não dá pra mandar os dois na
-mesma variante.
+**O campo `barcode` depende da VERSÃO da API, e isto estava escrito errado
+aqui.** Conferido na fonte em 20/10/2026:
+
+| versão | `barcode` | `barcodes` |
+|---|---|---|
+| **2026-07** — a que este app fixa | existe, **não** depreciado | não existe |
+| 2026-10 em diante | depreciado | existe, até 20 por variante |
+
+Então hoje é `barcode`, e é o certo. Quando a versão subir (ela está escrita em
+`catalogo.py`, `cobranca.py`, `oauth.py` e `shopify.app.toml`), isto vira
+`barcodes` — que **substitui o conjunto inteiro**, e não pode ir junto com
+`barcode` na mesma variante.
 
 **A mutação é por PRODUTO, não por variante.** `productVariantsBulkUpdate` leva
 um `productId` e a lista de variantes dele. Então um lote de 40 SKUs espalhados
@@ -40,6 +49,7 @@ mutation gravar($produto: ID!, $variantes: [ProductVariantsBulkInput!]!) {
     productVariants {
       id
       sku
+      barcode
     }
     userErrors {
       field
@@ -48,6 +58,23 @@ mutation gravar($produto: ID!, $variantes: [ProductVariantsBulkInput!]!) {
   }
 }
 """.strip()
+
+# Como cada campo gravável viaja na mutação — na ida e na volta. A tradução
+# mora aqui e em nenhum outro lugar: acrescentar campo é acrescentar uma linha,
+# e nenhuma rota precisa saber que SKU não é campo da variante.
+#
+# A lista é curta de propósito e bate com `gravacoes.CAMPOS_GRAVAVEIS`: o que
+# não dá pra desfazer não pode ser gravado.
+CAMPOS = {
+    "sku": {
+        "entrada": lambda valor: {"inventoryItem": {"sku": valor}},
+        "saida": "sku",
+    },
+    "codigo_barras": {
+        "entrada": lambda valor: {"barcode": valor},
+        "saida": "barcode",
+    },
+}
 
 
 def agrupar_por_produto(mudancas) -> dict:
@@ -68,21 +95,33 @@ def agrupar_por_produto(mudancas) -> dict:
     return grupos
 
 
-def consulta_de_skus(produto_id: str, pares) -> dict:
-    """O corpo da chamada que grava os SKUs de UM produto.
+def consulta(produto_id: str, pares, campo: str = "sku") -> dict:
+    """O corpo da chamada que grava UM campo das variantes de UM produto.
 
-    `pares` é [(variante_id, sku)].
+    `pares` é [(variante_id, valor)].
     """
+    if campo not in CAMPOS:
+        # Campo fora da lista é erro de programação, e um erro desses gravaria
+        # coisa errada no catálogo de quem paga. Levanta.
+        raise ValueError("campo %r não é gravável. Disponíveis: %s"
+                         % (campo, ", ".join(sorted(CAMPOS))))
     if not str(produto_id or "").strip():
         raise ValueError("não dá pra gravar sem o id do produto")
-    variantes = [{"id": str(v), "inventoryItem": {"sku": str(sku or "")}}
-                 for v, sku in (pares or []) if str(v or "").strip()]
+
+    montar = CAMPOS[campo]["entrada"]
+    variantes = [dict(montar(str(valor or "")), id=str(v))
+                 for v, valor in (pares or []) if str(v or "").strip()]
     if not variantes:
         raise ValueError("não há variante nenhuma para gravar")
     return {
         "query": MUTACAO_VARIANTES,
         "variables": {"produto": str(produto_id), "variantes": variantes},
     }
+
+
+def consulta_de_skus(produto_id: str, pares) -> dict:
+    """Atalho histórico. O gerador de SKU já chamava assim."""
+    return consulta(produto_id, pares, "sku")
 
 
 def erros_da_escrita(resposta: dict) -> list:
@@ -111,17 +150,20 @@ def erros_da_escrita(resposta: dict) -> list:
     return motivos
 
 
-def variantes_gravadas(resposta: dict) -> dict:
-    """{variante_id: sku} do que o Shopify CONFIRMOU ter gravado.
+def variantes_gravadas(resposta: dict, campo: str = "sku") -> dict:
+    """{variante_id: valor} do que o Shopify CONFIRMOU ter gravado.
 
     O registro de desfazer sai daqui, e não da lista que a gente mandou. São
     coisas diferentes: mandar não é gravar, e anotar "desfazer" para algo que
     não aconteceu faria o desfazer sobrescrever um valor alheio.
     """
+    if campo not in CAMPOS:
+        raise ValueError("campo %r não é gravável" % campo)
+    nome = CAMPOS[campo]["saida"]
     dados = (resposta or {}).get("data") or {}
     bloco = dados.get("productVariantsBulkUpdate") or {}
     saida = {}
     for v in bloco.get("productVariants") or []:
         if isinstance(v, dict) and v.get("id"):
-            saida[str(v["id"])] = str(v.get("sku") or "")
+            saida[str(v["id"])] = str(v.get(nome) or "")
     return saida

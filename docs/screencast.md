@@ -1,121 +1,177 @@
-# O screencast da submissão
+# O screencast
 
-**Exigido pela Shopify:** *"Include a screencast to demonstrate your app's
-onboarding and features"*. Sem ele a submissão não completa.
+Serve a **duas** coisas, e por isso subiu de prioridade:
+
+1. **Exigência da submissão.** *"Include a screencast to demonstrate your app's
+   onboarding and features"*. Sem ele a submissão não completa.
+2. **É a única forma de mostrar o app antes de ele existir na vitrine.** Não dá
+   pra instalar numa loja sem estar listado (verificado — "instalação por link
+   direto" não existe). Então nas [dez conversas](dez-conversas.md) não é
+   *"testa aí"*, é *"olha isto funcionando"*.
+
+> **Grave uma vez, corte duas.**
+> **Cheio (~3 min)** para a submissão · **curto (~60s)** para as conversas.
+> O curto é só um recorte do mesmo arquivo: problema → gera → gravou.
 
 ---
 
 ## Antes de gravar
 
+**O escopo `write_products` precisa estar ligado**, senão as duas cenas que
+mais importam não acontecem — o gerador só mostra a prévia e recusa gravar.
+Ver [`roadmap.md`](roadmap.md).
+
 **Grave na loja de desenvolvimento de verdade** (`etik-jks2lorw.myshopify.com`),
 dentro do admin da Shopify — não no `/dev/`. O revisor quer ver o app real,
 embutido, como o lojista vê.
 
-Checklist de preparação:
+Checklist:
 
-- [ ] Abrir o app na loja e confirmar que **os produtos carregam** (depois da
-      migração de token, carregam)
-- [ ] Ter pelo menos **um produto com código de barras válido** e, se possível,
-      **um sem código** — o segundo serve para uma das cenas
-- [ ] Fechar abas, notificações e qualquer coisa pessoal na tela
-- [ ] Gravar em **1920×1080**, janela do navegador limpa
-- [ ] **Sem áudio é aceitável.** Se preferir narrar, narre; se não, o roteiro
-      abaixo funciona mudo, porque cada cena mostra o resultado na tela
-
-**Duração alvo: 2 a 3 minutos.** Mais que isso ninguém assiste até o fim.
+- [ ] Escopo ligado e app **reinstalado** na loja (escopo novo pede
+      consentimento novo)
+- [ ] Produtos carregam
+- [ ] **Pelo menos 3 produtos sem SKU e sem código de barras** — são eles que
+      fazem as cenas 2, 3 e 4 existirem
+- [ ] Pelo menos 1 produto **com** código válido (serve de contraste)
+- [ ] Abas, notificações e coisa pessoal fora da tela
+- [ ] 1920×1080, janela limpa
+- [ ] **Sem áudio é aceitável.** O roteiro funciona mudo, porque cada cena
+      mostra o resultado na tela
 
 ---
 
-## O roteiro, cena a cena
+## O roteiro
 
-### 1. Entrada (0:00–0:15)
+### 1. Entra e já está pronto (0:00–0:12)
 
-Admin da Shopify → **Apps** → **Etik Barcode Labels**.
+Admin → **Apps** → **Etik Barcode Labels**.
 
-Mostra o app abrindo **dentro** do admin, com o catálogo já carregado. É o
-"onboarding" que eles pedem: não há cadastro, não há configuração, não há tela
-de boas-vindas. Instalou, abriu, está pronto.
+O app abre **dentro** do admin com o catálogo carregado. É o "onboarding" que
+eles pedem: não há cadastro, não há configuração, não há tela de boas-vindas.
 
-> Se narrar: *"The app opens inside the Shopify admin. There's no account to
-> create and nothing to configure — your products are already there."*
+> *"The app opens inside the Shopify admin. Nothing to create, nothing to
+> configure — your products are already here."*
 
-### 2. Escolher produtos, e a quantidade que vem do estoque (0:15–0:45)
+### 2. O problema, na tela (0:12–0:28)
 
-- Marcar **dois ou três produtos** na lista
-- **Parar de propósito** sobre a coluna de quantidade e mostrar que ela veio
-  preenchida com o estoque
-- Mudar uma quantidade à mão, para mostrar que é editável
+Abrir o filtro e escolher **"Sem os dois"**.
 
-> *"Nothing is pre-selected, and quantities come from stock on hand."*
+A lista encolhe e o app diz **quantos** estão sem, **entre quantos olhou**.
+Essa segunda parte é de propósito: dizer "3 sem código" sem dizer "entre os
+400 que varri" deixaria o lojista achar que são 3 na loja inteira.
 
-### 3. O leitor de código (0:45–1:05)
+> *"These products have no SKU and no barcode. You can't print a label for
+> something that has no number."*
 
-- Clicar na busca e **digitar um código de barras completo + Enter** (é
-  exatamente o que um leitor faz)
-- Mostrar o produto sendo **escolhido sozinho**, com a quantidade certa
-- Repetir com um segundo código, para mostrar que **acumula**
+### 3. Gerar os SKUs que faltam (0:28–1:00)
 
-> *"A barcode scanner types and presses Enter, so scanning queues the product
-> with the quantity from stock. Scan, scan, print."*
+**É aqui que o app passa a resolver o passo zero, e não só o terceiro.**
 
-### 4. Montar a etiqueta e a prévia (1:05–1:45)
+- Clicar em **Preencher SKUs que faltam**
+- Mostrar o **molde** (`{fornecedor}-{tipo}-{variante}`) e trocar uma peça
+- **Ver prévia** → a tabela inteira aparece: produto, SKU atual, vai virar
+- **Parar sobre uma linha com ⚠** e mostrar que ela ganhou sufixo porque
+  repetia outro SKU da loja
+- **Desmarcar uma linha** de propósito e mostrar o botão mudando o número
+- **Gravar** → a contagem confirma
+- **Desfazer o último** → e os produtos voltam
 
-- Ligar e desligar campos (**título, SKU, preço**) e mostrar a prévia mudando
-- Trocar o **formato do papel** — escolher uma Avery e depois **Medida livre**,
-  digitando largura e altura
-- Mostrar a medida embaixo da prévia acompanhando
+> *"Nothing is written until you see the whole table and click. And you can
+> undo it."*
+
+**A cena do desfazer é obrigatória.** É o que separa este app de uma macro de
+planilha, e é a pergunta que o revisor vai fazer.
+
+### 4. Gerar os códigos de barras (1:00–1:45)
+
+- Clicar em **Preencher códigos de barras**
+- **Abrir o seletor de tipo** e passar pelos três, devagar o suficiente pra ler
+  o aviso mudando embaixo:
+  - **GTIN-13 do meu prefixo GS1** → aparece o campo de prefixo, e ao digitar
+    ele diz **quantos produtos cabem**
+  - **Código interno** → *"funciona no seu PDV e no seu estoque, mas não serve
+    para vender este produto em outra loja"*
+  - **Code 128 a partir do SKU**
+- Escolher **código interno**, **Ver prévia**
+- Mostrar a coluna **Tipo** dizendo, linha por linha, que número é aquele
+- **Gravar**
+
+> *"Three kinds of code, and the app tells you where each one is valid. An
+> internal code is not a GTIN, and pretending otherwise would cost the
+> merchant later."*
+
+**Esta cena é o diferencial honesto.** Os concorrentes geram código; nenhum
+diz ao lojista que faixa de numeração ele está usando.
+
+### 5. Bipar e enfileirar (1:45–2:05)
+
+- Clicar na busca e **digitar um código completo + Enter** (é o que o leitor
+  faz)
+- O produto entra sozinho, com a quantidade vinda do estoque
+- Repetir, pra mostrar que **acumula**
+
+> *"A scanner types and presses Enter. Scan, scan, print."*
+
+### 6. Montar a etiqueta (2:05–2:25)
+
+- Ligar e desligar **título, SKU, preço** — a prévia muda
+- Trocar o papel: uma Avery, depois **Medida livre** com largura e altura
+  digitadas
 
 > *"The preview is drawn by the same code that writes the printer file."*
 
-### 5. A cena que vende o app (1:45–2:10)
+### 7. A cena que nenhum concorrente mostra (2:25–2:45)
 
-**Esta é a mais importante, e é a que nenhum concorrente mostra.**
-
-- Escolher **Medida livre** e digitar uma largura estreita (por exemplo **25mm**)
-- O código de barras **some da prévia**, e o aviso aparece explicando por quê
-- Voltar para uma largura que cabe, e o código volta
-
-Alternativa (ou complemento), se houver produto com código inválido: trocar a
-simbologia para **ITF-14** num produto de 13 dígitos e mostrar a frase
-*"the barcode is not shown because..."*.
+- Em **Medida livre**, digitar uma largura estreita (**25mm**)
+- O código **some** da prévia e o aviso explica **por quê**
+- Voltar pra uma largura que cabe, e o código volta
 
 > *"A barcode that wouldn't scan is never printed — and the app says why."*
 
-### 6. Sair com arquivo (2:10–2:30)
+### 8. Sair com arquivo, e a régua (2:45–3:00)
 
-- Clicar em **Baixar PDF** e mostrar o arquivo aberto, com as etiquetas
-- Abrir a seção **"A etiqueta está saindo torta?"** e mostrar a régua de
-  calibração e os campos em milímetro
+- **Baixar PDF**, mostrar o arquivo aberto
+- Abrir **"A etiqueta está saindo torta?"** e mostrar a régua de calibração
 
-> *"And if your printer drifts, print the ruler, measure it, type the
-> difference."*
+### 9. Planos (3:00–3:10)
 
-### 7. Planos (2:30–2:45)
+**Ver planos** → Grátis e Pro. Responde antecipadamente a pergunta do revisor
+sobre cobrança.
 
-- Clicar em **Ver planos** e mostrar a tela com Grátis e Pro
+---
 
-Isso responde antecipadamente a pergunta do revisor sobre cobrança: ela passa
-pelo Shopify App Pricing, que é exigência da loja.
+## O corte de 60 segundos, para as conversas
+
+Mesmo arquivo, só as cenas **2 → 3 → 4**, sem narração:
+
+```
+o problema (sem SKU, sem código)  →  gera SKU  →  gera código  →  gravou
+```
+
+É o que responde *"o que seu app faz?"* em um minuto. O resto é detalhe que só
+interessa a quem já disse sim.
 
 ---
 
 ## O que NÃO mostrar
 
-- **Nada do `/dev/`.** Ele não existe em produção e mostrá-lo confunde.
+- **Nada do `/dev/`.** Não existe em produção e confunde.
 - **Nada de terminal, código ou testes.** O revisor avalia o produto.
 - **Não acelere o vídeo.** Prévia carregando em velocidade real é prova de que
-  ela é rápida; vídeo acelerado esconde isso e parece truque.
+  ela é rápida; acelerado parece truque.
+- **Não mostre gravação falhando.** Se der erro, pare e regrave a cena.
 
 ---
 
 ## Depois de gravar
 
-O arquivo entra na submissão junto das **instruções de teste**. Nelas é preciso
-dizer, com todas as letras:
+O arquivo entra na submissão junto das **instruções de teste**
+([`instrucoes-de-teste.md`](instrucoes-de-teste.md)), onde é preciso dizer com
+todas as letras:
 
-> não existe conta a criar — o app abre pelo admin da Shopify
-
-e explicar **como o revisor alcança o plano Pro**, que ele não vê sem assinar.
-Em loja de desenvolvimento a cobrança do Shopify é sempre de teste, então o
-caminho é ele instalar numa loja de desenvolvimento e assinar normalmente — vale
-escrever isso na instrução, porque o revisor não vai adivinhar.
+- não existe conta a criar — o app abre pelo admin da Shopify
+- **o app escreve no catálogo, e só depois de o lojista revisar e clicar** — com
+  o escopo ligado, esta é a primeira pergunta do revisor
+- como o revisor alcança o plano Pro: em loja de desenvolvimento a cobrança do
+  Shopify é sempre de teste, então ele instala numa loja dessas e assina
+  normalmente. Escreva isso, porque ele não vai adivinhar.

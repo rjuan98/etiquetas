@@ -35,15 +35,49 @@ divergir dos outros documentos, este está mais novo.
 
 ---
 
-## O plano, em 09/10/2026
+## O plano, em 09/10/2026 — e onde ele está em 20/10
 
-1. **Gerar SKU** por regra — barato, sem norma, sem risco de mentir
-2. **"Mostrar só produtos sem código"** — horas, e é destaque de ficha do líder
-3. **Gerar código de barras** — ver [`gerador-de-codigo.md`](gerador-de-codigo.md)
-4. **Screencast** — roteiro em [`screencast.md`](screencast.md)
-5. **Aí sim os US$ 19**
+| | estado |
+|---|---|
+| 1. **Gerar SKU** por regra | **pronto** — `etiquetas/skus.py`, com prévia, aplicar e desfazer |
+| 2. **"Mostrar só produtos sem código"** | **pronto** — filtro na tela, e ele diz *entre quantos* olhou |
+| 3. **Gerar código de barras** | **motor pronto** (`etiquetas/numeracao.py`); falta a tela |
+| 4. **Screencast** | não começou — roteiro em [`screencast.md`](screencast.md) |
+| 5. **Os US$ 19** | depois |
 
 Entrar com o que o mercado compra, não com o que a gente achou bonito.
+
+### A decisão de 20/10: o escopo de escrita espera
+
+O gerador só **grava** com `write_products`, e ligar esse escopo mexe no que é
+público — política de privacidade, a frase da ficha, o `shopify.app.toml`, e
+reinstalar na loja. Decidido: **ligar uma vez só, quando SKU e código de barras
+estiverem os dois prontos.** Menos reinstalação, e uma revisão só na Shopify.
+
+Até lá a prévia funciona inteira e **não pede escopo nenhum** — dá pra ver a
+tabela do que *seria* gravado sem o app ter permissão de escrever nada.
+
+### O defeito que o gerador revelou no app que já existia
+
+Montando o caso 3 (código a partir do SKU), a medição mostrou:
+
+```
+codigos.validar("CAFÉ-01", CODE128)  ->  (True, "")
+```
+
+**O Code 128 só codifica ASCII**, e o validador liberava qualquer texto — a
+linha dizia *"Code128 e QR aceitam texto"*, o que vale pro QR e não pro Code
+128. Com isso, um produto de SKU acentuado:
+
+- **no PDF** estourava `ValueError: Illegal barcode` dentro do reportlab, o que
+  chega ao lojista como erro de servidor, sem explicação;
+- **no ZPL** ia inteiro pra impressora, pra sair lixo ou não sair.
+
+Num catálogo em português isso não é caso de borda: *CAFÉ*, *AÇÚCAR* e
+*CAMISA-ÇÃO* são nomes de produto comuns, e SKU sai de nome de produto.
+
+Corrigido em `codigos.validar`, que agora nomeia o caractere a tirar. A
+fronteira (ASCII 32–126) foi **medida contra o reportlab**, não adivinhada.
 
 ## Em uma frase
 

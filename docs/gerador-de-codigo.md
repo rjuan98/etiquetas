@@ -9,6 +9,22 @@ o gatilho circular** daquela decisão.
 
 ---
 
+> ## O QUE JÁ EXISTE, em 20/10/2026
+>
+> | parte | onde | estado |
+> |---|---|---|
+> | gerador de SKU | `etiquetas/skus.py` | pronto, com tela |
+> | gerador de código | `etiquetas/numeracao.py` | motor pronto, **sem tela** |
+> | prévia / gravar / desfazer | `web/rotas_api.py`, `dados/gravacoes.py` | pronto pro SKU |
+> | filtro "sem código" | `loja/catalogo.py` | pronto |
+> | escopo `write_products` | — | **não ligado** (decisão abaixo) |
+>
+> **O escopo espera os dois geradores.** Ligar `write_products` muda a política
+> de privacidade, a ficha da loja e exige reinstalar — fazer isso uma vez só,
+> com SKU e código de barras prontos, custa menos que fazer duas.
+>
+> Enquanto isso a **prévia funciona inteira e não pede escopo nenhum**.
+
 ## A evidência que reabriu isto
 
 | app | lançado | avaliações | primeira linha da ficha |
@@ -118,6 +134,26 @@ GTIN é mentira com consequência comercial.
 
 Precisa de **`write_products`**. Não tem contorno: o PDV do Shopify consulta o
 campo *barcode* da variante, e só ele (verificado em 30/08).
+
+### O campo da API, e o relógio que ele tem
+
+Conferido na fonte em **20/10/2026**, nas duas versões:
+
+| versão | `barcode` | `barcodes` |
+|---|---|---|
+| **2026-07** (a que o app fixa) | existe, **não** depreciado | não existe |
+| 2026-10 / unstable | **depreciado** | existe, até 20 por variante |
+
+A mudança é do changelog de **08/09/2026**: a variante passa a ter um
+*conjunto* de códigos, e o campo singular vira o primeiro item dele.
+
+**Hoje a escrita usa `barcode`, que é o certo pra 2026-07.** Quando a versão da
+API subir, isto quebra — e quebra calado, porque o campo continua aceito por um
+tempo. Os dois não podem ir juntos no mesmo input, e `barcodes` **substitui o
+conjunto inteiro**, então quem migrar precisa mandar também os que quer manter.
+
+O lugar de olhar é `loja/catalogo.py`, `loja/cobranca.py`, `loja/oauth.py` e
+`shopify.app.toml` — a versão está escrita nos quatro.
 
 ### A frase que se perde
 

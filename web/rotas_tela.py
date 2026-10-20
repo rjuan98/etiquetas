@@ -151,6 +151,54 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
   </div>
 </div>
 
+<dialog id="dlg_cod">
+  <h2>{{ T.codigo_titulo }}</h2>
+  <p class="aviso">{{ T.codigo_aviso_escrita }}</p>
+  <label for="cod_modo">{{ T.codigo_modo }}</label>
+  <select id="cod_modo">
+    <option value="interno">{{ T.codigo_modo_interno }}</option>
+    <option value="gs1">{{ T.codigo_modo_gs1 }}</option>
+    <option value="sku">{{ T.codigo_modo_sku }}</option>
+  </select>
+  <div id="cod_linha_prefixo" hidden>
+    <label for="cod_prefixo">{{ T.codigo_prefixo }}</label>
+    <input type="text" id="cod_prefixo" spellcheck="false" inputmode="numeric">
+    <p class="ajuda" id="cod_cabem"></p>
+  </div>
+  <!-- A frase que diz ONDE aquele código vale. Fica em destaque e MUDA com o
+       modo: código interno apresentado como GTIN é mentira com consequência
+       comercial pro lojista. É a regra 5 do desenho. -->
+  <p class="aviso" id="cod_aviso_modo"></p>
+  <div class="linha" style="margin:10px 0 0">
+    <button class="b" id="cod_ver">{{ T.gerar_ver }}</button>
+    <button class="b" id="cod_desfazer">{{ T.gerar_desfazer }}</button>
+  </div>
+  <p class="ajuda" id="cod_resumo">{{ T.gerar_nada_ainda }}</p>
+  <div id="cod_tabela"></div>
+  <div class="linha" style="justify-content:flex-end;margin:14px 0 0">
+    <button class="b forte" id="cod_aplicar" disabled></button>
+    <button class="b" id="fechar_cod">{{ T.fechar }}</button>
+  </div>
+</dialog>
+
+<dialog id="dlg_sku">
+  <h2>{{ T.gerar_titulo }}</h2>
+  <p class="aviso">{{ T.gerar_aviso_escrita }}</p>
+  <label for="sku_molde">{{ T.gerar_molde }}</label>
+  <input type="text" id="sku_molde" spellcheck="false">
+  <p class="ajuda">{{ T.gerar_molde_ajuda }}</p>
+  <div class="linha" style="margin:10px 0 0">
+    <button class="b" id="sku_ver">{{ T.gerar_ver }}</button>
+    <button class="b" id="sku_desfazer">{{ T.gerar_desfazer }}</button>
+  </div>
+  <p class="ajuda" id="sku_resumo">{{ T.gerar_nada_ainda }}</p>
+  <div id="sku_tabela"></div>
+  <div class="linha" style="justify-content:flex-end;margin:14px 0 0">
+    <button class="b forte" id="sku_aplicar" disabled></button>
+    <button class="b" id="fechar_sku">{{ T.fechar }}</button>
+  </div>
+</dialog>
+
 <dialog id="dlg_planos">
   <h2>{{ T.planos }}</h2>
   <p class="ajuda" id="teste_gratis"></p>
@@ -166,7 +214,9 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
     <div class="cx">
       <h2>{{ T.produtos }}</h2>
       <div class="linha" style="margin:0 0 12px">
-        <select id="filtro" style="margin:0 0 9px">
+        <button class="b" id="abrir_sku" style="margin:0 0 9px">{{ T.gerar_sku }}</button>
+        <button class="b" id="abrir_cod" style="margin:0 0 9px">{{ T.codigo_botao }}</button>
+      <select id="filtro" style="margin:0 0 9px">
         <option value="">{{ T.filtro_todos }}</option>
         <option value="sem_codigo">{{ T.filtro_sem_codigo }}</option>
         <option value="sem_sku">{{ T.filtro_sem_sku }}</option>
@@ -808,6 +858,234 @@ async function baixar(caminho, corpo, arquivo) {
 
 // ----------------------------------------------------------------- cobrança
 
+// ------------------------------------------------------------- os geradores
+//
+// Duas janelas, um caminho só. A de SKU e a de código de barras fazem
+// exatamente a mesma coisa: mostrar a tabela INTEIRA antes de qualquer letra
+// ir pro catálogo, e gravar só o que o lojista marcou.
+//
+// Nasceram como duas cópias, e duas cópias da parte perigosa do app divergem
+// na terceira correção. O que muda entre elas está só na tabela abaixo.
+//
+// Etiqueta errada custa uma folha de papel. Código errado em 300 produtos
+// custa o inventário da loja.
+const GERADORES = {
+  sku: {
+    rota: "/api/skus",
+    valor: function (l) { return l.sku; },
+    atual: function (l) { return l.sku_atual; },
+    colunas: function () {
+      return [T.gerar_col_produto, T.gerar_col_atual, T.gerar_col_novo];
+    },
+    extra: null,
+    aplicar: function () { return T.gerar_aplicar; },
+    resumo: function () { return T.gerar_resumo; },
+    escolhas: function () {
+      return {molde: $("sku_molde").value, filtro: $("filtro").value};
+    },
+  },
+  cod: {
+    rota: "/api/codigos",
+    valor: function (l) { return l.codigo; },
+    atual: function (l) { return l.codigo_atual; },
+    colunas: function () {
+      return [T.gerar_col_produto, T.codigo_col_atual, T.gerar_col_novo,
+              T.codigo_col_tipo];
+    },
+    // A coluna que diz QUE TIPO de número é. Código interno apresentado como
+    // GTIN é mentira com consequência comercial — regra 5 do desenho.
+    extra: function (l) { return l.tipo || ""; },
+    aplicar: function () { return T.codigo_aplicar; },
+    resumo: function () { return T.codigo_resumo; },
+    escolhas: function () {
+      return {modo: $("cod_modo").value, prefixo: $("cod_prefixo").value,
+              filtro: $("filtro").value};
+    },
+  },
+};
+
+function gerMarcadas(p) {
+  return Array.from(document.querySelectorAll(
+    "#" + p + "_tabela input[type=checkbox]:checked"
+  )).map(function (c) { return c.value; });
+}
+
+function gerAtualizarBotao(p) {
+  const n = gerMarcadas(p).length;
+  $(p + "_aplicar").disabled = n === 0;
+  $(p + "_aplicar").textContent = GERADORES[p].aplicar().replace("%d", n);
+}
+
+function gerAvisar(p, texto) {
+  $(p + "_resumo").textContent = texto || T.erro_servidor;
+}
+
+function gerDesenhar(p, d) {
+  const g = GERADORES[p];
+  const linhas = d.linhas || [];
+  const podem = linhas.filter(function (l) { return g.valor(l) && !l.pulado; });
+
+  let resumo = g.resumo().replace("%d", podem.length)
+                        .replace("%d", d.varridos || 0);
+  // A conferência de repetidos só alcança o que foi varrido. Dizer isso é
+  // melhor que deixar o lojista achar que vale pro catálogo inteiro.
+  if (d.conferencia_completa === false) resumo += " " + T.gerar_parcial;
+  $(p + "_resumo").textContent = resumo;
+
+  const tabela = document.createElement("table");
+  const cabeca = g.colunas().map(function (c) { return "<th>" + c + "</th>"; });
+  tabela.innerHTML = "<thead><tr><th class=c></th>" + cabeca.join("") +
+                     "</tr></thead>";
+  const corpo = document.createElement("tbody");
+
+  linhas.forEach(function (l) {
+    const tr = document.createElement("tr");
+
+    const tdC = document.createElement("td");
+    if (g.valor(l) && !l.pulado) {
+      const c = document.createElement("input");
+      c.type = "checkbox";
+      c.value = l.variante_id; c.checked = true;
+      c.addEventListener("change", function () { gerAtualizarBotao(p); });
+      tdC.appendChild(c);
+    }
+
+    const tdN = document.createElement("td");
+    const t1 = document.createElement("div"); t1.className = "t";
+    t1.textContent = l.produto || "";
+    const t2 = document.createElement("div"); t2.className = "s";
+    t2.textContent = l.variante || "";
+    tdN.appendChild(t1); tdN.appendChild(t2);
+
+    const tdA = document.createElement("td"); tdA.className = "s";
+    tdA.textContent = g.atual(l) || "\u2014";
+
+    const tdV = document.createElement("td");
+    // Linha pulada mostra o MOTIVO no lugar do valor. Sumir em silêncio é o
+    // defeito que este app existe pra não ter.
+    tdV.textContent = l.pulado ? l.pulado
+                               : (g.valor(l) + (l.aviso ? " \u26a0" : ""));
+    tdV.className = l.pulado ? "s" : "t";
+    if (l.aviso) tdV.title = l.aviso;
+
+    tr.appendChild(tdC); tr.appendChild(tdN); tr.appendChild(tdA);
+    tr.appendChild(tdV);
+    if (g.extra) {
+      const tdE = document.createElement("td"); tdE.className = "s";
+      tdE.textContent = g.extra(l);
+      tr.appendChild(tdE);
+    }
+    corpo.appendChild(tr);
+  });
+
+  tabela.appendChild(corpo);
+  $(p + "_tabela").innerHTML = "";
+  $(p + "_tabela").appendChild(tabela);
+  gerAtualizarBotao(p);
+}
+
+async function gerPrevia(p) {
+  const g = GERADORES[p];
+  $(p + "_resumo").textContent = T.carregando;
+  const r = await api(g.rota + "/previa",
+                      {method: "POST", body: JSON.stringify(g.escolhas())});
+  const d = await r.json();
+  if (!r.ok) { $(p + "_tabela").innerHTML = ""; gerAvisar(p, d.erro); return; }
+  // O aviso do modo vem do servidor junto da tabela: quem manda nele é o
+  // gerador, não a tela.
+  if (d.aviso_do_modo && $(p + "_aviso_modo")) {
+    $(p + "_aviso_modo").textContent = d.aviso_do_modo;
+  }
+  gerDesenhar(p, d);
+}
+
+async function gerAplicar(p) {
+  const g = GERADORES[p];
+  const marcadas = gerMarcadas(p);
+  if (!marcadas.length) return;
+  $(p + "_aplicar").disabled = true;
+  const corpo = Object.assign(g.escolhas(), {variantes: marcadas});
+  const r = await api(g.rota + "/aplicar",
+                      {method: "POST", body: JSON.stringify(corpo)});
+  const d = await r.json();
+  if (!r.ok) { gerAvisar(p, d.erro); gerAtualizarBotao(p); return; }
+
+  const quantos = d.gravados || 0;
+  // Zero gravado não usa o texto de "dá para desfazer": não há o que desfazer,
+  // e mandar o lojista procurar isso é pior que não dizer nada.
+  let texto = quantos ? T.gerar_gravados.replace("%d", quantos)
+                      : T.gerar_nada_gravado;
+  // As recusas do Shopify aparecem. Gravar 8 de 10 e dizer "gravei" seria a
+  // mesma meia verdade que o app recusa em todo lugar.
+  if (d.falhas && d.falhas.length) texto += " \u2014 " + d.falhas.join("; ");
+  gerAvisar(p, texto);
+  // A tabela só sai se algo mudou. Apagar a prévia depois de uma gravação que
+  // falhou tiraria da tela justamente o que serve pra tentar de novo.
+  if (quantos) {
+    $(p + "_tabela").innerHTML = "";
+    carregarProdutos($("busca").value);
+  }
+  gerAtualizarBotao(p);
+}
+
+async function gerDesfazer(p) {
+  const r = await api(GERADORES[p].rota + "/desfazer",
+                      {method: "POST", body: "{}"});
+  const d = await r.json();
+  if (!r.ok) { gerAvisar(p, d.erro); return; }
+  const quantos = d.desfeitos || 0;
+  let texto = quantos ? T.gerar_desfeitos.replace("%d", quantos)
+                      : T.gerar_nada_gravado;
+  if (d.falhas && d.falhas.length) texto += " \u2014 " + d.falhas.join("; ");
+  gerAvisar(p, texto);
+  if (quantos) {
+    $(p + "_tabela").innerHTML = "";
+    carregarProdutos($("busca").value);
+  }
+}
+
+function gerLigar(p) {
+  $("abrir_" + p).addEventListener("click", function () {
+    $(p + "_tabela").innerHTML = "";
+    $(p + "_resumo").textContent = T.gerar_nada_ainda;
+    gerAtualizarBotao(p);
+    $("dlg_" + p).showModal();
+  });
+  $("fechar_" + p).addEventListener("click", function () {
+    $("dlg_" + p).close();
+  });
+  $(p + "_ver").addEventListener("click", function () {
+    comTrava(function () { return gerPrevia(p); });
+  });
+  $(p + "_aplicar").addEventListener("click", function () {
+    comTrava(function () { return gerAplicar(p); });
+  });
+  $(p + "_desfazer").addEventListener("click", function () {
+    comTrava(function () { return gerDesfazer(p); });
+  });
+}
+
+// O prefixo GS1 só aparece no modo que precisa dele, e o aviso de ONDE o
+// código vale muda junto com o modo — antes da primeira prévia, inclusive. O
+// lojista não pode escolher "código interno" sem ler que ele não serve pra
+// vender em outra loja.
+function codAtualizarModo() {
+  const modo = $("cod_modo").value;
+  $("cod_linha_prefixo").hidden = modo !== "gs1";
+  $("cod_aviso_modo").textContent = T["codigo_aviso_" + modo] || "";
+  codContarPrefixo();
+}
+
+function codContarPrefixo() {
+  const p = ($("cod_prefixo").value || "").trim();
+  // Prefixo longo é prefixo de empresa pequena: com 11 dígitos sobram 9
+  // números. Vale dizer isso ANTES de gravar 300 produtos e parar no décimo.
+  const cabem = /^[0-9]{4,11}$/.test(p) ? Math.pow(10, 12 - p.length) - 1 : 0;
+  $("cod_cabem").textContent = cabem
+    ? T.codigo_cabem.replace("%s", cabem.toLocaleString(IDIOMA))
+    : "";
+}
+
 async function abrirPlanos() {
   const r = await api("/api/planos");
   const d = await r.json();
@@ -974,6 +1252,13 @@ async function comecar() {
   $("fechar_planos").addEventListener("click", function () {
     $("dlg_planos").close();
   });
+
+  $("sku_molde").value = "{fornecedor}-{tipo}-{variante}";
+  gerLigar("sku");
+  gerLigar("cod");
+  $("cod_modo").addEventListener("change", codAtualizarModo);
+  $("cod_prefixo").addEventListener("input", codContarPrefixo);
+  codAtualizarModo();
 
   $("filtro").addEventListener("change", function () {
     carregarProdutos($("busca").value);

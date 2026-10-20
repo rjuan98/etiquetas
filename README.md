@@ -270,7 +270,7 @@ Sem `CHAVE_SEGREDO`, o app **recusa subir**.
 
 ## Testes
 
-`python testes.py` — **1.083 checagens**, sem rede, sem conta e sem impressora.
+`python testes.py` — **1.196 checagens**, sem rede, sem conta e sem impressora.
 
 Duas regras herdadas do projeto anterior, e as duas custaram caro:
 
@@ -283,16 +283,21 @@ que dá pra colar no Labelary e olhar.
 
 ### E os testes são testados
 
-`python sabotagem.py` — quebra 93 defesas de propósito, uma por vez, e confere
+`python sabotagem.py` — quebra 118 defesas de propósito, uma por vez, e confere
 que algum teste grita. Teste que passa não prova nada; prova que passou. O que
 prova é o teste **falhar** quando a defesa sai.
 
-Isso já pegou quatro testes fracos meus. O do ataque `alg:none` passava porque a
+Isso já pegou nove testes fracos meus. O do ataque `alg:none` passava porque a
 conferência de assinatura salvava, não porque a checagem de algoritmo existia. O
 da linha de base do preço sabotava uma linha que não fazia trabalho nenhum. O do
 plano vencido testava a função na mão em vez do webhook, que era o caminho
 quebrado. E o da quebra de texto passava por causa do teto de caracteres, não do
 algoritmo — duas defesas, só uma provada.
+
+Os cinco mais recentes vieram do gerador de SKU: uma loja falsa que confirmava
+tudo (então "mandado" e "gravado" eram a mesma lista e a diferença nunca
+aparecia), uma mutação falsa que nunca recusava, e um teste que só exercitava
+variante vazia — justamente a que não precisa de proteção.
 
 Quando aparece "ESCAPOU", não é o código que está errado — é o teste.
 
@@ -310,7 +315,7 @@ busca filtrada ficou como `pass`. O defeito só apareceu porque a bateria passou
 a **travar** — e por isso o teste daquele teto foi reescrito pra falhar alto em
 vez de pendurar.
 
-São 82 defesas × 1.016 checagens: ela leva uns 25 minutos. Deixe rodar sozinha.
+São 118 defesas × 1.196 checagens: ela leva uns 55 minutos. Deixe rodar sozinha.
 
 ---
 
