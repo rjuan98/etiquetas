@@ -493,13 +493,30 @@ SABOTAGENS = [
      "| Free | US$ 0 | 1 template, 200 labels/month, sheet labels (PDF) |",
      "| Free | US$ 0 | 1 template, 500 labels/month, sheet labels (PDF) |"),
 
-    # "Read-only" e a unica frase da ficha que nenhum concorrente pode escrever.
-    # Se um dia entrar escopo de escrita, a ficha tem que perder essa linha no
-    # MESMO commit — senao ela vira mentira.
-    ("a promessa de so-leitura batendo com os escopos pedidos",
-     "loja/oauth.py",
-     'ESCOPOS = ("read_products", "read_inventory")',
-     'ESCOPOS = ("read_products", "read_inventory", "write_products")'),
+    # A TRAVA INVERTIDA, em 20/10/2026.
+    #
+    # Ate aqui a sabotagem era: ACRESCENTAR escopo de escrita, e ver se algum
+    # teste gritava que a ficha dizia "read-only". Com `write_products` ligado
+    # de verdade, essa sabotagem deixou de fazer sentido — o que precisa ser
+    # travado agora e o contrario: se o app ESCREVE, o texto publico tem que
+    # DIZER que ele escreve.
+    #
+    # Sem isto, a politica continuaria jurando "somente leitura" com escopo de
+    # escrita ativo — que e exatamente a mentira que a trava antiga impedia.
+    ('a politica dizendo que nada e escrito sem o lojista clicar',
+     'web/rotas_publicas.py',
+     '<p><strong>Nada é escrito no seu catálogo até você revisar a lista inteira e\nclicar.</strong>',
+     '<p><strong>O app grava quando você mandar.</strong>'),
+
+    ('a ficha perdendo a promessa de read-only junto com o escopo',
+     'docs/ficha-loja-de-apps.md',
+     'Nothing is written until you click, only empty fields, and you can undo it',
+     'Read-only: the app never writes to your catalog'),
+
+    ('a recusa de escopo de cliente e de pedido, que nao mudou',
+     'loja/oauth.py',
+     'ESCOPOS = ("read_products", "read_inventory", "write_products")',
+     'ESCOPOS = ("read_products", "read_inventory", "write_products",\n           "read_orders")'),
 
     ("o plano gratis acompanhando o que o mercado da",
      "loja/cobranca.py",

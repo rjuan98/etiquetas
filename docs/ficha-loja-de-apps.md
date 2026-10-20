@@ -104,16 +104,17 @@ as you left it: it never changes on its own between one print run and the next.
 *(as marcações da página — curtas, uma promessa cada)*
 
 ```
+Fill in missing SKUs and barcodes in bulk — review the table, then click
+Nothing is written until you click, only empty fields, and you can undo it
+Internal code or a GTIN from your own GS1 prefix — the app says which you got
 The preview is drawn by the same code that writes the printer file
 A barcode that wouldn't scan is never printed — and the app says why
 Millimetre calibration for printers that drift, on both axes
-Quantities pulled from inventory, so no typing "1" two thousand times
 Scan a barcode and the product is queued, with the quantity from stock
 Any label size in millimetres, plus Avery, DYMO, Zebra and Pimaco stocks
 EAN-13, UPC-A, Code 128, QR and ITF-14 for cartons
 Choose every field: title, SKU, price, vendor, barcode — turn off what you don't want
 Currency symbol, position and separators you control (R$ 24,90 or 24,90 €)
-Read-only: the app never writes to your catalog
 Templates saved and reopened exactly as you left them
 ```
 
@@ -132,9 +133,26 @@ Templates saved and reopened exactly as you left them
 > quantidade do estoque, e o campo de busca fica selecionado pro bipe seguinte.
 > Bipar, bipar, bipar, imprimir. Medido de novo antes de a frase crescer.
 >
-> **"Read-only"** é a única linha aqui que nenhum concorrente pode escrever: os
-> dois pedem permissão de escrita porque geram código de barras. Custa o
-> recurso; paga em confiança.
+> **A linha "Read-only" saiu em 20/10/2026, e a troca foi deliberada.** Ela era
+> a única que nenhum concorrente podia escrever — os dois pedem escrita porque
+> geram código. Mas *não gerar* era o motivo de um lojista não conseguir usar o
+> app, e é o que o mercado compra: três dos cinco destaques do líder do nicho
+> são sobre gerar, não sobre imprimir.
+>
+> As duas primeiras linhas agora são os geradores, e a segunda é a frase que
+> substitui o read-only:
+>
+> > *"Nothing is written until you click, only empty fields, and you can undo
+> > it."*
+>
+> Ela também é verificável, e diz mais: os concorrentes geram, mas nenhum
+> promete prévia obrigatória, nunca-sobrescrever e desfazer.
+>
+> **A terceira linha é a que nenhum deles escreve.** Dizer ao lojista *que
+> tipo* de número ele acabou de receber — código interno da faixa 2, que vale
+> só na loja dele, ou GTIN do prefixo dele, que vale no mundo todo — é a
+> diferença entre gerar e gerar honestamente. Código interno apresentado como
+> GTIN é mentira com consequência comercial.
 >
 > A do € existe porque um lojista europeu reclamou disso especificamente. Item
 > de lista que nasceu de uma frase real converte melhor que adjetivo.

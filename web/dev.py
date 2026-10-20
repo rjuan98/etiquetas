@@ -93,7 +93,8 @@ window.shopify = {
 def _garantir_loja():
     registro = lojas.buscar(LOJA)
     if not registro or not registro["ativa"]:
-        lojas.salvar(LOJA, TOKEN_FALSO, "read_products,read_inventory")
+        lojas.salvar(LOJA, TOKEN_FALSO,
+                     "read_products,read_inventory,write_products")
     return lojas.buscar(LOJA)
 
 
@@ -280,7 +281,7 @@ revisão, e o Shopify testa. Este app responde honestamente que não guarda dado
 cliente — dá pra conferir nos escopos abaixo.</p></div>
 
 <div class="cx"><h2>Escopos (Access scopes)</h2><table>
-<tr><th>Pedidos</th><td><code>read_products, read_inventory</code></td></tr>
+<tr><th>Pedidos</th><td><code>read_products, read_inventory, write_products</code></td></tr>
 </table>
 <p class="sub" style="margin:12px 0 0">Só isso. Sem pedido, sem cliente, sem
 endereço — cada escopo a mais é uma tela de susto na instalação e uma pergunta

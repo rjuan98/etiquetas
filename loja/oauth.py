@@ -25,10 +25,24 @@ import secrets
 #
 #   read_products    ler produto, variante, SKU, código de barras e preço
 #   read_inventory   ler estoque, pra sugerir quantidade de etiqueta por produto
+#   write_products   gravar o SKU e o código que os geradores propõem
 #
-# O que a gente NÃO pede, de propósito: escrever produto, ler pedido, ler
-# cliente. Um app de etiqueta não tem por que enxergar quem comprou.
-ESCOPOS = ("read_products", "read_inventory")
+# O que a gente NÃO pede, de propósito: ler pedido, ler cliente. Um app de
+# etiqueta não tem por que enxergar quem comprou.
+#
+# `write_products` entrou em 20/10/2026, com os dois geradores. Custou a única
+# frase da ficha que nenhum concorrente podia escrever — "read-only: o app
+# nunca escreve no seu catálogo" — e a troca foi deliberada: sem escrever, o
+# gerador não existe, e é o gerador que o mercado compra.
+#
+# A frase nova também é verdadeira, e é a que a política de privacidade e a
+# ficha passam a dizer:
+#
+#   "Nada é escrito até você revisar a lista e clicar — e dá para desfazer."
+#
+# Um teste trava isso: se `write_products` está aqui, o texto público TEM que
+# dizer que o app escreve. Senão a ficha vira mentira.
+ESCOPOS = ("read_products", "read_inventory", "write_products")
 
 VERSAO_API = "2026-07"
 

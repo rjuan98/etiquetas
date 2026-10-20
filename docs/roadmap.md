@@ -50,9 +50,16 @@ Em ordem, com o custo honesto.
 | **c.** | README: as contagens mudaram de novo (1.157 checagens, 111 sabotagens) | minutos |
 | **d.** | Uma corrida limpa de `sabotagem.py`, sozinha, do começo ao fim | ~50 min de máquina |
 
-### O passo irreversível: o escopo `write_products`
+### ~~O passo irreversível~~: o escopo `write_products` — **FEITO em 20/10**
 
-Isto muda o que é **público**, então vai tudo no mesmo commit:
+> Correção: ele **não era irreversível**. Enquanto o app não está listado,
+> trocar escopo é só reinstalar na loja de desenvolvimento. O que é
+> irreversível é a **frase da ficha**, e isso só acontece na submissão.
+>
+> Isso mudou a ordem: o escopo veio antes do screencast, porque sem ele o
+> screencast não consegue mostrar o gerador gravando.
+
+Foi tudo no mesmo commit:
 
 - `shopify.app.toml` ganha o escopo
 - o teste que hoje trava *"nenhum escopo de escrita"* passa a travar o

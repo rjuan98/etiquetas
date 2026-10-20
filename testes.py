@@ -784,8 +784,9 @@ check("os tres obrigatorios estao assinados",
 # nada. E isso e verificavel lendo os escopos, nao e promessa de marketing.
 check("nao pedimos escopo de cliente nem de pedido",
       not any("customer" in e or "order" in e for e in oauth.ESCOPOS), oauth.ESCOPOS)
-check("so pedimos produto e estoque",
-      set(oauth.ESCOPOS) == {"read_products", "read_inventory"})
+check("so pedimos produto, estoque e escrita de produto",
+      set(oauth.ESCOPOS) == {"read_products", "read_inventory",
+                             "write_products"}, oauth.ESCOPOS)
 check("a resposta de dados do cliente diz que nao ha nada",
       webhooks.resposta_de_privacidade("customers/data_request")["dados_do_cliente"] is None)
 # Esta resposta vai pro SHOPIFY, nao pro lojista, entao e em ingles — e o que
@@ -2141,7 +2142,8 @@ check("e vai pro painel de apps da loja certa",
 _gravada = t_lojas.buscar(_LOJA_NOVA)
 check("a loja foi gravada", _gravada is not None)
 check("com o token que veio da troca", _gravada["token"] == "shpat_token_de_teste")
-check("e os escopos que a gente pede", _gravada["escopos"] == "read_products,read_inventory")
+check("e os escopos que a gente pede",
+      _gravada["escopos"] == ",".join(oauth.ESCOPOS), _gravada["escopos"])
 check("ativa", _gravada["ativa"] is True)
 # A versao anterior deste teste exigia que a instalacao assinasse TODOS os
 # webhooks, inclusive os tres de privacidade — e assim ELE GARANTIA O BUG.
@@ -2782,13 +2784,36 @@ check("e no idioma da requisicao quando nao pedem",
 # 1. os escopos citados sao os que o app pede DE VERDADE
 for _e in oauth.ESCOPOS:
     check("a politica cita o escopo %s" % _e, _e in _priv_en and _e in _priv_pt)
-check("e o app pede exatamente dois",
-      len(oauth.ESCOPOS) == 2, oauth.ESCOPOS)
-# Se alguem pedir escopo de cliente ou pedido, a promessa central cai.
-_proibidos = ("read_customers", "write_customers", "read_orders", "write_orders",
-              "read_all_orders", "write_products")
-check("nenhum escopo de cliente, pedido ou escrita",
+check("e o app pede exatamente tres",
+      len(oauth.ESCOPOS) == 3, oauth.ESCOPOS)
+# Se alguem pedir escopo de cliente ou pedido, a promessa central cai. Este
+# app nao tem por que enxergar quem comprou, e isso nao mudou com a escrita.
+_proibidos = ("read_customers", "write_customers", "read_orders",
+              "write_orders", "read_all_orders")
+check("nenhum escopo de cliente nem de pedido",
       not any(p in oauth.ESCOPOS for p in _proibidos), oauth.ESCOPOS)
+
+# A TRAVA INVERTIDA, e ela e a que importa agora.
+#
+# Ate 20/10/2026 a trava era "nenhum escopo de escrita", e ela existia pra
+# proteger a frase da ficha. Com `write_products` ligado, a frase mudou — e o
+# que precisa ser travado passa a ser o contrario: se o app ESCREVE, o texto
+# publico tem que DIZER que ele escreve.
+#
+# Sem isto, a politica de privacidade continuaria jurando "somente leitura"
+# com um escopo de escrita ativo, que e exatamente a mentira que a trava
+# antiga existia pra impedir.
+if any(e.startswith("write") for e in oauth.ESCOPOS):
+    check("a politica NAO jura mais 'somente leitura'",
+          "somente leitura" not in _priv_pt and "read-only" not in _priv_en.lower(),
+          [s for s in ("somente leitura", "read-only")
+           if s in _priv_pt or s in _priv_en.lower()])
+    check("ela diz, nos dois idiomas, que nada e escrito sem o lojista clicar",
+          "até você revisar" in _priv_pt and "until you review" in _priv_en)
+    check("e diz que o app so preenche campo VAZIO",
+          "vazio" in _priv_pt and "empty" in _priv_en)
+    check("e que da pra desfazer",
+          "desfazer" in _priv_pt and "undone" in _priv_en)
 
 # 2. o banco nao pode ganhar coluna de dado pessoal sem a politica mudar junto
 #
@@ -3663,11 +3688,35 @@ check("e o mesmo preco do Pro",
 check("e o mesmo nome que vai na fatura do lojista",
       cobranca.NOME_DO_APP in _FICHA, cobranca.NOME_DO_APP)
 
-# "Read-only: the app never writes to your catalog" e verificavel: basta olhar
-# os escopos que a instalacao pede.
-if "Read-only" in _FICHA:
-    check("a ficha diz 'read-only' e o app REALMENTE nao pede escrita",
-          not [e for e in oauth.ESCOPOS if e.startswith("write")], oauth.ESCOPOS)
+# A ficha e os escopos tem que contar a MESMA historia, nos dois sentidos.
+#
+# Antes: se a ficha diz "read-only", nao pode haver escopo de escrita.
+# Agora:  se ha escopo de escrita, a ficha NAO pode dizer "read-only" — e tem
+# que dizer o que vale no lugar.
+_escreve = bool([e for e in oauth.ESCOPOS if e.startswith("write")])
+
+# O que vai PRA LOJA DE APPS e o que nao esta em blockquote: neste documento a
+# explicacao mora em `> ` e o texto que se copia e cola nao. Sem separar os
+# dois, o teste leria o comentario que EXPLICA a remocao do "read-only" como
+# se fosse a promessa — e reprovaria a ficha por falar sobre a propria
+# historia.
+_FICHA_TEXTO = "\n".join(l for l in _FICHA.splitlines()
+                         if not l.lstrip().startswith(">"))
+
+if "Read-only" in _FICHA_TEXTO:
+    check("a ficha so diz 'read-only' se o app REALMENTE nao pede escrita",
+          not _escreve, oauth.ESCOPOS)
+if _escreve:
+    check("pedindo escrita, a ficha nao promete mais read-only",
+          "Read-only" not in _FICHA_TEXTO,
+          [l for l in _FICHA_TEXTO.splitlines() if "Read-only" in l])
+    # E ela tem que dizer o que vale NO LUGAR. Tirar a promessa e nao pôr nada
+    # deixaria o lojista sem saber o que o app faz com o catalogo dele.
+    check("e diz, no texto que vai pra vitrine, que nada e escrito sem clique",
+          "Nothing is written until you click" in _FICHA_TEXTO)
+    check("e que da pra desfazer", "undo it" in _FICHA_TEXTO)
+    check("e que o app diz QUE TIPO de numero gerou",
+          "the app says which you got" in _FICHA_TEXTO)
 
 # Toda simbologia citada na ficha tem que existir. Prometer Data Matrix numa
 # lista e a forma mais barata de virar reclamacao de uma estrela.

@@ -14,16 +14,17 @@ o gatilho circular** daquela decisão.
 > | parte | onde | estado |
 > |---|---|---|
 > | gerador de SKU | `etiquetas/skus.py` | pronto, com tela |
-> | gerador de código | `etiquetas/numeracao.py` | motor pronto, **sem tela** |
-> | prévia / gravar / desfazer | `web/rotas_api.py`, `dados/gravacoes.py` | pronto pro SKU |
+> | gerador de código | `etiquetas/numeracao.py` | pronto, com tela |
+> | prévia / gravar / desfazer | `web/rotas_api.py`, `dados/gravacoes.py` | pronto pros dois |
 > | filtro "sem código" | `loja/catalogo.py` | pronto |
-> | escopo `write_products` | — | **não ligado** (decisão abaixo) |
+> | escopo `write_products` | `loja/oauth.py` | **ligado em 20/10/2026** |
 >
-> **O escopo espera os dois geradores.** Ligar `write_products` muda a política
-> de privacidade, a ficha da loja e exige reinstalar — fazer isso uma vez só,
-> com SKU e código de barras prontos, custa menos que fazer duas.
+> **O escopo foi ligado depois dos dois geradores**, numa vez só, como
+> planejado — ligar duas vezes custaria duas reinstalações e duas revisões.
 >
-> Enquanto isso a **prévia funciona inteira e não pede escopo nenhum**.
+> Falta: **reinstalar na loja de testes** (escopo novo pede consentimento
+> novo), gravar o screencast, e as dez conversas antes dos US$ 19. Ver
+> [`roadmap.md`](roadmap.md).
 
 ## A evidência que reabriu isto
 

@@ -41,21 +41,31 @@ divergir dos outros documentos, este está mais novo.
 |---|---|
 | 1. **Gerar SKU** por regra | **pronto** — `etiquetas/skus.py`, com prévia, aplicar e desfazer |
 | 2. **"Mostrar só produtos sem código"** | **pronto** — filtro na tela, e ele diz *entre quantos* olhou |
-| 3. **Gerar código de barras** | **motor pronto** (`etiquetas/numeracao.py`); falta a tela |
+| 3. **Gerar código de barras** | **pronto** — `etiquetas/numeracao.py`, com tela, nos três modos |
 | 4. **Screencast** | não começou — roteiro em [`screencast.md`](screencast.md) |
 | 5. **Os US$ 19** | depois |
 
 Entrar com o que o mercado compra, não com o que a gente achou bonito.
 
-### A decisão de 20/10: o escopo de escrita espera
+### 20/10: o escopo de escrita foi ligado
 
-O gerador só **grava** com `write_products`, e ligar esse escopo mexe no que é
-público — política de privacidade, a frase da ficha, o `shopify.app.toml`, e
-reinstalar na loja. Decidido: **ligar uma vez só, quando SKU e código de barras
-estiverem os dois prontos.** Menos reinstalação, e uma revisão só na Shopify.
+Esperou os dois geradores ficarem prontos, de propósito: ligar `write_products`
+exige reinstalar na loja e mexe no que é público, então fazer isso uma vez só
+custou menos que fazer duas.
 
-Até lá a prévia funciona inteira e **não pede escopo nenhum** — dá pra ver a
-tabela do que *seria* gravado sem o app ter permissão de escrever nada.
+**O que se perdeu:** a frase *"Read-only: the app never writes to your
+catalog"*, que era a única da ficha que nenhum concorrente podia escrever. A
+troca foi deliberada — não gerar era o motivo de um lojista não conseguir usar
+o app.
+
+**O que entrou no lugar, e também é verificável:**
+
+> *"Nada é escrito no seu catálogo até você revisar a lista inteira e clicar."*
+> Só campo vazio, e dá para desfazer por 30 dias.
+
+A trava dos testes foi **invertida, não removida**. Antes ela proibia qualquer
+escopo de escrita; agora ela exige que, havendo escrita, o texto público diga
+isso — nos dois idiomas. Cliente e pedido continuam proibidos.
 
 ### O defeito que o gerador revelou no app que já existia
 

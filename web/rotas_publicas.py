@@ -81,16 +81,22 @@ it never asks Shopify for permission to.</p>
 </div>
 
 <h2>What the app is allowed to access</h2>
-<p>When you install it, Shopify asks you to approve exactly two permissions:</p>
+<p>When you install it, Shopify asks you to approve exactly three
+permissions:</p>
 <ul>
 <li><code>read_products</code> — product title, variant, SKU, barcode, price and
 vendor, so they can be placed on a label</li>
 <li><code>read_inventory</code> — the stock count, used only to suggest how many
 labels to print for each item</li>
+<li><code>write_products</code> — to fill in a missing SKU or barcode, and only
+the ones you tick</li>
 </ul>
-<p>Both are <strong>read-only</strong>. The app cannot change anything in your
-store. You can verify this yourself in your Shopify admin, under Apps → this app
-→ Activity and permissions.</p>
+<p><strong>Nothing is written to your catalog until you review the full list
+and click.</strong> The app only fills fields that are <em>empty</em> — it
+never replaces a SKU or a barcode you already have — and every write can be
+undone from the same screen for 30 days.</p>
+<p>You can verify the permissions yourself in your Shopify admin, under
+Apps → this app → Activity and permissions.</p>
 <p>It never requests access to customers, orders, shipping addresses,
 checkout, or payments.</p>
 
@@ -196,16 +202,22 @@ nunca pede permissão ao Shopify pra isso.</p>
 </div>
 
 <h2>O que o app pode acessar</h2>
-<p>Na instalação, o Shopify pede que você aprove exatamente duas permissões:</p>
+<p>Na instalação, o Shopify pede que você aprove exatamente três
+permissões:</p>
 <ul>
 <li><code>read_products</code> — título, variante, SKU, código de barras, preço e
 fornecedor do produto, pra poderem ir na etiqueta</li>
 <li><code>read_inventory</code> — a quantidade em estoque, usada só pra sugerir
 quantas etiquetas imprimir de cada item</li>
+<li><code>write_products</code> — pra preencher SKU ou código de barras que
+faltam, e só os que você marcar</li>
 </ul>
-<p>As duas são <strong>somente leitura</strong>. O app não consegue alterar nada
-na sua loja. Você pode conferir isso no seu painel do Shopify, em Apps → este app
-→ Atividade e permissões.</p>
+<p><strong>Nada é escrito no seu catálogo até você revisar a lista inteira e
+clicar.</strong> O app só preenche campo <em>vazio</em> — ele nunca troca um
+SKU ou um código que você já tem — e toda gravação dá para desfazer na mesma
+tela, por 30 dias.</p>
+<p>Você pode conferir as permissões no seu painel do Shopify, em Apps → este
+app → Atividade e permissões.</p>
 <p>Ele nunca pede acesso a clientes, pedidos, endereços de entrega, checkout ou
 pagamentos.</p>
 
