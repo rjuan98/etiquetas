@@ -757,6 +757,22 @@ SABOTAGENS = [
      '  const comSufixo = podem.filter(function (l) { return l.aviso; }).length;',
      '  const comSufixo = 0;'),
 
+    # MEDIDO numa loja real: sem o titulo no molde padrao, "The Minimal
+    # Snowboard" virava so `ETIK` — o fornecedor. O proximo produto da mesma
+    # loja viraria ETIK-2.
+    ('o titulo no molde padrao, que e o que identifica o produto',
+     'etiquetas/skus.py',
+     'MOLDE_PADRAO = "{fornecedor}-{titulo}-{variante}"',
+     'MOLDE_PADRAO = "{fornecedor}-{tipo}-{variante}"'),
+
+    # O CASCA e renderizado em DOIS lugares (a tela real e o /dev/). Passar a
+    # variavel so num deles derruba o outro com 500 — foi o que aconteceu ao
+    # mover o molde padrao pra ca.
+    ('o molde padrao chegando em TODA tela que usa o CASCA',
+     'web/__init__.py',
+     '        return {"molde_padrao": skus.MOLDE_PADRAO}',
+     '        return {}'),
+
     # ------------------------------------- o Code 128 so aceita ASCII
     # MEDIDO: "CAFÉ-01" estourava ValueError dentro do reportlab (erro de
     # servidor na cara do lojista) e ia inteiro pro ZPL. "Aceita texto" nao

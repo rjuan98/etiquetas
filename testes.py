@@ -3822,6 +3822,25 @@ check("opcao vazia nao deixa separador solto",
 # Ela nao desambiguava nada — so sujava o SKU.
 check("o molde padrao nao carrega sequencia inutil",
       "{seq}" not in skus.MOLDE_PADRAO, skus.MOLDE_PADRAO)
+
+# O TITULO E OBRIGATORIO NO PADRAO, e isso custou uma medicao numa loja real.
+#
+# O padrao era {fornecedor}-{tipo}-{variante}. Numa loja que nao preenche
+# "tipo" e tem produtos sem variante, ele produzia:
+#
+#     The Minimal Snowboard   ->  ETIK        (so o fornecedor)
+#     The Archived Snowboard  ->  SNOW-SNOW   (fornecedor e tipo iguais)
+#
+# `ETIK` sozinho e pior que inutil: o proximo produto da mesma loja vira
+# ETIK-2. O titulo e a unica peca que diz QUAL produto e.
+check("o molde padrao inclui o titulo, que e o que identifica o produto",
+      "{titulo}" in skus.MOLDE_PADRAO, skus.MOLDE_PADRAO)
+_so_fornecedor = skus.gerar_lote(
+    [{"produto": {"titulo": "The Minimal Snowboard", "fornecedor": "Etik",
+                  "tipo": ""},
+      "variante": {"titulo": "Default Title", "sku": ""}}])
+check("e por isso produto sem tipo e sem variante ainda vira SKU util",
+      _so_fornecedor[0]["sku"] == "ETIK-MINI", _so_fornecedor[0]["sku"])
 check("e {seq} deixou de ser exigida",
       skus.conferir_molde("{fornecedor}-{variante}") == [],
       skus.conferir_molde("{fornecedor}-{variante}"))
@@ -3832,9 +3851,12 @@ check("e peca inventada e recusada com a lista do que existe",
 
 _itens = [_prod("Camiseta Basica", "P / Preto"),
           _prod("Camiseta Basica", "M / Preto"),
-          _prod("Outra camiseta", "M / Preto"),
+          # "Camiseta Premium" e outro produto, mas o corte em 4 letras
+          # faz os dois virarem CAMI — e e assim que colisao acontece de
+          # verdade, nao com cadastro duplicado.
+          _prod("Camiseta Premium", "M / Preto"),
           _prod("Ja cadastrada", "M", sku="CAM-ANTIGO-01"),
-          _prod("Sem nada", "", forn="", tipo="")]
+          _prod("", "", forn="", tipo="")]
 _lote = skus.gerar_lote(_itens)
 
 check("cada variante vira um SKU legivel",
@@ -3851,6 +3873,8 @@ check("quem ja tem SKU nao e tocado",
 # codigo de barras depois, bipa errado no caixa.
 check("SKU repetido dentro do lote ganha sufixo",
       _lote[2]["sku"] == "ACME-CAMI-M-PRET-2", _lote[2]["sku"])
+check("e os dois eram produtos DIFERENTES, so cortados no mesmo lugar",
+      _itens[1]["produto"]["titulo"] != _itens[2]["produto"]["titulo"])
 check("e o lojista e AVISADO de que ganhou, em vez de o numero aparecer do nada",
       "sufixo" in (_lote[2].get("aviso") or ""), _lote[2].get("aviso"))
 
@@ -4413,7 +4437,7 @@ _propostos = {l["variante_id"]: l["sku"] for l in _d["linhas"] if l["sku"] and n
 check("ela propoe SKU so pra quem nao tem",
       set(_propostos) == {"gid://v/1", "gid://v/2"}, sorted(_propostos))
 check("e o SKU proposto e legivel",
-      _propostos["gid://v/1"] == "ACME-CAMI-P-PRET", _propostos.get("gid://v/1"))
+      _propostos["gid://v/1"] == "ACME-PROD-P-PRET", _propostos.get("gid://v/1"))
 # Com o filtro "sem_sku" quem JA TEM e excluido na varredura e nem chega na
 # tabela — comportamento certo. Quem aparece marcado como pulado e no filtro
 # "todos", que e onde o lojista espera ver a loja inteira e entender por que
@@ -4443,7 +4467,7 @@ check("grava e diz quantos", _d.get("gravados") == 1, _d)
 check("E SO A CONFIRMADA foi escrita, nao as duas propostas",
       [g[1] for g in _gravacoes_feitas] == ["gid://v/1"], _gravacoes_feitas)
 check("com o SKU que o SERVIDOR calculou",
-      _gravacoes_feitas[0][2] == "ACME-CAMI-P-PRET", _gravacoes_feitas)
+      _gravacoes_feitas[0][2] == "ACME-PROD-P-PRET", _gravacoes_feitas)
 
 # O navegador nao dita o valor: mandar um SKU pronto no corpo nao muda nada,
 # porque o servidor recalcula.
@@ -4658,7 +4682,7 @@ check("e o aviso ensina a saida, que e o {seq}",
 #
 # Dois produtos com o mesmo SKU fazem o lojista pegar o produto errado no
 # estoque. Se o SKU virar codigo de barras depois, bipa errado no caixa.
-_LOJA_FALSA["gid://p/5"] = [("gid://v/51", "Unico", "ACME-CAMI-UNIC")]
+_LOJA_FALSA["gid://p/5"] = [("gid://v/51", "Unico", "ACME-PROD-UNIC")]
 _LOJA_FALSA["gid://p/4"] = [("gid://v/41", "Unico", "")]
 
 _r = _com_shopify(lambda: _post("/api/skus/previa", "gera-sku.myshopify.com",
@@ -4669,10 +4693,10 @@ _proposto = {l["variante_id"]: l["sku"] for l in _d["linhas"]
 check("o produto sem SKU aparece na previa", "gid://v/41" in _proposto,
       sorted(_proposto))
 check("e o SKU proposto NAO repete o de outro produto do catalogo",
-      _proposto.get("gid://v/41") != "ACME-CAMI-UNIC",
+      _proposto.get("gid://v/41") != "ACME-PROD-UNIC",
       _proposto.get("gid://v/41"))
 check("ele ganha sufixo, e o lojista e avisado disso",
-      _proposto.get("gid://v/41") == "ACME-CAMI-UNIC-2"
+      _proposto.get("gid://v/41") == "ACME-PROD-UNIC-2"
       and any(l["variante_id"] == "gid://v/41" and l["aviso"]
               for l in _d["linhas"]),
       _proposto.get("gid://v/41"))

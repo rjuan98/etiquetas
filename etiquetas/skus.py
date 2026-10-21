@@ -42,9 +42,25 @@ PECAS = {
     "variante": "variante.titulo",
 }
 
-# Sem `{seq}` de propósito: com a variante no molde o SKU já sai único, e a
-# sequência viraria `0001` em todos. Quem colidir ganha sufixo e é avisado.
-MOLDE_PADRAO = "{fornecedor}-{tipo}-{variante}"
+# O `{titulo}` está aqui porque ele é a peça que diz QUAL produto é. Tipo é
+# categoria; fornecedor é quem vendeu. Sem o título, o SKU não identifica nada.
+#
+# MEDIDO numa loja de verdade em 20/10/2026. O padrão era
+# `{fornecedor}-{tipo}-{variante}`, e numa loja que não preenche "tipo" e tem
+# produtos sem variante ele produzia isto:
+#
+#     The Minimal Snowboard   ->  ETIK          (só o fornecedor)
+#     The Archived Snowboard  ->  SNOW-SNOW     (fornecedor e tipo iguais)
+#
+# `ETIK` sozinho é pior que inútil: o próximo produto da mesma loja vira
+# `ETIK-2`. Com o título, os mesmos produtos saem `ETIK-MINI` e `SNOW-ARCH`, e
+# o número de colisões caiu de 4 para 2 em 16.
+#
+# Sem `{seq}` de propósito: com título e variante o SKU já sai único na maioria
+# dos casos, e a sequência viraria `0001` em todos. Quem colidir ganha sufixo,
+# é avisado na linha, e o resumo diz quantas foram — aí quem quiser numerar
+# acrescenta `{seq}` sabendo por quê.
+MOLDE_PADRAO = "{fornecedor}-{titulo}-{variante}"
 
 # Quantas letras de cada peça entram. Quatro é o que ainda dá pra reconhecer
 # ("CAMI" é camiseta, "CAM" podia ser câmera) sem estourar a largura da etiqueta.

@@ -355,6 +355,7 @@ dialog h2{font-size:15px;margin:0 0 4px;font-weight:650}
 // Os textos vêm prontos do servidor. O JavaScript não guarda frase nenhuma:
 // se guardasse, seriam duas tabelas pra manter e uma delas ficaria pra trás.
 const T = {{ T|tojson }};
+const MOLDE_PADRAO = {{ molde_padrao|tojson }};
 const IDIOMA = {{ idioma|tojson }};
 
 // Todo pedido sai com o token de sessão. Centralizar aqui é o que impede uma
@@ -1259,7 +1260,8 @@ async function comecar() {
     $("dlg_planos").close();
   });
 
-  $("sku_molde").value = "{fornecedor}-{tipo}-{variante}";
+  // O padrao vem do modulo, pra tela e gerador nao poderem divergir.
+  $("sku_molde").value = MOLDE_PADRAO;
   gerLigar("sku");
   gerLigar("cod");
   $("cod_modo").addEventListener("change", codAtualizarModo);

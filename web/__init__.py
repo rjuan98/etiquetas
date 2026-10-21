@@ -37,6 +37,18 @@ def criar_app(banco_caminho=None) -> Flask:
 
     app = Flask(__name__)
 
+    # O `CASCA` é renderizado em DOIS lugares — a tela real e o `/dev/`. Passar
+    # variável nova só num deles derruba o outro com 500, e foi exatamente o
+    # que aconteceu em 20/10/2026 ao mover o molde padrão pra cá.
+    #
+    # Injetado aqui, vale pra qualquer render, inclusive os que ainda não
+    # existem. O molde mora em `skus.py`: tela e gerador não podem divergir
+    # sobre qual é o padrão.
+    @app.context_processor
+    def _padroes_do_app():
+        from etiquetas import skus
+        return {"molde_padrao": skus.MOLDE_PADRAO}
+
     # Só pro `state` do OAuth, que acontece fora do iframe (janela de cima), onde
     # cookie funciona. Nenhuma rota de dados usa sessão do Flask — essas usam
     # token de sessão do Shopify, como manda `sessao.py`.
